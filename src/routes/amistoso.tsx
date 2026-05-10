@@ -15,10 +15,13 @@ export const Route = createFileRoute("/amistoso")({
   component: AmistosoPage,
 });
 
+type Weather = "clear" | "rain" | "snow" | "wind" | "fire" | "thunder";
+
 function AmistosoPage() {
   const [home, setHome] = useState<Team | null>(null);
   const [away, setAway] = useState<Team | null>(null);
   const [playing, setPlaying] = useState(false);
+  const [weather, setWeather] = useState<Weather>("clear");
   const [result, setResult] = useState<{ h: number; a: number } | null>(null);
 
   if (playing && home && away) {
@@ -26,7 +29,7 @@ function AmistosoPage() {
       <div className="min-h-screen flex flex-col">
         <Nav />
         <main className="flex-1 max-w-5xl w-full mx-auto px-4 py-6">
-          <Game home={home} away={away} duration={60}
+          <Game home={home} away={away} duration={90} weather={weather}
             onEnd={(h, a) => { setResult({ h, a }); setPlaying(false); }} />
         </main>
       </div>
@@ -54,6 +57,21 @@ function AmistosoPage() {
         <div className="grid md:grid-cols-2 gap-6 mt-6">
           <Selector label="LOCAL" value={home} onChange={setHome} />
           <Selector label="VISITANTE" value={away} onChange={setAway} />
+        </div>
+
+        <div className="mt-6 rounded-2xl bg-card border border-border p-4">
+          <div className="font-display text-lg mb-2">CLIMA</div>
+          <div className="flex flex-wrap gap-2">
+            {([
+              ["clear","☀️ Despejado"],["rain","🌧️ Lluvia"],["snow","❄️ Nieve"],
+              ["wind","💨 Viento"],["fire","🔥 Fuego"],["thunder","⚡ Tormenta"],
+            ] as [Weather,string][]).map(([w,l]) => (
+              <button key={w} onClick={() => setWeather(w)}
+                className={`px-3 py-2 rounded-lg text-sm border transition ${weather===w ? "bg-celeste text-primary-foreground border-celeste" : "bg-background border-border hover:bg-secondary"}`}>
+                {l}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="mt-6 flex justify-center">
