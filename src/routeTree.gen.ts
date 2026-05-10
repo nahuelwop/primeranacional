@@ -9,8 +9,32 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TorneoRouteImport } from './routes/torneo'
+import { Route as ReducidoRouteImport } from './routes/reducido'
+import { Route as EquiposRouteImport } from './routes/equipos'
+import { Route as AmistosoRouteImport } from './routes/amistoso'
 import { Route as IndexRouteImport } from './routes/index'
 
+const TorneoRoute = TorneoRouteImport.update({
+  id: '/torneo',
+  path: '/torneo',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReducidoRoute = ReducidoRouteImport.update({
+  id: '/reducido',
+  path: '/reducido',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EquiposRoute = EquiposRouteImport.update({
+  id: '/equipos',
+  path: '/equipos',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AmistosoRoute = AmistosoRouteImport.update({
+  id: '/amistoso',
+  path: '/amistoso',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -19,28 +43,72 @@ const IndexRoute = IndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/amistoso': typeof AmistosoRoute
+  '/equipos': typeof EquiposRoute
+  '/reducido': typeof ReducidoRoute
+  '/torneo': typeof TorneoRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/amistoso': typeof AmistosoRoute
+  '/equipos': typeof EquiposRoute
+  '/reducido': typeof ReducidoRoute
+  '/torneo': typeof TorneoRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/amistoso': typeof AmistosoRoute
+  '/equipos': typeof EquiposRoute
+  '/reducido': typeof ReducidoRoute
+  '/torneo': typeof TorneoRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/' | '/amistoso' | '/equipos' | '/reducido' | '/torneo'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/amistoso' | '/equipos' | '/reducido' | '/torneo'
+  id: '__root__' | '/' | '/amistoso' | '/equipos' | '/reducido' | '/torneo'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AmistosoRoute: typeof AmistosoRoute
+  EquiposRoute: typeof EquiposRoute
+  ReducidoRoute: typeof ReducidoRoute
+  TorneoRoute: typeof TorneoRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/torneo': {
+      id: '/torneo'
+      path: '/torneo'
+      fullPath: '/torneo'
+      preLoaderRoute: typeof TorneoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reducido': {
+      id: '/reducido'
+      path: '/reducido'
+      fullPath: '/reducido'
+      preLoaderRoute: typeof ReducidoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/equipos': {
+      id: '/equipos'
+      path: '/equipos'
+      fullPath: '/equipos'
+      preLoaderRoute: typeof EquiposRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/amistoso': {
+      id: '/amistoso'
+      path: '/amistoso'
+      fullPath: '/amistoso'
+      preLoaderRoute: typeof AmistosoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -53,7 +121,21 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AmistosoRoute: AmistosoRoute,
+  EquiposRoute: EquiposRoute,
+  ReducidoRoute: ReducidoRoute,
+  TorneoRoute: TorneoRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
