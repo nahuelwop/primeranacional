@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { ZONE_A, ZONE_B } from "@/data/teams";
+import { ZONE_A, ZONE_B, CLASICOS_INTERZONALES } from "@/data/teams";
 import {
   applyMatchToStandings, buildFixture, emptyStandings,
   Match, simulateMatch, sortStandings, StandingRow,
@@ -14,8 +14,8 @@ type State = {
   currentRound: number;
   finalDirecta?: Pair;
   bracket?: Bracket;
-  champion?: string;          // primer ascenso
-  reducidoChampion?: string;  // segundo ascenso
+  champion?: string;
+  reducidoChampion?: string;
 };
 
 type Actions = {
@@ -30,6 +30,14 @@ type Actions = {
 
 const aIds = ZONE_A.map(t => t.id);
 const bIds = ZONE_B.map(t => t.id);
+const buildFix = () => buildFixture(aIds, bIds, CLASICOS_INTERZONALES);
+
+// Aplica el resultado a las dos zonas. applyMatchToStandings ignora equipos
+// que no estén en la lista, así que sirve para partidos interzonales.
+const applyBoth = (a: StandingRow[], b: StandingRow[], m: Match) => ({
+  a: applyMatchToStandings(a, m),
+  b: applyMatchToStandings(b, m),
+});
 
 export const useTournament = create<State & Actions>()(persist((set, get) => ({
   fixture: [],
@@ -39,14 +47,14 @@ export const useTournament = create<State & Actions>()(persist((set, get) => ({
   init: () => {
     if (get().fixture.length) return;
     set({
-      fixture: buildFixture(aIds, bIds),
+      fixture: buildFix(),
       standA: emptyStandings(aIds),
       standB: emptyStandings(bIds),
       currentRound: 1,
     });
   },
   reset: () => set({
-    fixture: buildFixture(aIds, bIds),
+    fixture: buildFix(),
     standA: emptyStandings(aIds),
     standB: emptyStandings(bIds),
     currentRound: 1,
@@ -60,9 +68,7 @@ export const useTournament = create<State & Actions>()(persist((set, get) => ({
       if (m.round !== round || m.played) return m;
       const { hg, ag } = simulateMatch(m.home, m.away);
       const next = { ...m, homeGoals: hg, awayGoals: ag, played: true };
-      const zone = aIds.includes(m.home) ? "A" : "B";
-      if (zone === "A") a = applyMatchToStandings(a, next);
-      else b = applyMatchToStandings(b, next);
+      const r = applyBoth(a, b, next); a = r.a; b = r.b;
       return next;
     });
     set({ fixture: newFix, standA: a, standB: b, currentRound: round + 1 });
@@ -77,9 +83,7 @@ export const useTournament = create<State & Actions>()(persist((set, get) => ({
     const newFix = fixture.map(m => {
       if (m.id !== matchId || m.played) return m;
       const next = { ...m, homeGoals: hg, awayGoals: ag, played: true };
-      const zone = aIds.includes(m.home) ? "A" : "B";
-      if (zone === "A") a = applyMatchToStandings(a, next);
-      else b = applyMatchToStandings(b, next);
+      const r = applyBoth(a, b, next); a = r.a; b = r.b;
       return next;
     });
     set({ fixture: newFix, standA: a, standB: b });
