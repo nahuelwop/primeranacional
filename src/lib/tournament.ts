@@ -53,12 +53,23 @@ export function generateRoundRobin(teamIds: string[], zone: "A" | "B"): Match[] 
   return matches;
 }
 
-// Inserta una "Fecha de Clásicos" extra: agrupa partidos entre rivales declarados.
-export function buildFixture(zoneA: string[], zoneB: string[]): Match[] {
+// Construye fixture: round-robin por zona + 1 fecha interzonal de clásicos.
+export function buildFixture(
+  zoneA: string[], zoneB: string[],
+  interzonales: Array<[string, string]> = []
+): Match[] {
   const a = generateRoundRobin(zoneA, "A");
   const b = generateRoundRobin(zoneB, "B");
-  // Marcamos como fecha clásica una jornada que tenga >=1 clásico (la de mayor cantidad).
-  return [...a, ...b];
+  const totalRounds = Math.max(...a.map(m => m.round), ...b.map(m => m.round));
+  const interRound = totalRounds + 1;
+  const inter: Match[] = interzonales.map(([h, v], i) => ({
+    id: `INT-r${interRound}-${h}-${v}`,
+    round: interRound,
+    home: h, away: v,
+    played: false,
+    isClasico: true,
+  }));
+  return [...a, ...b, ...inter];
 }
 
 // Simulación de partido por estadísticas (Poisson aproximada).

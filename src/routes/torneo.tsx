@@ -25,8 +25,12 @@ function TorneoPage() {
 
   useEffect(() => { setRound(Math.min(s.currentRound, totalRounds || 1)); }, [s.currentRound, totalRounds]);
 
-  const fixtureRound = s.fixture.filter(m => m.round === round &&
-    (zone === "A" ? TEAMS_BY_ID[m.home]?.zone === "A" : TEAMS_BY_ID[m.home]?.zone === "B"));
+  // En partidos interzonales mostramos el cruce en AMBAS zonas.
+  const fixtureRound = s.fixture.filter(m => {
+    if (m.round !== round) return false;
+    const hz = TEAMS_BY_ID[m.home]?.zone, az = TEAMS_BY_ID[m.away]?.zone;
+    return hz === zone || az === zone;
+  });
 
   const standings = zone === "A" ? s.standA : s.standB;
   const sorted = sortStandings(standings);
