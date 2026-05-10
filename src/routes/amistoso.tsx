@@ -59,6 +59,21 @@ function AmistosoPage() {
           <Selector label="VISITANTE" value={away} onChange={setAway} />
         </div>
 
+        <div className="mt-6 rounded-2xl bg-card border border-border p-4">
+          <div className="font-display text-lg mb-2">CLIMA</div>
+          <div className="flex flex-wrap gap-2">
+            {([
+              ["clear","☀️ Despejado"],["rain","🌧️ Lluvia"],["snow","❄️ Nieve"],
+              ["wind","💨 Viento"],["fire","🔥 Fuego"],["thunder","⚡ Tormenta"],
+            ] as [Weather,string][]).map(([w,l]) => (
+              <button key={w} onClick={() => setWeather(w)}
+                className={`px-3 py-2 rounded-lg text-sm border transition ${weather===w ? "bg-celeste text-primary-foreground border-celeste" : "bg-background border-border hover:bg-secondary"}`}>
+                {l}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="mt-6 flex justify-center">
           <button disabled={!home || !away || home?.id === away?.id}
             onClick={() => { setResult(null); setPlaying(true); }}
