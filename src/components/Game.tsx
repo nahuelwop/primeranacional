@@ -345,17 +345,18 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
       ctx.shadowBlur = 0;
 
       // Ojos (mira a la pelota)
-      const eyeX = p.facing === 1 ? 8 : -8;
+      const look = ball.x > p.x ? 1 : -1;
+      const eyeX = look === 1 ? 8 : -8;
       ctx.fillStyle = "#fff";
       ctx.beginPath(); ctx.arc(eyeX, -rad + 2, 7, 0, Math.PI * 2); ctx.fill();
       ctx.strokeStyle = "#1a1a1a"; ctx.lineWidth = 1.5; ctx.stroke();
       ctx.fillStyle = "#1a1a1a";
-      ctx.beginPath(); ctx.arc(eyeX + p.facing * 2, -rad + 3, 3.5, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(eyeX + look * 2, -rad + 3, 3.5, 0, Math.PI * 2); ctx.fill();
 
       // Boca
       ctx.strokeStyle = "#1a1a1a"; ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.arc(p.facing * 4, -rad + 14, 5, 0.1, Math.PI - 0.1);
+      ctx.arc(look * 4, -rad + 14, p.kick > 0 ? 7 : 5, 0.1, Math.PI - 0.1);
       ctx.stroke();
 
       ctx.restore();
