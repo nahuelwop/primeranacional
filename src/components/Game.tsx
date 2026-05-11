@@ -283,6 +283,9 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
 
     const drawHead = (p: Player) => {
       const rad = p.bigT > 0 ? p.r * 1.5 : p.r;
+      const run = Math.min(1, Math.abs(p.vx) / 6);
+      const hop = Math.sin(frame * 0.28) * 3 * run;
+      const lean = Math.max(-0.18, Math.min(0.18, p.vx * 0.035));
       // Sombra
       const shadowScale = Math.max(0.4, 1 - (ground - p.y) / 300);
       ctx.fillStyle = "rgba(0,0,0,0.35)";
@@ -291,7 +294,8 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
       ctx.fill();
 
       ctx.save();
-      ctx.translate(p.x, p.y);
+      ctx.translate(p.x, p.y + hop);
+      ctx.rotate(lean);
 
       // Aura del poder
       if (p.power !== "none") {
@@ -302,8 +306,9 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
 
       // Pie (un solo pie, animado al patear)
       const kickPhase = p.kick > 0 ? p.kick / 10 : 0;
-      const footX = p.facing * (kickPhase > 0 ? 18 + kickPhase * 14 : 6);
-      const footY = kickPhase > 0 ? -8 - kickPhase * 6 : 0;
+      const stride = Math.sin(frame * 0.45) * 7 * run;
+      const footX = p.facing * (kickPhase > 0 ? 18 + kickPhase * 16 : 7 + stride);
+      const footY = kickPhase > 0 ? -8 - kickPhase * 7 : Math.abs(stride) * 0.25;
       ctx.fillStyle = "#1a1a1a";
       ctx.beginPath();
       ctx.ellipse(footX, footY, 16, 9, 0, 0, Math.PI * 2);
@@ -320,7 +325,7 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
 
       // Cabeza (gigante)
       ctx.beginPath();
-      ctx.arc(0, -rad, rad, 0, Math.PI * 2);
+      ctx.ellipse(0, -rad, rad * (1 + run * 0.025), rad * (1 - run * 0.02), 0, 0, Math.PI * 2);
       ctx.fillStyle = "#f4c89a";
       ctx.fill();
       ctx.lineWidth = 3;
