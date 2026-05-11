@@ -24,12 +24,12 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
   const [time, setTime] = useState(duration);
   const [powerH, setPowerH] = useState(0);
   const [powerA, setPowerA] = useState(0);
-  const stateRef = useRef({ h: 0, a: 0, ph: 0, pa: 0, fxH: 0 as number, fxA: 0 as number, lastHuman2: 0 });
+  const stateRef = useRef({ h: 0, a: 0, ph: 0, pa: 0, fxH: 0 as number, fxA: 0 as number, lastHuman2: -999 });
   const overRef = useRef(false);
 
   useEffect(() => {
     overRef.current = false;
-    stateRef.current = { h: 0, a: 0, ph: 0, pa: 0, fxH: 0, fxA: 0, lastHuman2: 0 };
+    stateRef.current = { h: 0, a: 0, ph: 0, pa: 0, fxH: 0, fxA: 0, lastHuman2: -999 };
     setScore({ h: 0, a: 0 });
     setTime(duration);
     const canvas = ref.current!;
