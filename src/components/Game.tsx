@@ -439,6 +439,7 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
       ctx.save();
       ctx.translate(ball.x, ball.y);
       ctx.rotate(ball.spin);
+      ctx.scale(1 + ball.squash, 1 - ball.squash * 0.65);
       if (ball.fire > 0) {
         ctx.shadowColor = "#ff6a2a"; ctx.shadowBlur = 24;
       } else if (ball.ice > 0) {
@@ -520,7 +521,7 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
       window.removeEventListener("keydown", kd);
       window.removeEventListener("keyup", ku);
     };
-  }, [home, away, onEnd, weather]);
+  }, [home, away, onEnd, weather, aiDifficulty]);
 
   const press = (k: string, down: boolean) => {
     const ev = new KeyboardEvent(down ? "keydown" : "keyup", { key: k });
@@ -569,10 +570,10 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
         ))}
       </div>
       <p className="text-xs text-muted-foreground text-center">
-        P1: A/D mover · W saltar · ESPACIO patear · S poder ⚡
+        Click en la cancha y jugá: A/D mover · W saltar · ESPACIO patear · S poder ⚡
         <br className="md:hidden" />
         <span className="hidden md:inline"> · </span>
-        P2 (IA o ←/→ ↑ ENTER ↓)
+        Visitante con IA {aiDifficulty.toUpperCase()} o ←/→ ↑ ENTER ↓
       </p>
     </div>
   );
