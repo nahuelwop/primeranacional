@@ -127,6 +127,7 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
     };
 
     const update = () => {
+      frame++;
       // P1
       const sp1 = speedScale(home.stats.speed);
       if (keys["a"]) { p1.vx = -sp1; p1.facing = -1; }
@@ -137,16 +138,20 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
       if (keys["s"]) triggerPower(p1, true);
 
       // P2 - IA o teclado
-      const useAI = !(keys["arrowleft"] || keys["arrowright"] || keys["arrowup"] || keys["enter"]);
+      const human2Pressed = keys["arrowleft"] || keys["arrowright"] || keys["arrowup"] || keys["arrowdown"] || keys["enter"];
+      if (human2Pressed) stateRef.current.lastHuman2 = frame;
+      const useAI = frame - stateRef.current.lastHuman2 > 90;
       if (useAI) {
-        const sp2 = speedScale(away.stats.speed) * 0.92;
-        const targetX = ball.x + (ball.x < p2.x ? -20 : 20);
-        if (Math.abs(p2.x - targetX) > 6) { p2.vx = p2.x < targetX ? sp2 : -sp2; p2.facing = p2.vx > 0 ? 1 : -1; }
+        const sp2 = speedScale(away.stats.speed) * ai.speed;
+        const predictedX = ball.x + ball.vx * ai.react;
+        const guardX = W * 0.78;
+        const targetX = ball.x < W * 0.5 && aiDifficulty !== "hard" ? guardX : predictedX + (ball.x < p2.x ? -24 : 24);
+        if (Math.abs(p2.x - targetX) > 9) { p2.vx = p2.x < targetX ? sp2 : -sp2; p2.facing = p2.vx > 0 ? 1 : -1; }
         else p2.vx *= 0.78;
-        if (ball.y < ground - 80 && Math.abs(ball.x - p2.x) < 100 && p2.y >= ground)
+        if (ball.y < ground - 70 && Math.abs(ball.x - p2.x) < 105 * ai.jump && p2.y >= ground)
           p2.vy = jumpScale(away.stats.jump);
-        if (Math.abs(p2.x - ball.x) < 60 && Math.abs(p2.y - ball.y) < 70) p2.kick = 10;
-        if (Math.random() < 0.005) triggerPower(p2, false);
+        if (Math.abs(p2.x - ball.x) < 62 && Math.abs(p2.y - ball.y) < 72 && Math.random() < ai.kick) p2.kick = 10;
+        if (Math.random() < ai.power) triggerPower(p2, false);
       } else {
         const sp2 = speedScale(away.stats.speed);
         if (keys["arrowleft"]) { p2.vx = -sp2; p2.facing = -1; }
@@ -180,20 +185,24 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
       const wind = weather === "wind" ? -0.08 : 0;
 
       // Pelota
-      ball.vy += 0.34;
+      ball.vy += 0.36;
       ball.vx += wind;
       ball.x += ball.vx;
       ball.y += ball.vy;
-      ball.vx *= 0.995;
+      ball.vx *= 0.992;
       ball.spin += ball.vx * 0.05;
+      ball.squash *= 0.82;
       if (ball.fire > 0) ball.fire--;
       if (ball.ice > 0) { ball.ice--; ball.vx *= 0.94; ball.vy *= 0.94; }
 
       if (ball.y > ground - ball.r) {
-        ball.y = ground - ball.r; ball.vy *= -0.78; ball.vx *= 0.95;
+        ball.y = ground - ball.r;
+        if (ball.vy > 1.2) ball.squash = Math.min(0.35, Math.abs(ball.vy) / 28);
+        ball.vy = Math.abs(ball.vy) > 1.1 ? -Math.abs(ball.vy) * 0.82 : 0;
+        ball.vx *= 0.965;
       }
-      if (ball.x < ball.r) { ball.x = ball.r; ball.vx *= -0.85; }
-      if (ball.x > W - ball.r) { ball.x = W - ball.r; ball.vx *= -0.85; }
+      if (ball.x < ball.r) { ball.x = ball.r; ball.vx = Math.abs(ball.vx) * 0.9; ball.squash = 0.22; }
+      if (ball.x > W - ball.r) { ball.x = W - ball.r; ball.vx = -Math.abs(ball.vx) * 0.9; ball.squash = 0.22; }
 
       // Colisiones jugador-pelota (con cabeza y pie)
       [p1, p2].forEach((p, i) => {
