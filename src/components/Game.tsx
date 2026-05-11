@@ -216,10 +216,11 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
           const power = (i === 0 ? home.stats.power : away.stats.power) / 10;
           const kickBoost = p.kick > 0 ? 9 + power : 2.5;
           const mult = p.power === "thunder" ? 1.8 : p.power === "fire" ? 1.4 : 1;
-          ball.vx = (Math.cos(ang) * (4 + kickBoost) + p.vx * 0.6) * mult;
-          ball.vy = (Math.sin(ang) * (4 + kickBoost) - 4) * mult;
+          ball.vx = (Math.cos(ang) * (4.5 + kickBoost) + p.vx * 0.65) * mult;
+          ball.vy = (Math.sin(ang) * (4.5 + kickBoost) - 4.6) * mult;
           ball.x = p.x + Math.cos(ang) * minD;
           ball.y = (p.y - rad) + Math.sin(ang) * minD;
+          ball.squash = p.kick > 0 ? 0.3 : 0.16;
           if (p.power === "fire") ball.fire = 60;
           if (p.power === "ice") ball.ice = 60;
         }
@@ -233,8 +234,9 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
             const ang = Math.atan2(fdy, fdx);
             const power = (i === 0 ? home.stats.power : away.stats.power) / 8;
             const mult = p.power === "thunder" ? 2 : p.power === "fire" ? 1.5 : 1;
-            ball.vx = (Math.cos(ang) * (10 + power) + p.facing * 4) * mult;
-            ball.vy = (Math.sin(ang) * (8 + power) - 6) * mult;
+            ball.vx = (Math.cos(ang) * (11 + power) + p.facing * 5.5) * mult;
+            ball.vy = (Math.sin(ang) * (8.5 + power) - 6.5) * mult;
+            ball.squash = 0.36;
             if (p.power === "fire") ball.fire = 60;
             if (p.power === "ice") ball.ice = 60;
           }
@@ -273,7 +275,7 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
     };
 
     const resetBall = (dir: number) => {
-      ball.x = W / 2; ball.y = H / 2 - 50; ball.vx = dir * 1; ball.vy = -2;
+      ball.x = W / 2; ball.y = H / 2 - 50; ball.vx = dir * 2.1; ball.vy = -4.2; ball.squash = 0;
       ball.fire = 0; ball.ice = 0;
       p1.x = W * 0.28; p1.y = ground; p1.vx = 0; p1.vy = 0;
       p2.x = W * 0.72; p2.y = ground; p2.vx = 0; p2.vy = 0;
