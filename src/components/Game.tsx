@@ -6,6 +6,7 @@ type Props = {
   away: Team;
   duration?: number;
   weather?: "clear" | "rain" | "snow" | "wind" | "fire" | "thunder";
+  aiDifficulty?: "easy" | "normal" | "hard";
   onEnd: (hg: number, ag: number) => void;
 };
 
@@ -17,18 +18,18 @@ type Power = "none" | "fire" | "ice" | "thunder" | "giant";
 // - Física arcade exagerada, pelota liviana
 // Controles P1: A/D mover · W saltar · ESPACIO patear · S poder
 //          P2: ←/→ mover · ↑ saltar · ENTER patear · ↓ poder (o IA)
-export function Game({ home, away, duration = 90, weather = "clear", onEnd }: Props) {
+export function Game({ home, away, duration = 90, weather = "clear", aiDifficulty = "normal", onEnd }: Props) {
   const ref = useRef<HTMLCanvasElement>(null);
   const [score, setScore] = useState({ h: 0, a: 0 });
   const [time, setTime] = useState(duration);
   const [powerH, setPowerH] = useState(0);
   const [powerA, setPowerA] = useState(0);
-  const stateRef = useRef({ h: 0, a: 0, ph: 0, pa: 0, fxH: 0 as number, fxA: 0 as number });
+  const stateRef = useRef({ h: 0, a: 0, ph: 0, pa: 0, fxH: 0 as number, fxA: 0 as number, lastHuman2: 0 });
   const overRef = useRef(false);
 
   useEffect(() => {
     overRef.current = false;
-    stateRef.current = { h: 0, a: 0, ph: 0, pa: 0, fxH: 0, fxA: 0 };
+    stateRef.current = { h: 0, a: 0, ph: 0, pa: 0, fxH: 0, fxA: 0, lastHuman2: 0 };
     setScore({ h: 0, a: 0 });
     setTime(duration);
     const canvas = ref.current!;
@@ -48,7 +49,13 @@ export function Game({ home, away, duration = 90, weather = "clear", onEnd }: Pr
     });
     const p1 = mkP(W * 0.28, home.primary, home.secondary, 1);
     const p2 = mkP(W * 0.72, away.primary, away.secondary, -1);
-    const ball = { x: W / 2, y: H / 2, vx: 0, vy: 0, r: 14, spin: 0, fire: 0, ice: 0 };
+    const ball = { x: W / 2, y: H / 2 - 30, vx: 2.2, vy: -3.5, r: 14, spin: 0, fire: 0, ice: 0, squash: 0 };
+    const ai = {
+      easy: { speed: 0.72, jump: 0.55, kick: 0.48, react: 26, power: 0.0015 },
+      normal: { speed: 0.92, jump: 0.78, kick: 0.72, react: 14, power: 0.004 },
+      hard: { speed: 1.08, jump: 0.95, kick: 0.9, react: 4, power: 0.008 },
+    }[aiDifficulty];
+    let frame = 0;
 
     // Confetti / partículas
     const particles: { x: number; y: number; vx: number; vy: number; life: number; color: string; size: number }[] = [];
