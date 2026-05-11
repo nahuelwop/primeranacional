@@ -27,6 +27,10 @@ export function Game({ home, away, duration = 90, weather = "clear", onEnd }: Pr
   const overRef = useRef(false);
 
   useEffect(() => {
+    overRef.current = false;
+    stateRef.current = { h: 0, a: 0, ph: 0, pa: 0, fxH: 0, fxA: 0 };
+    setScore({ h: 0, a: 0 });
+    setTime(duration);
     const canvas = ref.current!;
     const ctx = canvas.getContext("2d")!;
     const W = canvas.width, H = canvas.height;
