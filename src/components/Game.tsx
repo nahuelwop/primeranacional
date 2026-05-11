@@ -494,9 +494,18 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
     };
 
     let raf = 0;
-    const loop = () => {
+    let last = performance.now();
+    let acc = 0;
+    const stepMs = 1000 / 60;
+    const loop = (now = performance.now()) => {
       if (overRef.current) return;
-      update(); draw();
+      acc += Math.min(50, now - last);
+      last = now;
+      while (acc >= stepMs) {
+        update();
+        acc -= stepMs;
+      }
+      draw();
       raf = requestAnimationFrame(loop);
     };
     loop();
