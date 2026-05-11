@@ -6,6 +6,7 @@ type Props = {
   away: Team;
   duration?: number;
   weather?: "clear" | "rain" | "snow" | "wind" | "fire" | "thunder";
+  aiDifficulty?: "easy" | "normal" | "hard";
   onEnd: (hg: number, ag: number) => void;
 };
 
@@ -17,18 +18,18 @@ type Power = "none" | "fire" | "ice" | "thunder" | "giant";
 // - Física arcade exagerada, pelota liviana
 // Controles P1: A/D mover · W saltar · ESPACIO patear · S poder
 //          P2: ←/→ mover · ↑ saltar · ENTER patear · ↓ poder (o IA)
-export function Game({ home, away, duration = 90, weather = "clear", onEnd }: Props) {
+export function Game({ home, away, duration = 90, weather = "clear", aiDifficulty = "normal", onEnd }: Props) {
   const ref = useRef<HTMLCanvasElement>(null);
   const [score, setScore] = useState({ h: 0, a: 0 });
   const [time, setTime] = useState(duration);
   const [powerH, setPowerH] = useState(0);
   const [powerA, setPowerA] = useState(0);
-  const stateRef = useRef({ h: 0, a: 0, ph: 0, pa: 0, fxH: 0 as number, fxA: 0 as number });
+  const stateRef = useRef({ h: 0, a: 0, ph: 0, pa: 0, fxH: 0 as number, fxA: 0 as number, lastHuman2: -999 });
   const overRef = useRef(false);
 
   useEffect(() => {
     overRef.current = false;
-    stateRef.current = { h: 0, a: 0, ph: 0, pa: 0, fxH: 0, fxA: 0 };
+    stateRef.current = { h: 0, a: 0, ph: 0, pa: 0, fxH: 0, fxA: 0, lastHuman2: -999 };
     setScore({ h: 0, a: 0 });
     setTime(duration);
     const canvas = ref.current!;
@@ -48,7 +49,13 @@ export function Game({ home, away, duration = 90, weather = "clear", onEnd }: Pr
     });
     const p1 = mkP(W * 0.28, home.primary, home.secondary, 1);
     const p2 = mkP(W * 0.72, away.primary, away.secondary, -1);
-    const ball = { x: W / 2, y: H / 2, vx: 0, vy: 0, r: 14, spin: 0, fire: 0, ice: 0 };
+    const ball = { x: W / 2, y: H / 2 - 30, vx: 2.2, vy: -3.5, r: 14, spin: 0, fire: 0, ice: 0, squash: 0 };
+    const ai = {
+      easy: { speed: 0.72, jump: 0.55, kick: 0.48, react: 26, power: 0.0015 },
+      normal: { speed: 0.92, jump: 0.78, kick: 0.72, react: 14, power: 0.004 },
+      hard: { speed: 1.08, jump: 0.95, kick: 0.9, react: 4, power: 0.008 },
+    }[aiDifficulty];
+    let frame = 0;
 
     // Confetti / partículas
     const particles: { x: number; y: number; vx: number; vy: number; life: number; color: string; size: number }[] = [];
@@ -120,6 +127,7 @@ export function Game({ home, away, duration = 90, weather = "clear", onEnd }: Pr
     };
 
     const update = () => {
+      frame++;
       // P1
       const sp1 = speedScale(home.stats.speed);
       if (keys["a"]) { p1.vx = -sp1; p1.facing = -1; }
@@ -130,16 +138,20 @@ export function Game({ home, away, duration = 90, weather = "clear", onEnd }: Pr
       if (keys["s"]) triggerPower(p1, true);
 
       // P2 - IA o teclado
-      const useAI = !(keys["arrowleft"] || keys["arrowright"] || keys["arrowup"] || keys["enter"]);
+      const human2Pressed = keys["arrowleft"] || keys["arrowright"] || keys["arrowup"] || keys["arrowdown"] || keys["enter"];
+      if (human2Pressed) stateRef.current.lastHuman2 = frame;
+      const useAI = frame - stateRef.current.lastHuman2 > 90;
       if (useAI) {
-        const sp2 = speedScale(away.stats.speed) * 0.92;
-        const targetX = ball.x + (ball.x < p2.x ? -20 : 20);
-        if (Math.abs(p2.x - targetX) > 6) { p2.vx = p2.x < targetX ? sp2 : -sp2; p2.facing = p2.vx > 0 ? 1 : -1; }
+        const sp2 = speedScale(away.stats.speed) * ai.speed;
+        const predictedX = ball.x + ball.vx * ai.react;
+        const guardX = W * 0.78;
+        const targetX = ball.x < W * 0.5 && aiDifficulty !== "hard" ? guardX : predictedX + (ball.x < p2.x ? -24 : 24);
+        if (Math.abs(p2.x - targetX) > 9) { p2.vx = p2.x < targetX ? sp2 : -sp2; p2.facing = p2.vx > 0 ? 1 : -1; }
         else p2.vx *= 0.78;
-        if (ball.y < ground - 80 && Math.abs(ball.x - p2.x) < 100 && p2.y >= ground)
+        if (ball.y < ground - 70 && Math.abs(ball.x - p2.x) < 105 * ai.jump && p2.y >= ground)
           p2.vy = jumpScale(away.stats.jump);
-        if (Math.abs(p2.x - ball.x) < 60 && Math.abs(p2.y - ball.y) < 70) p2.kick = 10;
-        if (Math.random() < 0.005) triggerPower(p2, false);
+        if (Math.abs(p2.x - ball.x) < 62 && Math.abs(p2.y - ball.y) < 72 && Math.random() < ai.kick) p2.kick = 10;
+        if (Math.random() < ai.power) triggerPower(p2, false);
       } else {
         const sp2 = speedScale(away.stats.speed);
         if (keys["arrowleft"]) { p2.vx = -sp2; p2.facing = -1; }
@@ -173,20 +185,24 @@ export function Game({ home, away, duration = 90, weather = "clear", onEnd }: Pr
       const wind = weather === "wind" ? -0.08 : 0;
 
       // Pelota
-      ball.vy += 0.34;
+      ball.vy += 0.36;
       ball.vx += wind;
       ball.x += ball.vx;
       ball.y += ball.vy;
-      ball.vx *= 0.995;
+      ball.vx *= 0.992;
       ball.spin += ball.vx * 0.05;
+      ball.squash *= 0.82;
       if (ball.fire > 0) ball.fire--;
       if (ball.ice > 0) { ball.ice--; ball.vx *= 0.94; ball.vy *= 0.94; }
 
       if (ball.y > ground - ball.r) {
-        ball.y = ground - ball.r; ball.vy *= -0.78; ball.vx *= 0.95;
+        ball.y = ground - ball.r;
+        if (ball.vy > 1.2) ball.squash = Math.min(0.35, Math.abs(ball.vy) / 28);
+        ball.vy = Math.abs(ball.vy) > 1.1 ? -Math.abs(ball.vy) * 0.82 : 0;
+        ball.vx *= 0.965;
       }
-      if (ball.x < ball.r) { ball.x = ball.r; ball.vx *= -0.85; }
-      if (ball.x > W - ball.r) { ball.x = W - ball.r; ball.vx *= -0.85; }
+      if (ball.x < ball.r) { ball.x = ball.r; ball.vx = Math.abs(ball.vx) * 0.9; ball.squash = 0.22; }
+      if (ball.x > W - ball.r) { ball.x = W - ball.r; ball.vx = -Math.abs(ball.vx) * 0.9; ball.squash = 0.22; }
 
       // Colisiones jugador-pelota (con cabeza y pie)
       [p1, p2].forEach((p, i) => {
@@ -200,10 +216,11 @@ export function Game({ home, away, duration = 90, weather = "clear", onEnd }: Pr
           const power = (i === 0 ? home.stats.power : away.stats.power) / 10;
           const kickBoost = p.kick > 0 ? 9 + power : 2.5;
           const mult = p.power === "thunder" ? 1.8 : p.power === "fire" ? 1.4 : 1;
-          ball.vx = (Math.cos(ang) * (4 + kickBoost) + p.vx * 0.6) * mult;
-          ball.vy = (Math.sin(ang) * (4 + kickBoost) - 4) * mult;
+          ball.vx = (Math.cos(ang) * (4.5 + kickBoost) + p.vx * 0.65) * mult;
+          ball.vy = (Math.sin(ang) * (4.5 + kickBoost) - 4.6) * mult;
           ball.x = p.x + Math.cos(ang) * minD;
           ball.y = (p.y - rad) + Math.sin(ang) * minD;
+          ball.squash = p.kick > 0 ? 0.3 : 0.16;
           if (p.power === "fire") ball.fire = 60;
           if (p.power === "ice") ball.ice = 60;
         }
@@ -217,8 +234,9 @@ export function Game({ home, away, duration = 90, weather = "clear", onEnd }: Pr
             const ang = Math.atan2(fdy, fdx);
             const power = (i === 0 ? home.stats.power : away.stats.power) / 8;
             const mult = p.power === "thunder" ? 2 : p.power === "fire" ? 1.5 : 1;
-            ball.vx = (Math.cos(ang) * (10 + power) + p.facing * 4) * mult;
-            ball.vy = (Math.sin(ang) * (8 + power) - 6) * mult;
+            ball.vx = (Math.cos(ang) * (11 + power) + p.facing * 5.5) * mult;
+            ball.vy = (Math.sin(ang) * (8.5 + power) - 6.5) * mult;
+            ball.squash = 0.36;
             if (p.power === "fire") ball.fire = 60;
             if (p.power === "ice") ball.ice = 60;
           }
@@ -257,7 +275,7 @@ export function Game({ home, away, duration = 90, weather = "clear", onEnd }: Pr
     };
 
     const resetBall = (dir: number) => {
-      ball.x = W / 2; ball.y = H / 2 - 50; ball.vx = dir * 1; ball.vy = -2;
+      ball.x = W / 2; ball.y = H / 2 - 50; ball.vx = dir * 2.1; ball.vy = -4.2; ball.squash = 0;
       ball.fire = 0; ball.ice = 0;
       p1.x = W * 0.28; p1.y = ground; p1.vx = 0; p1.vy = 0;
       p2.x = W * 0.72; p2.y = ground; p2.vx = 0; p2.vy = 0;
@@ -265,6 +283,9 @@ export function Game({ home, away, duration = 90, weather = "clear", onEnd }: Pr
 
     const drawHead = (p: Player) => {
       const rad = p.bigT > 0 ? p.r * 1.5 : p.r;
+      const run = Math.min(1, Math.abs(p.vx) / 6);
+      const hop = Math.sin(frame * 0.28) * 3 * run;
+      const lean = Math.max(-0.18, Math.min(0.18, p.vx * 0.035));
       // Sombra
       const shadowScale = Math.max(0.4, 1 - (ground - p.y) / 300);
       ctx.fillStyle = "rgba(0,0,0,0.35)";
@@ -273,7 +294,8 @@ export function Game({ home, away, duration = 90, weather = "clear", onEnd }: Pr
       ctx.fill();
 
       ctx.save();
-      ctx.translate(p.x, p.y);
+      ctx.translate(p.x, p.y + hop);
+      ctx.rotate(lean);
 
       // Aura del poder
       if (p.power !== "none") {
@@ -284,8 +306,9 @@ export function Game({ home, away, duration = 90, weather = "clear", onEnd }: Pr
 
       // Pie (un solo pie, animado al patear)
       const kickPhase = p.kick > 0 ? p.kick / 10 : 0;
-      const footX = p.facing * (kickPhase > 0 ? 18 + kickPhase * 14 : 6);
-      const footY = kickPhase > 0 ? -8 - kickPhase * 6 : 0;
+      const stride = Math.sin(frame * 0.45) * 7 * run;
+      const footX = p.facing * (kickPhase > 0 ? 18 + kickPhase * 16 : 7 + stride);
+      const footY = kickPhase > 0 ? -8 - kickPhase * 7 : Math.abs(stride) * 0.25;
       ctx.fillStyle = "#1a1a1a";
       ctx.beginPath();
       ctx.ellipse(footX, footY, 16, 9, 0, 0, Math.PI * 2);
@@ -302,7 +325,7 @@ export function Game({ home, away, duration = 90, weather = "clear", onEnd }: Pr
 
       // Cabeza (gigante)
       ctx.beginPath();
-      ctx.arc(0, -rad, rad, 0, Math.PI * 2);
+      ctx.ellipse(0, -rad, rad * (1 + run * 0.025), rad * (1 - run * 0.02), 0, 0, Math.PI * 2);
       ctx.fillStyle = "#f4c89a";
       ctx.fill();
       ctx.lineWidth = 3;
@@ -322,17 +345,18 @@ export function Game({ home, away, duration = 90, weather = "clear", onEnd }: Pr
       ctx.shadowBlur = 0;
 
       // Ojos (mira a la pelota)
-      const eyeX = p.facing === 1 ? 8 : -8;
+      const look = ball.x > p.x ? 1 : -1;
+      const eyeX = look === 1 ? 8 : -8;
       ctx.fillStyle = "#fff";
       ctx.beginPath(); ctx.arc(eyeX, -rad + 2, 7, 0, Math.PI * 2); ctx.fill();
       ctx.strokeStyle = "#1a1a1a"; ctx.lineWidth = 1.5; ctx.stroke();
       ctx.fillStyle = "#1a1a1a";
-      ctx.beginPath(); ctx.arc(eyeX + p.facing * 2, -rad + 3, 3.5, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(eyeX + look * 2, -rad + 3, 3.5, 0, Math.PI * 2); ctx.fill();
 
       // Boca
       ctx.strokeStyle = "#1a1a1a"; ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.arc(p.facing * 4, -rad + 14, 5, 0.1, Math.PI - 0.1);
+      ctx.arc(look * 4, -rad + 14, p.kick > 0 ? 7 : 5, 0.1, Math.PI - 0.1);
       ctx.stroke();
 
       ctx.restore();
@@ -415,6 +439,7 @@ export function Game({ home, away, duration = 90, weather = "clear", onEnd }: Pr
       ctx.save();
       ctx.translate(ball.x, ball.y);
       ctx.rotate(ball.spin);
+      ctx.scale(1 + ball.squash, 1 - ball.squash * 0.65);
       if (ball.fire > 0) {
         ctx.shadowColor = "#ff6a2a"; ctx.shadowBlur = 24;
       } else if (ball.ice > 0) {
@@ -469,9 +494,18 @@ export function Game({ home, away, duration = 90, weather = "clear", onEnd }: Pr
     };
 
     let raf = 0;
-    const loop = () => {
+    let last = performance.now();
+    let acc = 0;
+    const stepMs = 1000 / 60;
+    const loop = (now = performance.now()) => {
       if (overRef.current) return;
-      update(); draw();
+      acc += Math.min(50, now - last);
+      last = now;
+      while (acc >= stepMs) {
+        update();
+        acc -= stepMs;
+      }
+      draw();
       raf = requestAnimationFrame(loop);
     };
     loop();
@@ -496,7 +530,7 @@ export function Game({ home, away, duration = 90, weather = "clear", onEnd }: Pr
       window.removeEventListener("keydown", kd);
       window.removeEventListener("keyup", ku);
     };
-  }, [home, away, onEnd, weather]);
+  }, [home, away, onEnd, weather, aiDifficulty]);
 
   const press = (k: string, down: boolean) => {
     const ev = new KeyboardEvent(down ? "keydown" : "keyup", { key: k });
@@ -545,10 +579,10 @@ export function Game({ home, away, duration = 90, weather = "clear", onEnd }: Pr
         ))}
       </div>
       <p className="text-xs text-muted-foreground text-center">
-        P1: A/D mover · W saltar · ESPACIO patear · S poder ⚡
+        Click en la cancha y jugá: A/D mover · W saltar · ESPACIO patear · S poder ⚡
         <br className="md:hidden" />
         <span className="hidden md:inline"> · </span>
-        P2 (IA o ←/→ ↑ ENTER ↓)
+        Visitante con IA {aiDifficulty.toUpperCase()} o ←/→ ↑ ENTER ↓
       </p>
     </div>
   );
