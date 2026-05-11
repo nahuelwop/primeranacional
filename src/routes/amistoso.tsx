@@ -106,7 +106,7 @@ function AmistosoPage() {
 }
 
 function Selector({ label, value, onChange }: { label: string; value: Team | null; onChange: (t: Team) => void }) {
-  const [zone, setZone] = useState<"A"|"B">("A");
+  const [zone, setZone] = useState<"A"|"B">(value?.zone ?? "A");
   return (
     <div className="rounded-2xl bg-card border border-border p-4">
       <div className="flex items-center justify-between mb-3">
