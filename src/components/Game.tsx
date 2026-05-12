@@ -118,7 +118,7 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
     window.addEventListener("keyup", ku);
 
     const speedScale = (s: number) => 3 + s / 28;
-    const jumpScale = (s: number) => -10 - s / 12;
+    const jumpScale = (s: number) => -7.5 - s / 22;
 
     const update = () => {
       frame++;
