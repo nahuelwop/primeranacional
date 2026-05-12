@@ -3,20 +3,17 @@ import { useState } from "react";
 import { Nav } from "@/components/Nav";
 import { Shield, Jersey } from "@/components/Shield";
 import { TEAMS, Team } from "@/data/teams";
-import { Game } from "@/components/Game";
+import { Game, type Weather, type Difficulty, type Mode, type MatchStats } from "@/components/Game";
 
 export const Route = createFileRoute("/amistoso")({
   head: () => ({
     meta: [
       { title: "Amistoso 1v1 · Primera Heads" },
-      { name: "description", content: "Elegí dos equipos de la Primera Nacional y disputá un partido arcade 1v1." },
+      { name: "description", content: "Elegí dos equipos de la Primera Nacional y disputá un partido arcade." },
     ],
   }),
   component: AmistosoPage,
 });
-
-type Weather = "clear" | "rain" | "snow" | "wind" | "fire" | "thunder";
-type Difficulty = "easy" | "normal" | "hard";
 
 function AmistosoPage() {
   const [home, setHome] = useState<Team | null>(TEAMS[0]);
@@ -24,15 +21,16 @@ function AmistosoPage() {
   const [playing, setPlaying] = useState(false);
   const [weather, setWeather] = useState<Weather>("clear");
   const [difficulty, setDifficulty] = useState<Difficulty>("normal");
-  const [result, setResult] = useState<{ h: number; a: number } | null>(null);
+  const [mode, setMode] = useState<Mode>("1vAI");
+  const [result, setResult] = useState<{ h: number; a: number; stats: MatchStats } | null>(null);
 
   if (playing && home && away) {
     return (
       <div className="min-h-screen flex flex-col">
         <Nav />
         <main className="flex-1 max-w-5xl w-full mx-auto px-4 py-6">
-          <Game home={home} away={away} duration={90} weather={weather} aiDifficulty={difficulty}
-            onEnd={(h, a) => { setResult({ h, a }); setPlaying(false); }} />
+          <Game home={home} away={away} duration={90} weather={weather} aiDifficulty={difficulty} mode={mode}
+            onEnd={(h, a, stats) => { setResult({ h, a, stats }); setPlaying(false); }} />
         </main>
       </div>
     );
@@ -42,16 +40,27 @@ function AmistosoPage() {
     <div className="min-h-screen flex flex-col">
       <Nav />
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 py-8">
-        <h1 className="font-display text-5xl">AMISTOSO 1v1</h1>
-        <p className="text-muted-foreground text-sm mt-1">Elegí local y visitante. Partido de 90 segundos.</p>
+        <h1 className="font-display text-5xl">AMISTOSO</h1>
+        <p className="text-muted-foreground text-sm mt-1">Elegí los equipos y el modo. Partido de 90 segundos.</p>
 
         {result && (
-          <div className="mt-4 p-4 rounded-xl bg-card border border-border text-center">
-            <div className="font-display text-2xl">
+          <div className="mt-4 p-4 rounded-xl bg-card border border-border">
+            <div className="font-display text-2xl text-center">
               {home?.short} <span className="text-celeste">{result.h}</span> — <span className="text-celeste">{result.a}</span> {away?.short}
             </div>
-            <div className="text-sm text-muted-foreground mt-1">
+            <div className="text-sm text-muted-foreground text-center mt-1">
               {result.h>result.a ? `Ganó ${home?.name}` : result.a>result.h ? `Ganó ${away?.name}` : "Empate"}
+            </div>
+            <div className="grid grid-cols-3 gap-2 mt-3 text-sm">
+              <div className="text-right tabular-nums">{result.stats.possessionH}%</div>
+              <div className="text-center text-xs text-muted-foreground">Posesión</div>
+              <div className="text-left tabular-nums">{100 - result.stats.possessionH}%</div>
+              <div className="text-right tabular-nums">{result.stats.shotsH}</div>
+              <div className="text-center text-xs text-muted-foreground">Remates</div>
+              <div className="text-left tabular-nums">{result.stats.shotsA}</div>
+              <div className="text-right tabular-nums">{result.stats.onTargetH}</div>
+              <div className="text-center text-xs text-muted-foreground">Al arco</div>
+              <div className="text-left tabular-nums">{result.stats.onTargetA}</div>
             </div>
           </div>
         )}
@@ -62,30 +71,43 @@ function AmistosoPage() {
         </div>
 
         <div className="mt-6 rounded-2xl bg-card border border-border p-4">
-          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div className="grid md:grid-cols-3 gap-4">
             <div>
-              <div className="font-display text-lg mb-2">CLIMA</div>
-              <div className="flex flex-wrap gap-2">
-                {([
-                  ["clear","☀️ Despejado"],["rain","🌧️ Lluvia"],["snow","❄️ Nieve"],
-                  ["wind","💨 Viento"],["fire","🔥 Fuego"],["thunder","⚡ Tormenta"],
-                ] as [Weather,string][]).map(([w,l]) => (
-                  <button key={w} onClick={() => setWeather(w)}
-                    className={`px-3 py-2 rounded-lg text-sm border transition ${weather===w ? "bg-celeste text-primary-foreground border-celeste" : "bg-background border-border hover:bg-secondary"}`}>
+              <div className="font-display text-lg mb-2">MODO</div>
+              <div className="flex rounded-xl border border-border bg-background p-1">
+                {([["1vAI", "1 vs IA"], ["1v1", "1 vs 1"]] as [Mode, string][]).map(([m, l]) => (
+                  <button key={m} onClick={() => setMode(m)}
+                    className={`flex-1 px-3 py-2 rounded-lg text-sm transition ${mode===m ? "bg-celeste text-primary-foreground" : "hover:bg-secondary"}`}>
                     {l}
                   </button>
                 ))}
               </div>
             </div>
+
+            {mode === "1vAI" && (
+              <div>
+                <div className="font-display text-lg mb-2">DIFICULTAD IA</div>
+                <div className="flex rounded-xl border border-border bg-background p-1">
+                  {([["easy", "Fácil"], ["normal", "Normal"], ["hard", "Difícil"]] as [Difficulty, string][]).map(([level, label]) => (
+                    <button key={level} type="button" onClick={() => setDifficulty(level)}
+                      className={`flex-1 px-3 py-2 rounded-lg text-sm transition ${difficulty===level ? "bg-celeste text-primary-foreground" : "hover:bg-secondary"}`}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div>
-              <div className="font-display text-lg mb-2">IA VISITANTE</div>
-              <div className="flex rounded-xl border border-border bg-background p-1">
+              <div className="font-display text-lg mb-2">CLIMA</div>
+              <div className="flex flex-wrap gap-2">
                 {([
-                  ["easy", "Fácil"], ["normal", "Normal"], ["hard", "Difícil"],
-                ] as [Difficulty, string][]).map(([level, label]) => (
-                  <button key={level} onClick={() => setDifficulty(level)}
-                    className={`px-4 py-2 rounded-lg text-sm transition ${difficulty===level ? "bg-celeste text-primary-foreground" : "hover:bg-secondary"}`}>
-                    {label}
+                  ["clear","☀️ Despejado"],["rain","🌧️ Lluvia"],
+                  ["wind","💨 Viento"],["thunder","⚡ Tormenta"],
+                ] as [Weather,string][]).map(([w,l]) => (
+                  <button key={w} onClick={() => setWeather(w)}
+                    className={`px-3 py-2 rounded-lg text-sm border transition ${weather===w ? "bg-celeste text-primary-foreground border-celeste" : "bg-background border-border hover:bg-secondary"}`}>
+                    {l}
                   </button>
                 ))}
               </div>
