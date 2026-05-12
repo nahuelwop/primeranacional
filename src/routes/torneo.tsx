@@ -23,8 +23,11 @@ function TorneoPage() {
   const totalRounds = useMemo(() => Math.max(0, ...s.fixture.map(m => m.round)), [s.fixture]);
   const [zone, setZone] = useState<"A" | "B">("A");
   const [round, setRound] = useState(1);
+  const [playId, setPlayId] = useState<string | null>(null);
 
   useEffect(() => { setRound(Math.min(s.currentRound, totalRounds || 1)); }, [s.currentRound, totalRounds]);
+
+  const playMatch = s.fixture.find(m => m.id === playId) ?? null;
 
   // En partidos interzonales mostramos el cruce en AMBAS zonas.
   const fixtureRound = s.fixture.filter(m => {
