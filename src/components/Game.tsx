@@ -118,7 +118,7 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
     window.addEventListener("keyup", ku);
 
     const speedScale = (s: number) => 3 + s / 28;
-    const jumpScale = (s: number) => -10 - s / 12;
+    const jumpScale = (s: number) => -7.5 - s / 22;
 
     const update = () => {
       frame++;
@@ -182,60 +182,41 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
       ball.y += ball.vy;
       ball.vx *= 0.992;
       ball.spin += ball.vx * 0.05;
-      ball.squash *= 0.82;
+      ball.squash = 0;
 
-      // Suelo
+      // Suelo (rebote suave, sin animación)
       if (ball.y > ground - ball.r) {
         ball.y = ground - ball.r;
-        if (ball.vy > 1.2) ball.squash = Math.min(0.35, Math.abs(ball.vy) / 28);
-        ball.vy = Math.abs(ball.vy) > 1.1 ? -Math.abs(ball.vy) * 0.82 : 0;
-        ball.vx *= 0.965;
+        ball.vy = Math.abs(ball.vy) > 1.4 ? -Math.abs(ball.vy) * 0.5 : 0;
+        ball.vx *= 0.95;
       }
       // Paredes
-      if (ball.x < ball.r) { ball.x = ball.r; ball.vx = Math.abs(ball.vx) * 0.9; ball.squash = 0.22; }
-      if (ball.x > W - ball.r) { ball.x = W - ball.r; ball.vx = -Math.abs(ball.vx) * 0.9; ball.squash = 0.22; }
+      if (ball.x < ball.r) { ball.x = ball.r; ball.vx = Math.abs(ball.vx) * 0.6; }
+      if (ball.x > W - ball.r) { ball.x = W - ball.r; ball.vx = -Math.abs(ball.vx) * 0.6; }
 
-      // ===== Postes y travesaños =====
-      // Travesaño izquierdo (horizontal de x=0 a x=goalW a y=crossbarY)
-      // Travesaño derecho (de x=W-goalW a x=W)
+      // ===== Travesaño (único elemento sólido del arco) =====
+      // El balón puede entrar libremente al arco; solo rebota en la barra superior.
       const hitCrossbar = (xMin: number, xMax: number) => {
         if (ball.x + ball.r > xMin && ball.x - ball.r < xMax) {
           // desde arriba
           if (ball.y + ball.r > crossbarY && ball.y < crossbarY) {
             ball.y = crossbarY - ball.r;
-            ball.vy = -Math.abs(ball.vy) * 0.55 - 0.2;
-            ball.vx *= 0.9;
-            ball.squash = 0.25;
+            ball.vy = -Math.abs(ball.vy) * 0.4 - 0.1;
+            ball.vx *= 0.95;
           }
-          // desde abajo (raro)
+          // desde abajo
           else if (ball.y - ball.r < crossbarY && ball.y > crossbarY && ball.vy < 0) {
             ball.y = crossbarY + ball.r;
-            ball.vy = Math.abs(ball.vy) * 0.5;
+            ball.vy = Math.abs(ball.vy) * 0.4;
           }
         }
       };
       hitCrossbar(0, goalW);
       hitCrossbar(W - goalW, W);
 
-      // Postes verticales (parte exterior). Solo si pelota está debajo del travesaño.
       const lpx = goalW;
       const rpx = W - goalW;
-      if (ball.y > crossbarY) {
-        // poste derecho del arco izquierdo (en x=lpx)
-        if (ball.x > lpx && ball.x - ball.r < lpx && ball.vx < 0) {
-          ball.x = lpx + ball.r;
-          ball.vx = Math.abs(ball.vx) * 0.7;
-          ball.squash = 0.25;
-        }
-        // poste izquierdo del arco derecho (en x=rpx)
-        if (ball.x < rpx && ball.x + ball.r > rpx && ball.vx > 0) {
-          ball.x = rpx - ball.r;
-          ball.vx = -Math.abs(ball.vx) * 0.7;
-          ball.squash = 0.25;
-        }
-      }
 
-      // Colisiones jugador-pelota
       [p1, p2].forEach((p, i) => {
         const rad = p.r;
         // Cabeza
@@ -245,14 +226,14 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
         if (d < minD) {
           const ang = Math.atan2(dy, dx);
           const power = (i === 0 ? home.stats.power : away.stats.power) / 10;
-          const kickBoost = p.kick > 0 ? 9 + power : 2.5;
-          ball.vx = Math.cos(ang) * (4.5 + kickBoost) + p.vx * 0.65;
-          ball.vy = Math.sin(ang) * (4.5 + kickBoost) - 4.6;
+          const kickBoost = p.kick > 0 ? 7 + power : 2;
+          ball.vx = Math.cos(ang) * (3.5 + kickBoost) + p.vx * 0.6;
+          ball.vy = Math.sin(ang) * (3.5 + kickBoost) - 3.2;
           ball.x = p.x + Math.cos(ang) * minD;
           ball.y = (p.y - rad) + Math.sin(ang) * minD;
-          ball.squash = p.kick > 0 ? 0.3 : 0.16;
           ball.lastTouch = (i === 0 ? 1 : 2);
-          if (p.kick > 0) registerShot(i === 0 ? 1 : 2);
+          // Cualquier toque hacia el arco rival cuenta como remate
+          registerShot(i === 0 ? 1 : 2);
         }
         // Pie (siempre apuntando al arco rival)
         if (p.kick > 0) {
@@ -263,9 +244,8 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
           if (fd < ball.r + 14) {
             const ang = Math.atan2(fdy, fdx);
             const power = (i === 0 ? home.stats.power : away.stats.power) / 8;
-            ball.vx = Math.cos(ang) * (11 + power) + p.facing * 5.5;
-            ball.vy = Math.sin(ang) * (8.5 + power) - 6.5;
-            ball.squash = 0.36;
+            ball.vx = Math.cos(ang) * (9 + power) + p.facing * 4.5;
+            ball.vy = Math.sin(ang) * (6 + power) - 4.5;
             ball.lastTouch = (i === 0 ? 1 : 2);
             registerShot(i === 0 ? 1 : 2);
           }
