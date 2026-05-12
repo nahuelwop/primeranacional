@@ -5,6 +5,7 @@ import { Shield } from "@/components/Shield";
 import { TEAMS_BY_ID } from "@/data/teams";
 import { sortStandings, StandingRow } from "@/lib/tournament";
 import { useTournament } from "@/store/tournament";
+import { Game } from "@/components/Game";
 
 export const Route = createFileRoute("/torneo")({
   head: () => ({
