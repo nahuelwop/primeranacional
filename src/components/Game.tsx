@@ -226,14 +226,14 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
         if (d < minD) {
           const ang = Math.atan2(dy, dx);
           const power = (i === 0 ? home.stats.power : away.stats.power) / 10;
-          const kickBoost = p.kick > 0 ? 9 + power : 2.5;
-          ball.vx = Math.cos(ang) * (4.5 + kickBoost) + p.vx * 0.65;
-          ball.vy = Math.sin(ang) * (4.5 + kickBoost) - 4.6;
+          const kickBoost = p.kick > 0 ? 7 + power : 2;
+          ball.vx = Math.cos(ang) * (3.5 + kickBoost) + p.vx * 0.6;
+          ball.vy = Math.sin(ang) * (3.5 + kickBoost) - 3.2;
           ball.x = p.x + Math.cos(ang) * minD;
           ball.y = (p.y - rad) + Math.sin(ang) * minD;
-          ball.squash = p.kick > 0 ? 0.3 : 0.16;
           ball.lastTouch = (i === 0 ? 1 : 2);
-          if (p.kick > 0) registerShot(i === 0 ? 1 : 2);
+          // Cualquier toque hacia el arco rival cuenta como remate
+          registerShot(i === 0 ? 1 : 2);
         }
         // Pie (siempre apuntando al arco rival)
         if (p.kick > 0) {
@@ -244,9 +244,8 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
           if (fd < ball.r + 14) {
             const ang = Math.atan2(fdy, fdx);
             const power = (i === 0 ? home.stats.power : away.stats.power) / 8;
-            ball.vx = Math.cos(ang) * (11 + power) + p.facing * 5.5;
-            ball.vy = Math.sin(ang) * (8.5 + power) - 6.5;
-            ball.squash = 0.36;
+            ball.vx = Math.cos(ang) * (9 + power) + p.facing * 4.5;
+            ball.vy = Math.sin(ang) * (6 + power) - 4.5;
             ball.lastTouch = (i === 0 ? 1 : 2);
             registerShot(i === 0 ? 1 : 2);
           }
