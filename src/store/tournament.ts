@@ -30,7 +30,7 @@ type Actions = {
 
 const aIds = ZONE_A.map(t => t.id);
 const bIds = ZONE_B.map(t => t.id);
-const buildFix = () => buildFixture(aIds, bIds, CLASICOS_INTERZONALES);
+const buildFix = () => buildOfficialFixture();
 
 // Aplica el resultado a las dos zonas. applyMatchToStandings ignora equipos
 // que no estén en la lista, así que sirve para partidos interzonales.
