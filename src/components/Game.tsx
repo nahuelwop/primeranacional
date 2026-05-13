@@ -58,11 +58,12 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
     const ball = { x: W / 2, y: H / 2 - 30, vx: 2.2, vy: -3.5, r: 14, spin: 0, squash: 0, lastTouch: 0 as 0 | 1 | 2 };
 
     const aiCfg = {
-      easy:   { speed: 0.45, jump: 0.30, kick: 0.10, react: 60, idle: 0.55 },
-      normal: { speed: 0.92, jump: 0.78, kick: 0.65, react: 14, idle: 0.05 },
-      hard:   { speed: 1.10, jump: 0.95, kick: 0.90, react: 4,  idle: 0.0  },
+      easy:   { speed: 0.55, jumpProb: 0.35, kickProb: 0.18, react: 40, jumpCd: 90 },
+      normal: { speed: 0.85, jumpProb: 0.60, kickProb: 0.45, react: 18, jumpCd: 55 },
+      hard:   { speed: 1.05, jumpProb: 0.85, kickProb: 0.75, react: 8,  jumpCd: 35 },
     }[aiDifficulty];
     let frame = 0;
+    let aiJumpCd = 0;
 
     // Partículas confeti
     const particles: { x: number; y: number; vx: number; vy: number; life: number; color: string; size: number }[] = [];
@@ -144,20 +145,54 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
         if (keys["arrowup"] && p2.y >= ground) p2.vy = jumpScale(away.stats.jump);
         if (keys["enter"]) p2.kick = 10;
       } else {
-        // IA
+        // IA realista: posicionamiento defensivo + ataque medido, sin saltos compulsivos
+        if (aiJumpCd > 0) aiJumpCd--;
         const sp2 = speedScale(away.stats.speed) * aiCfg.speed;
-        if (Math.random() > aiCfg.idle) {
-          const predictedX = ball.x + ball.vx * aiCfg.react;
-          const guardX = W * 0.78;
-          const targetX = (ball.x < W * 0.5 && aiDifficulty !== "hard") ? guardX : predictedX + (ball.x < p2.x ? -24 : 24);
-          if (Math.abs(p2.x - targetX) > 9) p2.vx = p2.x < targetX ? sp2 : -sp2;
-          else p2.vx *= 0.78;
-          if (ball.y < ground - 70 && Math.abs(ball.x - p2.x) < 105 * aiCfg.jump && p2.y >= ground)
-            p2.vy = jumpScale(away.stats.jump);
-          if (Math.abs(p2.x - ball.x) < 62 && Math.abs(p2.y - ball.y) < 72 && Math.random() < aiCfg.kick) p2.kick = 10;
+        const guardX = W * 0.78;       // posición defensiva natural
+        const restX  = W * 0.62;       // descanso medio campo propio
+        const predictedX = ball.x + ball.vx * aiCfg.react;
+        const ballOnOwnSide = ball.x > W * 0.5;
+        const ballComing = ball.vx > 0.5;          // viene hacia la IA
+        const ballFar = Math.abs(ball.x - p2.x) > 220;
+
+        // 1) Si la pelota está lejos en campo rival y no viene → vuelve a posición
+        let targetX: number;
+        if (!ballOnOwnSide && !ballComing) {
+          targetX = restX;
+        } else if (ballOnOwnSide && ball.x > guardX + 30) {
+          // Pelota ya pasó: cubre el arco
+          targetX = guardX;
         } else {
-          p2.vx *= 0.85;
+          // Persigue con anticipación pero sin pegarse a la pelota
+          const offset = ball.x < p2.x ? -28 : 28;
+          targetX = predictedX + offset;
         }
+        // Banda muerta para que no oscile encima de la pelota
+        const dead = 14;
+        if (Math.abs(p2.x - targetX) > dead) p2.vx = p2.x < targetX ? sp2 : -sp2;
+        else p2.vx *= 0.7;
+
+        // Salto: solo si la pelota está alta, cerca, descendiendo hacia el jugador, y con cooldown
+        const ballHigh = ball.y < ground - 90;
+        const ballNearX = Math.abs(ball.x - p2.x) < 70;
+        const ballDescending = ball.vy > 0;
+        if (
+          aiJumpCd === 0 && p2.y >= ground && ballHigh && ballNearX && ballDescending &&
+          Math.random() < aiCfg.jumpProb
+        ) {
+          p2.vy = jumpScale(away.stats.jump);
+          aiJumpCd = aiCfg.jumpCd;
+        }
+
+        // Patear: solo si está realmente al alcance
+        if (
+          Math.abs(p2.x - ball.x) < 55 &&
+          Math.abs(p2.y - ball.y) < 55 &&
+          Math.random() < aiCfg.kickProb
+        ) p2.kick = 10;
+
+        // Pequeñas pausas naturales si está lejos
+        if (ballFar && Math.random() < 0.02) p2.vx *= 0.4;
       }
 
       // Posesión: cuenta el último que tocó
@@ -225,10 +260,10 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
         const minD = rad + ball.r;
         if (d < minD) {
           const ang = Math.atan2(dy, dx);
-          const power = (i === 0 ? home.stats.power : away.stats.power) / 10;
-          const kickBoost = p.kick > 0 ? 7 + power : 2;
-          ball.vx = Math.cos(ang) * (3.5 + kickBoost) + p.vx * 0.6;
-          ball.vy = Math.sin(ang) * (3.5 + kickBoost) - 3.2;
+          const power = (i === 0 ? home.stats.power : away.stats.power) / 18;
+          const kickBoost = p.kick > 0 ? 4 + power : 1.2;
+          ball.vx = Math.cos(ang) * (2.2 + kickBoost) + p.vx * 0.45;
+          ball.vy = Math.sin(ang) * (2.2 + kickBoost) - 1.8;
           ball.x = p.x + Math.cos(ang) * minD;
           ball.y = (p.y - rad) + Math.sin(ang) * minD;
           ball.lastTouch = (i === 0 ? 1 : 2);
@@ -243,9 +278,9 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
           const fd = Math.hypot(fdx, fdy);
           if (fd < ball.r + 14) {
             const ang = Math.atan2(fdy, fdx);
-            const power = (i === 0 ? home.stats.power : away.stats.power) / 8;
-            ball.vx = Math.cos(ang) * (9 + power) + p.facing * 4.5;
-            ball.vy = Math.sin(ang) * (6 + power) - 4.5;
+            const power = (i === 0 ? home.stats.power : away.stats.power) / 12;
+            ball.vx = Math.cos(ang) * (6.5 + power) + p.facing * 3;
+            ball.vy = Math.sin(ang) * (4 + power) - 3;
             ball.lastTouch = (i === 0 ? 1 : 2);
             registerShot(i === 0 ? 1 : 2);
           }
