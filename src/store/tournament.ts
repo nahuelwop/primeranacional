@@ -60,24 +60,39 @@ export const useTournament = create<State & Actions>()(persist((set, get) => ({
     standA: emptyStandings(aIds),
     standB: emptyStandings(bIds),
     currentRound: 1,
+    userTeamId: undefined,
     finalDirecta: undefined, bracket: undefined,
     champion: undefined, reducidoChampion: undefined,
   }),
+  setUserTeam: (id) => set({ userTeamId: id }),
   playRound: (round) => {
-    const { fixture, standA, standB } = get();
+    const { fixture, standA, standB, userTeamId } = get();
     let a = standA, b = standB;
+    let advanced = true;
     const newFix = fixture.map(m => {
       if (m.round !== round || m.played) return m;
+      // Si es el partido del usuario, NO simular: lo debe jugar
+      if (userTeamId && (m.home === userTeamId || m.away === userTeamId)) {
+        advanced = false;
+        return m;
+      }
       const { hg, ag } = simulateMatch(m.home, m.away);
       const next = { ...m, homeGoals: hg, awayGoals: ag, played: true };
       const r = applyBoth(a, b, next); a = r.a; b = r.b;
       return next;
     });
-    set({ fixture: newFix, standA: a, standB: b, currentRound: round + 1 });
+    // solo avanza la fecha si todos los partidos del round ya están jugados
+    const roundDone = newFix.filter(m => m.round === round).every(m => m.played);
+    set({ fixture: newFix, standA: a, standB: b, currentRound: roundDone ? round + 1 : round });
   },
   playAll: () => {
     const totalRounds = Math.max(...get().fixture.map(m => m.round));
-    for (let r = get().currentRound; r <= totalRounds; r++) get().playRound(r);
+    for (let r = get().currentRound; r <= totalRounds; r++) {
+      const before = get().currentRound;
+      get().playRound(r);
+      // si no avanzó (partido del usuario pendiente), salimos
+      if (get().currentRound === before) break;
+    }
   },
   recordUserMatch: (matchId, hg, ag) => {
     const { fixture, standA, standB } = get();
