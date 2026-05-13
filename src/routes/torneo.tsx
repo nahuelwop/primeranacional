@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { Nav } from "@/components/Nav";
 import { Shield } from "@/components/Shield";
-import { TEAMS_BY_ID } from "@/data/teams";
+import { TEAMS_BY_ID, ZONE_A, ZONE_B } from "@/data/teams";
 import { sortStandings, StandingRow } from "@/lib/tournament";
 import { useTournament } from "@/store/tournament";
 import { Game } from "@/components/Game";
@@ -11,7 +11,7 @@ export const Route = createFileRoute("/torneo")({
   head: () => ({
     meta: [
       { title: "Torneo · Primera Heads" },
-      { name: "description", content: "Tabla de posiciones y fixture de la Primera Nacional Argentina en formato arcade." },
+      { name: "description", content: "Campaña de la Primera Nacional Argentina en formato arcade." },
     ],
   }),
   component: TorneoPage,
@@ -27,9 +27,19 @@ function TorneoPage() {
 
   useEffect(() => { setRound(Math.min(s.currentRound, totalRounds || 1)); }, [s.currentRound, totalRounds]);
 
-  const playMatch = s.fixture.find(m => m.id === playId) ?? null;
+  // === Selector de equipo (campaña) ===
+  if (!s.userTeamId) return <TeamPicker onPick={(id) => {
+    s.setUserTeam(id);
+    const z = TEAMS_BY_ID[id]?.zone;
+    if (z === "A" || z === "B") setZone(z);
+  }} />;
 
-  // En partidos interzonales mostramos el cruce en AMBAS zonas.
+  const userTeam = TEAMS_BY_ID[s.userTeamId];
+  const playMatch = s.fixture.find(m => m.id === playId) ?? null;
+  const nextUserMatch = s.fixture.find(m =>
+    !m.played && (m.home === s.userTeamId || m.away === s.userTeamId)
+  );
+
   const fixtureRound = s.fixture.filter(m => {
     if (m.round !== round) return false;
     const hz = TEAMS_BY_ID[m.home]?.zone, az = TEAMS_BY_ID[m.away]?.zone;
@@ -46,22 +56,32 @@ function TorneoPage() {
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 py-8">
         <div className="flex flex-wrap items-end justify-between gap-3 mb-6">
           <div>
-            <p className="text-celeste font-display tracking-[0.3em] text-xs">CAMPEONATO</p>
+            <p className="text-celeste font-display tracking-[0.3em] text-xs">CAMPAÑA</p>
             <h1 className="font-display text-5xl">PRIMERA NACIONAL</h1>
-            <p className="text-muted-foreground text-sm mt-1">Fecha {Math.min(s.currentRound, totalRounds)} de {totalRounds}</p>
+            <div className="flex items-center gap-2 mt-2">
+              <Shield team={userTeam} size={28} />
+              <span className="font-display text-lg">{userTeam.name}</span>
+              <span className="text-xs text-muted-foreground">· Fecha {Math.min(s.currentRound, totalRounds)}/{totalRounds}</span>
+            </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            {nextUserMatch && (
+              <button onClick={() => setPlayId(nextUserMatch.id)}
+                className="px-4 py-2 rounded-lg bg-accent text-accent-foreground font-display tracking-wider">
+                JUGAR PRÓXIMO
+              </button>
+            )}
             <button onClick={() => s.playRound(s.currentRound)}
               disabled={s.currentRound > totalRounds}
               className="px-4 py-2 rounded-lg bg-celeste text-primary-foreground font-display tracking-wider disabled:opacity-40">
-              SIMULAR FECHA
+              SIMULAR RIVALES
             </button>
             <button onClick={() => s.playAll()}
               disabled={s.currentRound > totalRounds}
               className="px-4 py-2 rounded-lg bg-secondary border border-border font-display tracking-wider disabled:opacity-40">
-              SIMULAR TODO
+              SIMULAR HASTA MI PARTIDO
             </button>
-            <button onClick={() => s.reset()}
+            <button onClick={() => { if (confirm("¿Reiniciar campaña?")) s.reset(); }}
               className="px-4 py-2 rounded-lg bg-destructive/20 border border-destructive/40 text-destructive font-display tracking-wider">
               REINICIAR
             </button>
@@ -78,7 +98,7 @@ function TorneoPage() {
         </div>
 
         <div className="grid lg:grid-cols-2 gap-6">
-          <StandingsTable rows={sorted} />
+          <StandingsTable rows={sorted} userTeamId={s.userTeamId} />
 
           <div className="rounded-2xl bg-card border border-border p-4">
             <div className="flex items-center justify-between mb-3">
@@ -93,8 +113,12 @@ function TorneoPage() {
             <div className="space-y-2">
               {fixtureRound.map(m => {
                 const h = TEAMS_BY_ID[m.home], a = TEAMS_BY_ID[m.away];
+                const isUser = m.home === s.userTeamId || m.away === s.userTeamId;
                 return (
-                  <div key={m.id} className={`flex items-center justify-between gap-3 p-2 rounded-lg border ${m.isClasico ? "border-accent/60 bg-accent/5" : "border-border bg-background"}`}>
+                  <div key={m.id} className={`flex items-center justify-between gap-3 p-2 rounded-lg border ${
+                    isUser ? "border-celeste/70 bg-celeste/10" :
+                    m.isClasico ? "border-accent/60 bg-accent/5" : "border-border bg-background"
+                  }`}>
                     <div className="flex items-center gap-2 flex-1 justify-end text-right">
                       <span className="text-sm truncate">{h.name}</span>
                       <Shield team={h} size={28} />
@@ -106,7 +130,7 @@ function TorneoPage() {
                       <Shield team={a} size={28} />
                       <span className="text-sm truncate">{a.name}</span>
                     </div>
-                    {!m.played && (
+                    {!m.played && isUser && (
                       <button onClick={() => setPlayId(m.id)}
                         className="px-3 py-1 rounded-lg bg-celeste text-primary-foreground font-display text-xs tracking-wider">
                         JUGAR
@@ -157,7 +181,43 @@ function TorneoPage() {
   );
 }
 
-function StandingsTable({ rows }: { rows: StandingRow[] }) {
+function TeamPicker({ onPick }: { onPick: (id: string) => void }) {
+  const [zone, setZone] = useState<"A" | "B">("A");
+  const teams = zone === "A" ? ZONE_A : ZONE_B;
+  return (
+    <div className="min-h-screen flex flex-col">
+      <Nav />
+      <main className="flex-1 max-w-5xl w-full mx-auto px-4 py-10">
+        <p className="text-celeste font-display tracking-[0.3em] text-xs">CAMPAÑA</p>
+        <h1 className="font-display text-5xl mb-2">ELEGÍ TU EQUIPO</h1>
+        <p className="text-muted-foreground mb-6">Llevá a tu club por toda la temporada de la Primera Nacional 2026.</p>
+        <div className="flex gap-2 mb-4">
+          {(["A","B"] as const).map(z => (
+            <button key={z} onClick={() => setZone(z)}
+              className={`px-5 py-2 rounded-lg font-display tracking-wider ${zone===z ? "bg-celeste text-primary-foreground" : "bg-secondary"}`}>
+              ZONA {z}
+            </button>
+          ))}
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+          {teams.map(t => (
+            <button key={t.id} onClick={() => onPick(t.id)}
+              className="flex items-center gap-3 p-3 rounded-xl bg-card border border-border hover:border-celeste hover:bg-celeste/5 transition text-left">
+              <Shield team={t} size={36} />
+              <div>
+                <div className="font-display text-sm">{t.name}</div>
+                <div className="text-[10px] text-muted-foreground">VEL {t.stats.speed} · POT {t.stats.power}</div>
+              </div>
+            </button>
+          ))}
+        </div>
+      </main>
+    </div>
+  );
+}
+
+function StandingsTable({ rows, userTeamId }: { rows: StandingRow[]; userTeamId?: string }) {
+  const total = rows.length;
   return (
     <div className="rounded-2xl bg-card border border-border overflow-hidden">
       <div className="px-4 py-3 border-b border-border font-display text-2xl">TABLA</div>
@@ -173,10 +233,16 @@ function StandingsTable({ rows }: { rows: StandingRow[] }) {
         <tbody>
           {rows.map((r, i) => {
             const team = TEAMS_BY_ID[r.teamId];
-            const zoneClass = i === 0 ? "bg-celeste/10" : i < 8 ? "bg-accent/5" : "";
+            const isUser = r.teamId === userTeamId;
+            const isDescenso = i >= total - 2;
+            const rowClass =
+              isUser ? "bg-celeste/15 ring-1 ring-celeste/40" :
+              i === 0 ? "bg-celeste/10" :
+              isDescenso ? "bg-destructive/15" :
+              i < 8 ? "bg-accent/5" : "";
             return (
-              <tr key={r.teamId} className={`border-t border-border ${zoneClass}`}>
-                <td className="px-3 py-1.5 text-muted-foreground">{i+1}</td>
+              <tr key={r.teamId} className={`border-t border-border ${rowClass}`}>
+                <td className={`px-3 py-1.5 ${isDescenso ? "text-destructive font-bold" : "text-muted-foreground"}`}>{i+1}</td>
                 <td className="flex items-center gap-2 py-1.5">
                   <Shield team={team} size={22} />
                   <span className="truncate">{team.name}</span>
@@ -192,8 +258,9 @@ function StandingsTable({ rows }: { rows: StandingRow[] }) {
           })}
         </tbody>
       </table>
-      <div className="px-4 py-2 text-xs text-muted-foreground border-t border-border">
-        ▮ Final directa por 1er ascenso · ▮ Reducido (2°-8°)
+      <div className="px-4 py-2 text-xs text-muted-foreground border-t border-border space-y-0.5">
+        <div>▮ Final directa por 1er ascenso · ▮ Reducido (2°-8°)</div>
+        <div className="text-destructive">▮ Zona de descenso (últimos 2)</div>
       </div>
     </div>
   );
