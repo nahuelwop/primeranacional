@@ -95,15 +95,22 @@ export const useTournament = create<State & Actions>()(persist((set, get) => ({
     }
   },
   recordUserMatch: (matchId, hg, ag) => {
-    const { fixture, standA, standB } = get();
+    const { fixture, standA, standB, currentRound } = get();
     let a = standA, b = standB;
+    let playedRound = currentRound;
     const newFix = fixture.map(m => {
       if (m.id !== matchId || m.played) return m;
       const next = { ...m, homeGoals: hg, awayGoals: ag, played: true };
       const r = applyBoth(a, b, next); a = r.a; b = r.b;
+      playedRound = next.round;
       return next;
     });
-    set({ fixture: newFix, standA: a, standB: b });
+    // si la fecha quedó completa, avanzar
+    const roundDone = newFix.filter(m => m.round === playedRound).every(m => m.played);
+    set({
+      fixture: newFix, standA: a, standB: b,
+      currentRound: roundDone && playedRound >= currentRound ? playedRound + 1 : currentRound,
+    });
   },
   startPlayoffs: () => {
     const { standA, standB } = get();
