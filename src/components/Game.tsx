@@ -278,9 +278,9 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
           const fd = Math.hypot(fdx, fdy);
           if (fd < ball.r + 14) {
             const ang = Math.atan2(fdy, fdx);
-            const power = (i === 0 ? home.stats.power : away.stats.power) / 8;
-            ball.vx = Math.cos(ang) * (9 + power) + p.facing * 4.5;
-            ball.vy = Math.sin(ang) * (6 + power) - 4.5;
+            const power = (i === 0 ? home.stats.power : away.stats.power) / 12;
+            ball.vx = Math.cos(ang) * (6.5 + power) + p.facing * 3;
+            ball.vy = Math.sin(ang) * (4 + power) - 3;
             ball.lastTouch = (i === 0 ? 1 : 2);
             registerShot(i === 0 ? 1 : 2);
           }
