@@ -12,6 +12,7 @@ type State = {
   standA: StandingRow[];
   standB: StandingRow[];
   currentRound: number;
+  userTeamId?: string;
   finalDirecta?: Pair;
   bracket?: Bracket;
   champion?: string;
@@ -21,6 +22,7 @@ type State = {
 type Actions = {
   init: () => void;
   reset: () => void;
+  setUserTeam: (id: string) => void;
   playRound: (round: number) => void;
   playAll: () => void;
   recordUserMatch: (matchId: string, hg: number, ag: number) => void;
