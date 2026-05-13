@@ -129,4 +129,4 @@ export const useTournament = create<State & Actions>()(persist((set, get) => ({
     }
     set({ bracket: { octavos, cuartos, semis, final } });
   },
-}), { name: "primera-nacional-heads-v2" }));
+}), { name: "primera-nacional-heads-2026" }));
