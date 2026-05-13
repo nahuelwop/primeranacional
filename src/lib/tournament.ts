@@ -1,4 +1,18 @@
 import { Team, TEAMS_BY_ID, teamRating } from "@/data/teams";
+import { FIXTURE_2026, isClasicoMatch } from "@/data/fixture2026";
+
+// Fixture oficial 2026 (cruces declarados por el usuario).
+export function buildOfficialFixture(): Match[] {
+  return FIXTURE_2026.map(([round, home, away]) => {
+    const ht = TEAMS_BY_ID[home];
+    const rivalRel = !!(ht?.rivals?.includes(away));
+    return {
+      id: `F${round}-${home}-${away}`,
+      round, home, away, played: false,
+      isClasico: rivalRel || isClasicoMatch(home, away),
+    };
+  });
+}
 
 export type Match = {
   id: string;
