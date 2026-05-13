@@ -1,10 +1,10 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { ZONE_A, ZONE_B, CLASICOS_INTERZONALES } from "@/data/teams";
+import { ZONE_A, ZONE_B } from "@/data/teams";
 import {
-  applyMatchToStandings, buildFixture, emptyStandings,
+  applyMatchToStandings, emptyStandings,
   Match, simulateMatch, sortStandings, StandingRow,
-  buildReducido, Bracket, Pair,
+  buildReducido, Bracket, Pair, buildOfficialFixture,
 } from "@/lib/tournament";
 
 type State = {
