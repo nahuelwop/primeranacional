@@ -9,6 +9,10 @@ import {
 } from "@tanstack/react-router";
 
 import appCss from "../styles.css?url";
+import { AuthProvider } from "@/lib/auth";
+import { useTeamsSync } from "@/lib/teams-sync";
+
+function TeamsBoot() { useTeamsSync(); return null; }
 
 function NotFoundComponent() {
   return (
@@ -117,7 +121,10 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <Outlet />
+      <AuthProvider>
+        <TeamsBoot />
+        <Outlet />
+      </AuthProvider>
     </QueryClientProvider>
   );
 }
