@@ -1,9 +1,21 @@
 import { Team } from "@/data/teams";
 
-// Escudo SVG estilizado: usa los colores y abreviatura de cada club.
-// Nota: los escudos OFICIALES están protegidos por derechos. Estos son
-// estilizaciones inspiradas en los colores reales de cada equipo.
+// Si el equipo tiene logoUrl (oficial o subido por admin), lo mostramos como
+// imagen. Si no, caemos al SVG estilizado con los colores del club.
 export function Shield({ team, size = 48 }: { team: Team; size?: number }) {
+  if (team.logoUrl) {
+    return (
+      <img
+        src={team.logoUrl}
+        alt={team.name}
+        width={size}
+        height={size}
+        loading="lazy"
+        style={{ width: size, height: size, objectFit: "contain" }}
+        className="drop-shadow-md"
+      />
+    );
+  }
   const { primary, secondary, short, stripe = "solid" } = team;
   const id = `g-${team.id}`;
   return (

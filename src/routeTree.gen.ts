@@ -12,7 +12,9 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as TorneoRouteImport } from './routes/torneo'
 import { Route as ReducidoRouteImport } from './routes/reducido'
 import { Route as EquiposRouteImport } from './routes/equipos'
+import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AmistosoRouteImport } from './routes/amistoso'
+import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 
 const TorneoRoute = TorneoRouteImport.update({
@@ -30,9 +32,19 @@ const EquiposRoute = EquiposRouteImport.update({
   path: '/equipos',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AmistosoRoute = AmistosoRouteImport.update({
   id: '/amistoso',
   path: '/amistoso',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminRoute = AdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -43,14 +55,18 @@ const IndexRoute = IndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
   '/amistoso': typeof AmistosoRoute
+  '/auth': typeof AuthRoute
   '/equipos': typeof EquiposRoute
   '/reducido': typeof ReducidoRoute
   '/torneo': typeof TorneoRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
   '/amistoso': typeof AmistosoRoute
+  '/auth': typeof AuthRoute
   '/equipos': typeof EquiposRoute
   '/reducido': typeof ReducidoRoute
   '/torneo': typeof TorneoRoute
@@ -58,22 +74,48 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
   '/amistoso': typeof AmistosoRoute
+  '/auth': typeof AuthRoute
   '/equipos': typeof EquiposRoute
   '/reducido': typeof ReducidoRoute
   '/torneo': typeof TorneoRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/amistoso' | '/equipos' | '/reducido' | '/torneo'
+  fullPaths:
+    | '/'
+    | '/admin'
+    | '/amistoso'
+    | '/auth'
+    | '/equipos'
+    | '/reducido'
+    | '/torneo'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/amistoso' | '/equipos' | '/reducido' | '/torneo'
-  id: '__root__' | '/' | '/amistoso' | '/equipos' | '/reducido' | '/torneo'
+  to:
+    | '/'
+    | '/admin'
+    | '/amistoso'
+    | '/auth'
+    | '/equipos'
+    | '/reducido'
+    | '/torneo'
+  id:
+    | '__root__'
+    | '/'
+    | '/admin'
+    | '/amistoso'
+    | '/auth'
+    | '/equipos'
+    | '/reducido'
+    | '/torneo'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AdminRoute: typeof AdminRoute
   AmistosoRoute: typeof AmistosoRoute
+  AuthRoute: typeof AuthRoute
   EquiposRoute: typeof EquiposRoute
   ReducidoRoute: typeof ReducidoRoute
   TorneoRoute: typeof TorneoRoute
@@ -102,11 +144,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EquiposRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/amistoso': {
       id: '/amistoso'
       path: '/amistoso'
       fullPath: '/amistoso'
       preLoaderRoute: typeof AmistosoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -121,7 +177,9 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AdminRoute: AdminRoute,
   AmistosoRoute: AmistosoRoute,
+  AuthRoute: AuthRoute,
   EquiposRoute: EquiposRoute,
   ReducidoRoute: ReducidoRoute,
   TorneoRoute: TorneoRoute,
@@ -129,3 +187,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
