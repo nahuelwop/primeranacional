@@ -17,6 +17,7 @@ export const Route = createFileRoute("/reducido")({
 });
 
 function Reducido() {
+  useTeamsSync();
   const s = useTournament();
   const allPlayed = s.fixture.length > 0 && s.fixture.every(m => m.played);
 
