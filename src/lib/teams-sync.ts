@@ -5,7 +5,7 @@ import { TEAMS, TEAMS_BY_ID, ZONE_A, ZONE_B, type Team } from "@/data/teams";
 
 const CACHE_KEY = "primera-heads-teams-cache-v1";
 
-type DbTeam = {
+export type DbTeam = {
   id: string;
   name: string;
   short: string;
@@ -106,7 +106,11 @@ async function loadAll() {
     .select("*")
     .order("sort_order", { ascending: true });
   if (error || !data) return;
-  replaceTeams((data as DbTeam[]).map(rowToTeam));
+  syncTeamsFromDbRows(data as DbTeam[]);
+}
+
+export function syncTeamsFromDbRows(rows: DbTeam[]) {
+  replaceTeams(rows.map(rowToTeam));
   saveCache();
   useStore.setState(s => ({ version: s.version + 1, loaded: true }));
 }
