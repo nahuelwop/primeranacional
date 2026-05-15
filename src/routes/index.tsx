@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useState } from "react";
 import { Shield } from "@/components/Shield";
 import { Nav } from "@/components/Nav";
 import { ZONE_A, ZONE_B } from "@/data/teams";
@@ -24,7 +25,7 @@ export const Route = createFileRoute("/")({
 
 function Home() {
   const { teams } = Route.useLoaderData();
-  hydrateTeamsFromDbRows(teams as DbTeam[]);
+  useState(() => hydrateTeamsFromDbRows(teams as DbTeam[]));
   useTeamsSync();
   return (
     <div className="min-h-screen flex flex-col">
