@@ -15,6 +15,7 @@ export const Route = createFileRoute("/equipos")({
 });
 
 function EquiposPage() {
+  useTeamsSync();
   return (
     <div className="min-h-screen flex flex-col">
       <Nav />
