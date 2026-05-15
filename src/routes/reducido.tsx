@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Nav } from "@/components/Nav";
 import { Shield } from "@/components/Shield";
 import { TEAMS_BY_ID } from "@/data/teams";
+import { useTeamsSync } from "@/lib/teams-sync";
 import { useTournament } from "@/store/tournament";
 import { Pair } from "@/lib/tournament";
 
