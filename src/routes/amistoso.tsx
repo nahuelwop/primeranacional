@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Nav } from "@/components/Nav";
 import { Shield, Jersey } from "@/components/Shield";
 import { TEAMS, Team } from "@/data/teams";
+import { useTeamsSync } from "@/lib/teams-sync";
 import { Game, type Weather, type Difficulty, type Mode, type MatchStats } from "@/components/Game";
 
 export const Route = createFileRoute("/amistoso")({
