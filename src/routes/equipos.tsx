@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Nav } from "@/components/Nav";
 import { Shield, Jersey } from "@/components/Shield";
 import { TEAMS } from "@/data/teams";
+import { useTeamsSync } from "@/lib/teams-sync";
 
 export const Route = createFileRoute("/equipos")({
   head: () => ({
@@ -14,6 +15,7 @@ export const Route = createFileRoute("/equipos")({
 });
 
 function EquiposPage() {
+  useTeamsSync();
   return (
     <div className="min-h-screen flex flex-col">
       <Nav />

@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Nav } from "@/components/Nav";
 import { Shield } from "@/components/Shield";
 import { TEAMS_BY_ID } from "@/data/teams";
+import { useTeamsSync } from "@/lib/teams-sync";
 import { useTournament } from "@/store/tournament";
 import { Pair } from "@/lib/tournament";
 
@@ -16,6 +17,7 @@ export const Route = createFileRoute("/reducido")({
 });
 
 function Reducido() {
+  useTeamsSync();
   const s = useTournament();
   const allPlayed = s.fixture.length > 0 && s.fixture.every(m => m.played);
 
