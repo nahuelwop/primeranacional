@@ -49,7 +49,7 @@ function Home() {
             <div className="relative grid grid-cols-6 gap-2 p-4 rounded-2xl bg-card/60 border border-border">
               {[...ZONE_A.slice(0, 9), ...ZONE_B.slice(0, 9)].map(t => (
                 <div key={t.id} className="aspect-square grid place-items-center hover:scale-110 transition">
-                  <Shield team={t} size={56} />
+                  <Shield team={t} size={56} eager />
                 </div>
               ))}
             </div>
