@@ -115,6 +115,10 @@ export function syncTeamsFromDbRows(rows: DbTeam[]) {
   useStore.setState(s => ({ version: s.version + 1, loaded: true }));
 }
 
+export function hydrateTeamsFromDbRows(rows: DbTeam[]) {
+  replaceTeams(rows.map(rowToTeam));
+}
+
 function bootOnce() {
   if (booted) return;
   booted = true;
