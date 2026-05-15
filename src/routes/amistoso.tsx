@@ -17,6 +17,7 @@ export const Route = createFileRoute("/amistoso")({
 });
 
 function AmistosoPage() {
+  useTeamsSync();
   const [home, setHome] = useState<Team | null>(TEAMS[0]);
   const [away, setAway] = useState<Team | null>(TEAMS.find(t => t.id === "nuevachicago") ?? TEAMS[18]);
   const [playing, setPlaying] = useState(false);
