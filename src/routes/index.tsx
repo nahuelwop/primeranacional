@@ -1,10 +1,17 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useState } from "react";
 import { Shield } from "@/components/Shield";
 import { Nav } from "@/components/Nav";
 import { ZONE_A, ZONE_B } from "@/data/teams";
-import { useTeamsSync } from "@/lib/teams-sync";
+import { hydrateTeamsFromDbRows, useTeamsSync, type DbTeam } from "@/lib/teams-sync";
+import { getTeamsForBoot } from "@/lib/teams.functions";
 
 export const Route = createFileRoute("/")({
+  loader: async () => {
+    const teams = await getTeamsForBoot();
+    hydrateTeamsFromDbRows(teams as DbTeam[]);
+    return { teams };
+  },
   head: () => ({
     meta: [
       { title: "Primera Heads — Fútbol arcade de la Primera Nacional Argentina" },
@@ -17,6 +24,8 @@ export const Route = createFileRoute("/")({
 });
 
 function Home() {
+  const { teams } = Route.useLoaderData();
+  useState(() => hydrateTeamsFromDbRows(teams as DbTeam[]));
   useTeamsSync();
   return (
     <div className="min-h-screen flex flex-col">
@@ -49,7 +58,7 @@ function Home() {
             <div className="relative grid grid-cols-6 gap-2 p-4 rounded-2xl bg-card/60 border border-border">
               {[...ZONE_A.slice(0, 9), ...ZONE_B.slice(0, 9)].map(t => (
                 <div key={t.id} className="aspect-square grid place-items-center hover:scale-110 transition">
-                  <Shield team={t} size={56} />
+                  <Shield team={t} size={56} eager />
                 </div>
               ))}
             </div>

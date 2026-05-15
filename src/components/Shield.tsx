@@ -2,7 +2,7 @@ import { Team } from "@/data/teams";
 
 // Si el equipo tiene logoUrl (oficial o subido por admin), lo mostramos como
 // imagen. Si no, caemos al SVG estilizado con los colores del club.
-export function Shield({ team, size = 48 }: { team: Team; size?: number }) {
+export function Shield({ team, size = 48, eager = size >= 48 }: { team: Team; size?: number; eager?: boolean }) {
   if (team.logoUrl) {
     return (
       <img
@@ -10,7 +10,8 @@ export function Shield({ team, size = 48 }: { team: Team; size?: number }) {
         alt={team.name}
         width={size}
         height={size}
-        loading="lazy"
+        loading={eager ? "eager" : "lazy"}
+        decoding={eager ? "sync" : "async"}
         style={{ width: size, height: size, objectFit: "contain" }}
         className="drop-shadow-md"
       />
