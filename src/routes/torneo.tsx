@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Nav } from "@/components/Nav";
 import { Shield } from "@/components/Shield";
 import { TEAMS_BY_ID, ZONE_A, ZONE_B } from "@/data/teams";
+import { useTeamsSync } from "@/lib/teams-sync";
 import { sortStandings, StandingRow } from "@/lib/tournament";
 import { useTournament } from "@/store/tournament";
 import { Game } from "@/components/Game";
