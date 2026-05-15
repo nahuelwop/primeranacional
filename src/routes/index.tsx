@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Shield } from "@/components/Shield";
 import { Nav } from "@/components/Nav";
 import { ZONE_A, ZONE_B } from "@/data/teams";
+import { useTeamsSync } from "@/lib/teams-sync";
 
 export const Route = createFileRoute("/")({
   head: () => ({
