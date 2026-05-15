@@ -7,7 +7,7 @@ import { Shield } from "@/components/Shield";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { TEAMS, type Team } from "@/data/teams";
-import { useTeamsSync, reloadTeams } from "@/lib/teams-sync";
+import { useTeamsSync, reloadTeams, syncTeamsFromDbRows, type DbTeam } from "@/lib/teams-sync";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({ meta: [{ title: "Admin · Primera Heads" }] }),
@@ -122,6 +122,31 @@ function TeamEditor({ initial, onClose, onSaved }: {
         ? await supabase.from("teams").insert(payload)
         : await supabase.from("teams").update(payload).eq("id", form.id);
       if (error) throw error;
+      const nextRow: DbTeam = {
+        ...payload,
+        zone: payload.zone,
+        logo_url: payload.logo_url,
+        rivals: initial?.rivals ?? [],
+        sort_order: isNew ? 999 : TEAMS.findIndex(t => t.id === form.id),
+      };
+      const withoutOld = TEAMS.filter(t => t.id !== form.id).map((t, i): DbTeam => ({
+        id: t.id,
+        name: t.name,
+        short: t.short,
+        city: t.city,
+        zone: t.zone,
+        primary_color: t.primary,
+        secondary_color: t.secondary,
+        stripe: t.stripe ?? "solid",
+        speed: t.stats.speed,
+        jump: t.stats.jump,
+        power: t.stats.power,
+        defense: t.stats.defense,
+        logo_url: t.logoUrl ?? null,
+        rivals: t.rivals ?? [],
+        sort_order: i,
+      }));
+      syncTeamsFromDbRows([...withoutOld, nextRow].sort((a, b) => a.sort_order - b.sort_order));
       await onSaved();
       onClose();
     } catch (e) { setErr((e as Error).message); }
