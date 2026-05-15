@@ -2,9 +2,15 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Shield } from "@/components/Shield";
 import { Nav } from "@/components/Nav";
 import { ZONE_A, ZONE_B } from "@/data/teams";
-import { useTeamsSync } from "@/lib/teams-sync";
+import { hydrateTeamsFromDbRows, useTeamsSync, type DbTeam } from "@/lib/teams-sync";
+import { getTeamsForBoot } from "@/lib/teams.functions";
 
 export const Route = createFileRoute("/")({
+  loader: async () => {
+    const teams = await getTeamsForBoot();
+    hydrateTeamsFromDbRows(teams as DbTeam[]);
+    return { teams };
+  },
   head: () => ({
     meta: [
       { title: "Primera Heads — Fútbol arcade de la Primera Nacional Argentina" },
