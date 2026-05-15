@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Shield } from "@/components/Shield";
 import { Team } from "@/data/teams";
 
 export type Weather = "clear" | "rain" | "wind" | "thunder";
@@ -21,6 +22,13 @@ export type MatchStats = {
   onTargetH: number; onTargetA: number;
   savesH: number; savesA: number;
 };
+
+const ScoreColorBars = ({ team, reverse = false }: { team: Team; reverse?: boolean }) => (
+  <div className="score-color-bars" aria-hidden="true">
+    <span style={{ backgroundColor: reverse ? team.secondary : team.primary }} />
+    <span style={{ backgroundColor: reverse ? team.primary : team.secondary }} />
+  </div>
+);
 
 // Football Heads style arcade — sin poderes, físicas con postes y travesaño.
 export function Game({ home, away, duration = 90, weather = "clear", aiDifficulty = "normal", mode = "1vAI", onEnd }: Props) {
@@ -574,19 +582,26 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
 
   return (
     <div className="flex flex-col items-center gap-3 w-full">
-      <div className="flex items-center justify-between w-full max-w-3xl px-4 py-2 rounded-2xl bg-black/70 border-2 border-celeste shadow-[0_0_30px_rgba(126,200,255,0.4)]">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full" style={{ background: home.primary, borderColor: home.secondary, borderWidth: 3, borderStyle: "solid" }} />
-          <div className="font-display text-xl leading-none">{home.short}</div>
+      <div className="scorebug" role="status" aria-label={`${home.short} ${score.h}, ${away.short} ${score.a}, ${time} segundos`}>
+        <div className="scorebug-brand">N</div>
+        <div className="scorebug-team scorebug-home">
+          <span className="scorebug-code">{home.short}</span>
         </div>
-        <div className="text-center">
-          <div className="font-display text-4xl text-white leading-none">{score.h} <span className="text-celeste">·</span> {score.a}</div>
-          <div className="font-display text-lg text-accent">{time}s</div>
+        <div className="scorebug-shield scorebug-shield-home">
+          <Shield team={home} size={42} eager />
         </div>
-        <div className="flex items-center gap-3">
-          <div className="font-display text-xl leading-none">{away.short}</div>
-          <div className="w-10 h-10 rounded-full" style={{ background: away.primary, borderColor: away.secondary, borderWidth: 3, borderStyle: "solid" }} />
+        <ScoreColorBars team={home} />
+        <div className="scorebug-score">{score.h}</div>
+        <div className="scorebug-score">{score.a}</div>
+        <ScoreColorBars team={away} reverse />
+        <div className="scorebug-shield scorebug-shield-away">
+          <Shield team={away} size={42} eager />
         </div>
+        <div className="scorebug-team scorebug-away">
+          <span className="scorebug-code">{away.short}</span>
+        </div>
+        <div className="scorebug-clock">{String(Math.floor(time / 60)).padStart(2, "0")}:{String(time % 60).padStart(2, "0")}</div>
+        <div className="scorebug-half">1T</div>
       </div>
 
       <canvas ref={ref} width={960} height={480} className="w-full max-w-3xl rounded-2xl border-2 border-border bg-black" />
