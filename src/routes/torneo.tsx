@@ -19,6 +19,7 @@ export const Route = createFileRoute("/torneo")({
 });
 
 function TorneoPage() {
+  useTeamsSync();
   const s = useTournament();
   useEffect(() => { s.init(); }, []);
   const totalRounds = useMemo(() => Math.max(0, ...s.fixture.map(m => m.round)), [s.fixture]);
