@@ -3,6 +3,8 @@ import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { TEAMS, TEAMS_BY_ID, ZONE_A, ZONE_B, type Team } from "@/data/teams";
 
+const CACHE_KEY = "primera-heads-teams-cache-v1";
+
 type DbTeam = {
   id: string;
   name: string;
@@ -24,9 +26,8 @@ type DbTeam = {
 type State = { version: number; loaded: boolean };
 const useStore = create<State>(() => ({ version: 0, loaded: false }));
 
-function applyDbRow(row: DbTeam) {
-  const existing = TEAMS_BY_ID[row.id];
-  const team: Team = {
+function rowToTeam(row: DbTeam): Team {
+  return {
     id: row.id,
     name: row.name,
     short: row.short,
@@ -39,6 +40,46 @@ function applyDbRow(row: DbTeam) {
     rivals: row.rivals ?? [],
     logoUrl: row.logo_url,
   };
+}
+
+function replaceTeams(teams: Team[]) {
+  TEAMS.length = 0;
+  ZONE_A.length = 0;
+  ZONE_B.length = 0;
+  for (const k of Object.keys(TEAMS_BY_ID)) delete TEAMS_BY_ID[k];
+  for (const team of teams) {
+    TEAMS.push(team);
+    TEAMS_BY_ID[team.id] = team;
+    if (team.zone === "A") ZONE_A.push(team); else ZONE_B.push(team);
+  }
+}
+
+function saveCache() {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(CACHE_KEY, JSON.stringify(TEAMS));
+}
+
+function hydrateCache() {
+  if (typeof window === "undefined") return false;
+  try {
+    const raw = window.localStorage.getItem(CACHE_KEY);
+    if (!raw) return false;
+    const teams = JSON.parse(raw) as Team[];
+    if (!Array.isArray(teams) || teams.length === 0) return false;
+    replaceTeams(teams);
+    useStore.setState(s => ({ version: s.version + 1, loaded: true }));
+    return true;
+  } catch {
+    window.localStorage.removeItem(CACHE_KEY);
+    return false;
+  }
+}
+
+hydrateCache();
+
+function applyDbRow(row: DbTeam) {
+  const existing = TEAMS_BY_ID[row.id];
+  const team = rowToTeam(row);
   if (existing) {
     Object.assign(existing, team);
   } else {
@@ -65,12 +106,8 @@ async function loadAll() {
     .select("*")
     .order("sort_order", { ascending: true });
   if (error || !data) return;
-  // Replace TEAMS contents fully from DB.
-  TEAMS.length = 0;
-  ZONE_A.length = 0;
-  ZONE_B.length = 0;
-  for (const k of Object.keys(TEAMS_BY_ID)) delete TEAMS_BY_ID[k];
-  for (const row of data as DbTeam[]) applyDbRow(row);
+  replaceTeams((data as DbTeam[]).map(rowToTeam));
+  saveCache();
   useStore.setState(s => ({ version: s.version + 1, loaded: true }));
 }
 
@@ -83,6 +120,7 @@ function bootOnce() {
     .on("postgres_changes", { event: "*", schema: "public", table: "teams" }, (payload) => {
       if (payload.eventType === "DELETE") removeTeam((payload.old as DbTeam).id);
       else applyDbRow(payload.new as DbTeam);
+      saveCache();
       useStore.setState(s => ({ version: s.version + 1, loaded: true }));
     })
     .subscribe();
