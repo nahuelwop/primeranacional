@@ -23,6 +23,8 @@ export const Route = createFileRoute("/")({
 });
 
 function Home() {
+  const { teams } = Route.useLoaderData();
+  hydrateTeamsFromDbRows(teams as DbTeam[]);
   useTeamsSync();
   return (
     <div className="min-h-screen flex flex-col">
