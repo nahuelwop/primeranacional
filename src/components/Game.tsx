@@ -58,7 +58,7 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
       color: string; second: string; kick: number; facing: 1 | -1;
     };
     const mkP = (x: number, color: string, second: string, facing: 1 | -1): Player => ({
-      x, y: ground, vx: 0, vy: 0, r: 46, color, second, kick: 0, facing,
+      x, y: ground, vx: 0, vy: 0, r: 34, color, second, kick: 0, facing,
     });
     // facing FIJO: P1 mira siempre a la derecha, P2 siempre a la izquierda
     const p1 = mkP(W * 0.28, home.primary, home.secondary, 1);
