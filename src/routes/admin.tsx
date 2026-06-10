@@ -137,7 +137,7 @@ function TeamEditor({ initial, onClose, onSaved }: {
     setBusy(true); setErr(null);
     try {
       if (!form.id || !form.name || !form.short) throw new Error("ID, nombre y abreviatura son obligatorios");
-      const payload = { ...form, logo_url: form.logo_url || null };
+      const payload = { ...form, logo_url: form.logo_url || null } as any;
       const { error } = isNew
         ? await supabase.from("teams").insert(payload)
         : await supabase.from("teams").update(payload).eq("id", form.id);
