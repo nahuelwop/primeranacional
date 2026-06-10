@@ -58,12 +58,13 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
       color: string; second: string; kick: number; facing: 1 | -1;
     };
     const mkP = (x: number, color: string, second: string, facing: 1 | -1): Player => ({
-      x, y: ground, vx: 0, vy: 0, r: 34, color, second, kick: 0, facing,
+      x, y: ground, vx: 0, vy: 0, r: 46, color, second, kick: 0, facing,
     });
     // facing FIJO: P1 mira siempre a la derecha, P2 siempre a la izquierda
     const p1 = mkP(W * 0.28, home.primary, home.secondary, 1);
     const p2 = mkP(W * 0.72, away.primary, away.secondary, -1);
-    const ball = { x: W / 2, y: H / 2 - 30, vx: 2.2, vy: -3.5, r: 14, spin: 0, squash: 0, lastTouch: 0 as 0 | 1 | 2 };
+    const ball = { x: W / 2, y: H / 2 - 30, vx: 1.8, vy: -2.8, r: 13, spin: 0, squash: 0, lastTouch: 0 as 0 | 1 | 2 };
+
 
     const aiCfg = {
       easy:   { speed: 0.55, jumpProb: 0.35, kickProb: 0.18, react: 40, jumpCd: 90 },
@@ -209,33 +210,34 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
 
       [p1, p2].forEach(p => {
         p.x += p.vx;
-        p.vy += 0.55;
+        p.vy += 0.42;
         p.y += p.vy;
         if (p.y > ground) { p.y = ground; p.vy = 0; }
         p.x = Math.max(p.r, Math.min(W - p.r, p.x));
         if (p.kick > 0) p.kick--;
       });
 
-      const wind = weather === "wind" ? -0.08 : 0;
+      const wind = weather === "wind" ? -0.06 : 0;
 
-      // Pelota
-      ball.vy += 0.36;
+      // Pelota — físicas tipo Football Heads (liviana, alegre)
+      ball.vy += 0.22;
       ball.vx += wind;
       ball.x += ball.vx;
       ball.y += ball.vy;
-      ball.vx *= 0.992;
+      ball.vx *= 0.996;
       ball.spin += ball.vx * 0.05;
       ball.squash = 0;
 
-      // Suelo (rebote suave, sin animación)
+      // Suelo (rebote vivo)
       if (ball.y > ground - ball.r) {
         ball.y = ground - ball.r;
-        ball.vy = Math.abs(ball.vy) > 1.4 ? -Math.abs(ball.vy) * 0.5 : 0;
-        ball.vx *= 0.95;
+        ball.vy = Math.abs(ball.vy) > 1.0 ? -Math.abs(ball.vy) * 0.72 : 0;
+        ball.vx *= 0.98;
       }
       // Paredes
-      if (ball.x < ball.r) { ball.x = ball.r; ball.vx = Math.abs(ball.vx) * 0.6; }
-      if (ball.x > W - ball.r) { ball.x = W - ball.r; ball.vx = -Math.abs(ball.vx) * 0.6; }
+      if (ball.x < ball.r) { ball.x = ball.r; ball.vx = Math.abs(ball.vx) * 0.75; }
+      if (ball.x > W - ball.r) { ball.x = W - ball.r; ball.vx = -Math.abs(ball.vx) * 0.75; }
+
 
       // ===== Travesaño (único elemento sólido del arco) =====
       // El balón puede entrar libremente al arco; solo rebota en la barra superior.
@@ -386,9 +388,16 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
       ctx.fillStyle = "#fff";
       ctx.beginPath(); ctx.ellipse(footX - p.facing * 4, footY + 2, 5, 4, 0, 0, Math.PI * 2); ctx.fill();
 
-      // Cuello
+      // Cuerpito chico debajo de la cabeza (estilo Football Heads)
       ctx.fillStyle = p.color;
-      ctx.fillRect(-8, -rad + 4, 16, 14);
+      ctx.beginPath();
+      ctx.ellipse(0, -6, 14, 12, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.lineWidth = 2; ctx.strokeStyle = "#1a1a1a"; ctx.stroke();
+      // Franja secundaria
+      ctx.fillStyle = p.second;
+      ctx.fillRect(-14, -8, 28, 4);
+
 
       // Cabeza
       ctx.beginPath();
