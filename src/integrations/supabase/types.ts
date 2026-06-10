@@ -37,6 +37,7 @@ export type Database = {
           city: string
           created_at: string
           defense: number
+          goal_audio_urls: string[]
           id: string
           jump: number
           logo_url: string | null
@@ -56,6 +57,7 @@ export type Database = {
           city: string
           created_at?: string
           defense?: number
+          goal_audio_urls?: string[]
           id: string
           jump?: number
           logo_url?: string | null
@@ -75,6 +77,7 @@ export type Database = {
           city?: string
           created_at?: string
           defense?: number
+          goal_audio_urls?: string[]
           id?: string
           jump?: number
           logo_url?: string | null
