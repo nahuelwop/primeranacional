@@ -58,12 +58,13 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
       color: string; second: string; kick: number; facing: 1 | -1;
     };
     const mkP = (x: number, color: string, second: string, facing: 1 | -1): Player => ({
-      x, y: ground, vx: 0, vy: 0, r: 34, color, second, kick: 0, facing,
+      x, y: ground, vx: 0, vy: 0, r: 46, color, second, kick: 0, facing,
     });
     // facing FIJO: P1 mira siempre a la derecha, P2 siempre a la izquierda
     const p1 = mkP(W * 0.28, home.primary, home.secondary, 1);
     const p2 = mkP(W * 0.72, away.primary, away.secondary, -1);
-    const ball = { x: W / 2, y: H / 2 - 30, vx: 2.2, vy: -3.5, r: 14, spin: 0, squash: 0, lastTouch: 0 as 0 | 1 | 2 };
+    const ball = { x: W / 2, y: H / 2 - 30, vx: 1.8, vy: -2.8, r: 13, spin: 0, squash: 0, lastTouch: 0 as 0 | 1 | 2 };
+
 
     const aiCfg = {
       easy:   { speed: 0.55, jumpProb: 0.35, kickProb: 0.18, react: 40, jumpCd: 90 },
