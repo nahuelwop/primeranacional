@@ -74,6 +74,21 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
     let frame = 0;
     let aiJumpCd = 0;
 
+    // Audios de gol (no se cortan: cada gol crea un Audio independiente)
+    const pickAudio = (urls?: string[]) => {
+      if (!urls || urls.length === 0) return null;
+      return urls[Math.floor(Math.random() * urls.length)];
+    };
+    const playGoalAudio = (team: Team) => {
+      const url = pickAudio(team.goalAudios);
+      if (!url) return;
+      try {
+        const a = new Audio(url);
+        a.volume = 0.9;
+        a.play().catch(() => {});
+      } catch {}
+    };
+
     // Partículas confeti
     const particles: { x: number; y: number; vx: number; vy: number; life: number; color: string; size: number }[] = [];
     const spawnGoal = (x: number, y: number, color: string) => {
