@@ -318,12 +318,14 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
         stateRef.current.otA++;
         setScore({ h: stateRef.current.h, a: stateRef.current.a });
         spawnGoal(ball.x, ball.y, away.primary);
+        playGoalAudio(away);
         resetBall(1);
       } else if (ball.x - ball.r > rpx && ball.y > crossbarY + 2) {
         stateRef.current.h++;
         stateRef.current.otH++;
         setScore({ h: stateRef.current.h, a: stateRef.current.a });
         spawnGoal(ball.x, ball.y, home.primary);
+        playGoalAudio(home);
         resetBall(-1);
       }
 
