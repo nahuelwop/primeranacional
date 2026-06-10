@@ -96,6 +96,7 @@ function TeamEditor({ initial, onClose, onSaved }: {
     power: initial?.stats.power ?? 70,
     defense: initial?.stats.defense ?? 70,
     logo_url: initial?.logoUrl ?? "",
+    goal_audio_urls: (initial?.goalAudios ?? []) as string[],
   });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -113,11 +114,30 @@ function TeamEditor({ initial, onClose, onSaved }: {
     finally { setBusy(false); }
   }
 
+  async function uploadAudio(file: File) {
+    setBusy(true); setErr(null);
+    try {
+      const ext = file.name.split(".").pop() || "mp3";
+      const path = `${form.id || "new"}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const { error } = await supabase.storage.from("team-audios").upload(path, file, { upsert: false, contentType: file.type });
+      if (error) throw error;
+      // signed URL (10 años) — bucket privado
+      const { data, error: sErr } = await supabase.storage.from("team-audios").createSignedUrl(path, 60 * 60 * 24 * 365 * 10);
+      if (sErr || !data) throw sErr ?? new Error("No se pudo firmar el audio");
+      setForm(f => ({ ...f, goal_audio_urls: [...f.goal_audio_urls, data.signedUrl] }));
+    } catch (e) { setErr((e as Error).message); }
+    finally { setBusy(false); }
+  }
+
+  function removeAudio(idx: number) {
+    setForm(f => ({ ...f, goal_audio_urls: f.goal_audio_urls.filter((_, i) => i !== idx) }));
+  }
+
   async function save() {
     setBusy(true); setErr(null);
     try {
       if (!form.id || !form.name || !form.short) throw new Error("ID, nombre y abreviatura son obligatorios");
-      const payload = { ...form, logo_url: form.logo_url || null };
+      const payload = { ...form, logo_url: form.logo_url || null } as any;
       const { error } = isNew
         ? await supabase.from("teams").insert(payload)
         : await supabase.from("teams").update(payload).eq("id", form.id);
@@ -128,6 +148,7 @@ function TeamEditor({ initial, onClose, onSaved }: {
         logo_url: payload.logo_url,
         rivals: initial?.rivals ?? [],
         sort_order: isNew ? 999 : TEAMS.findIndex(t => t.id === form.id),
+        goal_audio_urls: payload.goal_audio_urls,
       };
       const withoutOld = TEAMS.filter(t => t.id !== form.id).map((t, i): DbTeam => ({
         id: t.id,
@@ -145,6 +166,7 @@ function TeamEditor({ initial, onClose, onSaved }: {
         logo_url: t.logoUrl ?? null,
         rivals: t.rivals ?? [],
         sort_order: i,
+        goal_audio_urls: t.goalAudios ?? [],
       }));
       syncTeamsFromDbRows([...withoutOld, nextRow].sort((a, b) => a.sort_order - b.sort_order));
       await onSaved();
@@ -238,6 +260,26 @@ function TeamEditor({ initial, onClose, onSaved }: {
           </div>
 
           {num("speed")}{num("jump")}{num("power")}{num("defense")}
+
+          <div className="sm:col-span-2 border-t border-border pt-3 mt-2">
+            <label className="text-xs text-muted-foreground uppercase">Audios de gol (se elige uno al azar)</label>
+            <div className="space-y-2 mt-2">
+              {form.goal_audio_urls.length === 0 && (
+                <div className="text-xs text-muted-foreground">Sin audios. Subí mp3/ogg/wav para que se reproduzcan cuando este equipo convierta.</div>
+              )}
+              {form.goal_audio_urls.map((url, i) => (
+                <div key={i} className="flex items-center gap-2 bg-muted/40 rounded p-2">
+                  <audio src={url} controls className="flex-1 h-8" />
+                  <button onClick={() => removeAudio(i)} className="text-destructive text-xs hover:underline">Quitar</button>
+                </div>
+              ))}
+              <label className="text-xs text-celeste underline inline-block cursor-pointer">
+                + subir audio
+                <input type="file" accept="audio/*" hidden
+                  onChange={e => e.target.files?.[0] && uploadAudio(e.target.files[0])} />
+              </label>
+            </div>
+          </div>
         </div>
 
         {err && <div className="text-sm text-destructive mt-3">{err}</div>}

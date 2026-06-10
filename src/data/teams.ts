@@ -17,6 +17,7 @@ export type Team = {
   stats: Stats;
   rivals?: string[];
   logoUrl?: string | null;
+  goalAudios?: string[];
 };
 
 const t = (

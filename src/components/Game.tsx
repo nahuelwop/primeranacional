@@ -58,7 +58,7 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
       color: string; second: string; kick: number; facing: 1 | -1;
     };
     const mkP = (x: number, color: string, second: string, facing: 1 | -1): Player => ({
-      x, y: ground, vx: 0, vy: 0, r: 46, color, second, kick: 0, facing,
+      x, y: ground, vx: 0, vy: 0, r: 34, color, second, kick: 0, facing,
     });
     // facing FIJO: P1 mira siempre a la derecha, P2 siempre a la izquierda
     const p1 = mkP(W * 0.28, home.primary, home.secondary, 1);
@@ -73,6 +73,21 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
     }[aiDifficulty];
     let frame = 0;
     let aiJumpCd = 0;
+
+    // Audios de gol (no se cortan: cada gol crea un Audio independiente)
+    const pickAudio = (urls?: string[]) => {
+      if (!urls || urls.length === 0) return null;
+      return urls[Math.floor(Math.random() * urls.length)];
+    };
+    const playGoalAudio = (team: Team) => {
+      const url = pickAudio(team.goalAudios);
+      if (!url) return;
+      try {
+        const a = new Audio(url);
+        a.volume = 0.9;
+        a.play().catch(() => {});
+      } catch {}
+    };
 
     // Partículas confeti
     const particles: { x: number; y: number; vx: number; vy: number; life: number; color: string; size: number }[] = [];
@@ -303,12 +318,14 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
         stateRef.current.otA++;
         setScore({ h: stateRef.current.h, a: stateRef.current.a });
         spawnGoal(ball.x, ball.y, away.primary);
+        playGoalAudio(away);
         resetBall(1);
       } else if (ball.x - ball.r > rpx && ball.y > crossbarY + 2) {
         stateRef.current.h++;
         stateRef.current.otH++;
         setScore({ h: stateRef.current.h, a: stateRef.current.a });
         spawnGoal(ball.x, ball.y, home.primary);
+        playGoalAudio(home);
         resetBall(-1);
       }
 
@@ -388,15 +405,8 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
       ctx.fillStyle = "#fff";
       ctx.beginPath(); ctx.ellipse(footX - p.facing * 4, footY + 2, 5, 4, 0, 0, Math.PI * 2); ctx.fill();
 
-      // Cuerpito chico debajo de la cabeza (estilo Football Heads)
-      ctx.fillStyle = p.color;
-      ctx.beginPath();
-      ctx.ellipse(0, -6, 14, 12, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.lineWidth = 2; ctx.strokeStyle = "#1a1a1a"; ctx.stroke();
-      // Franja secundaria
-      ctx.fillStyle = p.second;
-      ctx.fillRect(-14, -8, 28, 4);
+
+
 
 
       // Cabeza
