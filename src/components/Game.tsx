@@ -388,15 +388,8 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
       ctx.fillStyle = "#fff";
       ctx.beginPath(); ctx.ellipse(footX - p.facing * 4, footY + 2, 5, 4, 0, 0, Math.PI * 2); ctx.fill();
 
-      // Cuerpito chico debajo de la cabeza (estilo Football Heads)
-      ctx.fillStyle = p.color;
-      ctx.beginPath();
-      ctx.ellipse(0, -6, 14, 12, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.lineWidth = 2; ctx.strokeStyle = "#1a1a1a"; ctx.stroke();
-      // Franja secundaria
-      ctx.fillStyle = p.second;
-      ctx.fillRect(-14, -8, 28, 4);
+
+
 
 
       // Cabeza
