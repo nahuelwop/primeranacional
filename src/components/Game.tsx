@@ -210,33 +210,34 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
 
       [p1, p2].forEach(p => {
         p.x += p.vx;
-        p.vy += 0.55;
+        p.vy += 0.42;
         p.y += p.vy;
         if (p.y > ground) { p.y = ground; p.vy = 0; }
         p.x = Math.max(p.r, Math.min(W - p.r, p.x));
         if (p.kick > 0) p.kick--;
       });
 
-      const wind = weather === "wind" ? -0.08 : 0;
+      const wind = weather === "wind" ? -0.06 : 0;
 
-      // Pelota
-      ball.vy += 0.36;
+      // Pelota — físicas tipo Football Heads (liviana, alegre)
+      ball.vy += 0.22;
       ball.vx += wind;
       ball.x += ball.vx;
       ball.y += ball.vy;
-      ball.vx *= 0.992;
+      ball.vx *= 0.996;
       ball.spin += ball.vx * 0.05;
       ball.squash = 0;
 
-      // Suelo (rebote suave, sin animación)
+      // Suelo (rebote vivo)
       if (ball.y > ground - ball.r) {
         ball.y = ground - ball.r;
-        ball.vy = Math.abs(ball.vy) > 1.4 ? -Math.abs(ball.vy) * 0.5 : 0;
-        ball.vx *= 0.95;
+        ball.vy = Math.abs(ball.vy) > 1.0 ? -Math.abs(ball.vy) * 0.72 : 0;
+        ball.vx *= 0.98;
       }
       // Paredes
-      if (ball.x < ball.r) { ball.x = ball.r; ball.vx = Math.abs(ball.vx) * 0.6; }
-      if (ball.x > W - ball.r) { ball.x = W - ball.r; ball.vx = -Math.abs(ball.vx) * 0.6; }
+      if (ball.x < ball.r) { ball.x = ball.r; ball.vx = Math.abs(ball.vx) * 0.75; }
+      if (ball.x > W - ball.r) { ball.x = W - ball.r; ball.vx = -Math.abs(ball.vx) * 0.75; }
+
 
       // ===== Travesaño (único elemento sólido del arco) =====
       // El balón puede entrar libremente al arco; solo rebota en la barra superior.
