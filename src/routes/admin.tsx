@@ -114,6 +114,25 @@ function TeamEditor({ initial, onClose, onSaved }: {
     finally { setBusy(false); }
   }
 
+  async function uploadAudio(file: File) {
+    setBusy(true); setErr(null);
+    try {
+      const ext = file.name.split(".").pop() || "mp3";
+      const path = `${form.id || "new"}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const { error } = await supabase.storage.from("team-audios").upload(path, file, { upsert: false, contentType: file.type });
+      if (error) throw error;
+      // signed URL (10 años) — bucket privado
+      const { data, error: sErr } = await supabase.storage.from("team-audios").createSignedUrl(path, 60 * 60 * 24 * 365 * 10);
+      if (sErr || !data) throw sErr ?? new Error("No se pudo firmar el audio");
+      setForm(f => ({ ...f, goal_audio_urls: [...f.goal_audio_urls, data.signedUrl] }));
+    } catch (e) { setErr((e as Error).message); }
+    finally { setBusy(false); }
+  }
+
+  function removeAudio(idx: number) {
+    setForm(f => ({ ...f, goal_audio_urls: f.goal_audio_urls.filter((_, i) => i !== idx) }));
+  }
+
   async function save() {
     setBusy(true); setErr(null);
     try {
@@ -129,6 +148,7 @@ function TeamEditor({ initial, onClose, onSaved }: {
         logo_url: payload.logo_url,
         rivals: initial?.rivals ?? [],
         sort_order: isNew ? 999 : TEAMS.findIndex(t => t.id === form.id),
+        goal_audio_urls: payload.goal_audio_urls,
       };
       const withoutOld = TEAMS.filter(t => t.id !== form.id).map((t, i): DbTeam => ({
         id: t.id,
@@ -146,6 +166,7 @@ function TeamEditor({ initial, onClose, onSaved }: {
         logo_url: t.logoUrl ?? null,
         rivals: t.rivals ?? [],
         sort_order: i,
+        goal_audio_urls: t.goalAudios ?? [],
       }));
       syncTeamsFromDbRows([...withoutOld, nextRow].sort((a, b) => a.sort_order - b.sort_order));
       await onSaved();
