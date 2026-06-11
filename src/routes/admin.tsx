@@ -263,25 +263,46 @@ function TeamEditor({ initial, onClose, onSaved }: {
           {num("speed")}{num("jump")}{num("power")}{num("defense")}
 
           <div className="sm:col-span-2 border-t border-border pt-3 mt-2">
-            <label className="text-xs text-muted-foreground uppercase">Audios de gol (se elige uno al azar)</label>
+            <label className="text-xs text-muted-foreground uppercase">Audios de gol (se elige uno al azar, suena cada 2 goles)</label>
             <div className="space-y-2 mt-2">
               {form.goal_audio_urls.length === 0 && (
-                <div className="text-xs text-muted-foreground">Sin audios. Subí mp3/ogg/wav para que se reproduzcan cuando este equipo convierta.</div>
+                <div className="text-xs text-muted-foreground">Sin audios. Subí mp3/ogg/wav para los relatos.</div>
               )}
               {form.goal_audio_urls.map((url, i) => (
                 <div key={i} className="flex items-center gap-2 bg-muted/40 rounded p-2">
                   <audio src={url} controls className="flex-1 h-8" />
-                  <button onClick={() => removeAudio(i)} className="text-destructive text-xs hover:underline">Quitar</button>
+                  <button onClick={() => removeAudio(i, "goal_audio_urls")} className="text-destructive text-xs hover:underline">Quitar</button>
                 </div>
               ))}
               <label className="text-xs text-celeste underline inline-block cursor-pointer">
-                + subir audio
+                + subir relato de gol
                 <input type="file" accept="audio/*" hidden
-                  onChange={e => e.target.files?.[0] && uploadAudio(e.target.files[0])} />
+                  onChange={e => e.target.files?.[0] && uploadAudio(e.target.files[0], "goal_audio_urls")} />
+              </label>
+            </div>
+          </div>
+
+          <div className="sm:col-span-2 border-t border-border pt-3 mt-2">
+            <label className="text-xs text-muted-foreground uppercase">Hinchada / música del equipo (se reproduce al azar durante el partido)</label>
+            <div className="space-y-2 mt-2">
+              {form.hinchada_urls.length === 0 && (
+                <div className="text-xs text-muted-foreground">Sin temas. Subí canciones/cánticos para que suenen cuando este equipo tenga su tramo.</div>
+              )}
+              {form.hinchada_urls.map((url, i) => (
+                <div key={i} className="flex items-center gap-2 bg-muted/40 rounded p-2">
+                  <audio src={url} controls className="flex-1 h-8" />
+                  <button onClick={() => removeAudio(i, "hinchada_urls")} className="text-destructive text-xs hover:underline">Quitar</button>
+                </div>
+              ))}
+              <label className="text-xs text-celeste underline inline-block cursor-pointer">
+                + subir tema de hinchada
+                <input type="file" accept="audio/*" hidden
+                  onChange={e => e.target.files?.[0] && uploadAudio(e.target.files[0], "hinchada_urls")} />
               </label>
             </div>
           </div>
         </div>
+
 
         {err && <div className="text-sm text-destructive mt-3">{err}</div>}
 
