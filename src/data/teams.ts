@@ -18,6 +18,7 @@ export type Team = {
   rivals?: string[];
   logoUrl?: string | null;
   goalAudios?: string[];
+  hinchadas?: string[];
 };
 
 const t = (
