@@ -97,6 +97,7 @@ function TeamEditor({ initial, onClose, onSaved }: {
     defense: initial?.stats.defense ?? 70,
     logo_url: initial?.logoUrl ?? "",
     goal_audio_urls: (initial?.goalAudios ?? []) as string[],
+    hinchada_urls: (initial?.hinchadas ?? []) as string[],
   });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
