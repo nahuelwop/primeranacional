@@ -683,6 +683,22 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
         </div>
       </div>
 
+      <div className="w-full max-w-3xl rounded-2xl bg-card border border-border p-3 text-xs grid sm:grid-cols-2 gap-3">
+        <label className="flex items-center gap-2">
+          <span className="w-20 uppercase tracking-wider text-muted-foreground">Relato</span>
+          <input type="range" min={0} max={1} step={0.05} value={narratorVol}
+            onChange={e => setNarratorVol(Number(e.target.value))} className="flex-1" />
+          <span className="w-8 text-right tabular-nums">{Math.round(narratorVol * 100)}</span>
+        </label>
+        <label className="flex items-center gap-2">
+          <span className="w-20 uppercase tracking-wider text-muted-foreground">Hinchada</span>
+          <input type="range" min={0} max={1} step={0.05} value={crowdVol}
+            onChange={e => setCrowdVol(Number(e.target.value))} className="flex-1" />
+          <span className="w-8 text-right tabular-nums">{Math.round(crowdVol * 100)}</span>
+        </label>
+      </div>
+
+
       <div className="grid grid-cols-4 gap-2 w-full max-w-3xl md:hidden">
         {[["a","◀"],["d","▶"],["w","▲"],[" ","⚽"]].map(([k,l]) => (
           <button key={k}
