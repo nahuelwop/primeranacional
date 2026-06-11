@@ -39,6 +39,14 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
   const stateRef = useRef({ h: 0, a: 0, posH: 0, posA: 0, shotsH: 0, shotsA: 0, otH: 0, otA: 0, savH: 0, savA: 0 });
   const overRef = useRef(false);
 
+  // Audio: relato + hinchada (volumen ajustable en vivo)
+  const [narratorVol, setNarratorVol] = useState(0.9);
+  const [crowdVol, setCrowdVol] = useState(0.35);
+  const narratorRef = useRef<HTMLAudioElement | null>(null);
+  const crowdRef = useRef<HTMLAudioElement | null>(null);
+  useEffect(() => { if (narratorRef.current) narratorRef.current.volume = narratorVol; }, [narratorVol]);
+  useEffect(() => { if (crowdRef.current) crowdRef.current.volume = crowdVol; }, [crowdVol]);
+
   useEffect(() => {
     overRef.current = false;
     stateRef.current = { h: 0, a: 0, posH: 0, posA: 0, shotsH: 0, shotsA: 0, otH: 0, otA: 0, savH: 0, savA: 0 };
