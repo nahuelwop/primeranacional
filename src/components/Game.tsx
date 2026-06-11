@@ -601,12 +601,17 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
     };
     loop();
 
+    advanceCrowdSegment(duration);
     const tick = setInterval(() => {
       setTime(t => {
+        const next = t - 1;
+        advanceCrowdSegment(next);
         if (t <= 1) {
           overRef.current = true;
           clearInterval(tick);
           cancelAnimationFrame(raf);
+          if (crowdRef.current) { crowdRef.current.pause(); crowdRef.current.src = ""; crowdRef.current = null; }
+          if (narratorRef.current) { narratorRef.current.pause(); narratorRef.current.src = ""; narratorRef.current = null; }
           const total = stateRef.current.posH + stateRef.current.posA;
           const finalStats: MatchStats = {
             possessionH: total > 0 ? Math.round((stateRef.current.posH / total) * 100) : 50,
@@ -617,7 +622,7 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
           onEnd(stateRef.current.h, stateRef.current.a, finalStats);
           return 0;
         }
-        return t - 1;
+        return next;
       });
     }, 1000);
 
@@ -625,6 +630,8 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
       overRef.current = true;
       cancelAnimationFrame(raf);
       clearInterval(tick);
+      if (crowdRef.current) { crowdRef.current.pause(); crowdRef.current.src = ""; crowdRef.current = null; }
+      if (narratorRef.current) { narratorRef.current.pause(); narratorRef.current.src = ""; narratorRef.current = null; }
       window.removeEventListener("keydown", kd);
       window.removeEventListener("keyup", ku);
     };
