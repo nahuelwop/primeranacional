@@ -38,6 +38,7 @@ export type Database = {
           created_at: string
           defense: number
           goal_audio_urls: string[]
+          hinchada_urls: string[]
           id: string
           jump: number
           logo_url: string | null
@@ -58,6 +59,7 @@ export type Database = {
           created_at?: string
           defense?: number
           goal_audio_urls?: string[]
+          hinchada_urls?: string[]
           id: string
           jump?: number
           logo_url?: string | null
@@ -78,6 +80,7 @@ export type Database = {
           created_at?: string
           defense?: number
           goal_audio_urls?: string[]
+          hinchada_urls?: string[]
           id?: string
           jump?: number
           logo_url?: string | null
