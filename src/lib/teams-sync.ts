@@ -22,6 +22,7 @@ export type DbTeam = {
   rivals: string[];
   sort_order: number;
   goal_audio_urls?: string[];
+  hinchada_urls?: string[];
 };
 
 type State = { version: number; loaded: boolean };
