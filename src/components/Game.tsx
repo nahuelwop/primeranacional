@@ -82,11 +82,6 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
     let frame = 0;
     let aiJumpCd = 0;
 
-    // Audios de gol (no se cortan: cada gol crea un Audio independiente)
-    const pickAudio = (urls?: string[]) => {
-      if (!urls || urls.length === 0) return null;
-      return urls[Math.floor(Math.random() * urls.length)];
-    };
     // Relato: 1 cada 2 goles totales. Si llega otro, corta el anterior.
     let totalGoals = 0;
     const pickAudio = (urls?: string[]) => {
