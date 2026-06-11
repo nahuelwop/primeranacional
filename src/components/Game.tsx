@@ -141,16 +141,6 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
         });
       }
     };
-        particles.push({
-          x, y,
-          vx: (Math.random() - 0.5) * 8,
-          vy: -Math.random() * 8 - 2,
-          life: 60 + Math.random() * 30,
-          color,
-          size: 2 + Math.random() * 3,
-        });
-      }
-    };
 
     // Clima (solo clear / rain / wind / thunder)
     const weatherP: { x: number; y: number; vx: number; vy: number; size: number }[] = [];
