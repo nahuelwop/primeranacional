@@ -42,6 +42,7 @@ function rowToTeam(row: DbTeam): Team {
     rivals: row.rivals ?? [],
     logoUrl: row.logo_url,
     goalAudios: row.goal_audio_urls ?? [],
+    hinchadas: row.hinchada_urls ?? [],
   };
 }
 
