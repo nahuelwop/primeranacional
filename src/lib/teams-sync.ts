@@ -22,6 +22,7 @@ export type DbTeam = {
   rivals: string[];
   sort_order: number;
   goal_audio_urls?: string[];
+  hinchada_urls?: string[];
 };
 
 type State = { version: number; loaded: boolean };
@@ -41,6 +42,7 @@ function rowToTeam(row: DbTeam): Team {
     rivals: row.rivals ?? [],
     logoUrl: row.logo_url,
     goalAudios: row.goal_audio_urls ?? [],
+    hinchadas: row.hinchada_urls ?? [],
   };
 }
 

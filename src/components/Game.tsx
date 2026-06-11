@@ -39,6 +39,14 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
   const stateRef = useRef({ h: 0, a: 0, posH: 0, posA: 0, shotsH: 0, shotsA: 0, otH: 0, otA: 0, savH: 0, savA: 0 });
   const overRef = useRef(false);
 
+  // Audio: relato + hinchada (volumen ajustable en vivo)
+  const [narratorVol, setNarratorVol] = useState(0.9);
+  const [crowdVol, setCrowdVol] = useState(0.35);
+  const narratorRef = useRef<HTMLAudioElement | null>(null);
+  const crowdRef = useRef<HTMLAudioElement | null>(null);
+  useEffect(() => { if (narratorRef.current) narratorRef.current.volume = narratorVol; }, [narratorVol]);
+  useEffect(() => { if (crowdRef.current) crowdRef.current.volume = crowdVol; }, [crowdVol]);
+
   useEffect(() => {
     overRef.current = false;
     stateRef.current = { h: 0, a: 0, posH: 0, posA: 0, shotsH: 0, shotsA: 0, otH: 0, otA: 0, savH: 0, savA: 0 };
@@ -74,17 +82,47 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
     let frame = 0;
     let aiJumpCd = 0;
 
-    // Audios de gol (no se cortan: cada gol crea un Audio independiente)
+    // Relato: 1 cada 2 goles totales. Si llega otro, corta el anterior.
+    let totalGoals = 0;
     const pickAudio = (urls?: string[]) => {
       if (!urls || urls.length === 0) return null;
       return urls[Math.floor(Math.random() * urls.length)];
     };
     const playGoalAudio = (team: Team) => {
+      totalGoals++;
+      if (totalGoals % 2 !== 0) return; // solo cada 2 goles
       const url = pickAudio(team.goalAudios);
       if (!url) return;
       try {
+        if (narratorRef.current) { narratorRef.current.pause(); narratorRef.current.src = ""; }
         const a = new Audio(url);
-        a.volume = 0.9;
+        a.volume = narratorVol;
+        narratorRef.current = a;
+        a.play().catch(() => {});
+      } catch {}
+    };
+
+    // Hinchada: 3 tramos de 30s (local, visitante, local), tema al azar de cada equipo.
+    const segments: Array<{ team: Team; until: number }> = [
+      { team: home, until: duration - 60 }, // primeros 30s
+      { team: away, until: duration - 30 }, // siguientes 30s
+      { team: home, until: 0 },             // últimos 30s
+    ];
+    let segIdx = -1;
+    const advanceCrowdSegment = (remaining: number) => {
+      const next = segments.findIndex(s => remaining > s.until);
+      if (next === segIdx) return;
+      segIdx = next;
+      if (segIdx < 0) return;
+      const team = segments[segIdx].team;
+      const url = pickAudio(team.hinchadas);
+      try {
+        if (crowdRef.current) { crowdRef.current.pause(); crowdRef.current.src = ""; }
+        if (!url) { crowdRef.current = null; return; }
+        const a = new Audio(url);
+        a.volume = crowdVol;
+        a.loop = true;
+        crowdRef.current = a;
         a.play().catch(() => {});
       } catch {}
     };
@@ -563,12 +601,17 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
     };
     loop();
 
+    advanceCrowdSegment(duration);
     const tick = setInterval(() => {
       setTime(t => {
+        const next = t - 1;
+        advanceCrowdSegment(next);
         if (t <= 1) {
           overRef.current = true;
           clearInterval(tick);
           cancelAnimationFrame(raf);
+          if (crowdRef.current) { crowdRef.current.pause(); crowdRef.current.src = ""; crowdRef.current = null; }
+          if (narratorRef.current) { narratorRef.current.pause(); narratorRef.current.src = ""; narratorRef.current = null; }
           const total = stateRef.current.posH + stateRef.current.posA;
           const finalStats: MatchStats = {
             possessionH: total > 0 ? Math.round((stateRef.current.posH / total) * 100) : 50,
@@ -579,7 +622,7 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
           onEnd(stateRef.current.h, stateRef.current.a, finalStats);
           return 0;
         }
-        return t - 1;
+        return next;
       });
     }, 1000);
 
@@ -587,6 +630,8 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
       overRef.current = true;
       cancelAnimationFrame(raf);
       clearInterval(tick);
+      if (crowdRef.current) { crowdRef.current.pause(); crowdRef.current.src = ""; crowdRef.current = null; }
+      if (narratorRef.current) { narratorRef.current.pause(); narratorRef.current.src = ""; narratorRef.current = null; }
       window.removeEventListener("keydown", kd);
       window.removeEventListener("keyup", ku);
     };
@@ -637,6 +682,22 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
           <StatRow label="Al arco" h={stats.onTargetH} a={stats.onTargetA} />
         </div>
       </div>
+
+      <div className="w-full max-w-3xl rounded-2xl bg-card border border-border p-3 text-xs grid sm:grid-cols-2 gap-3">
+        <label className="flex items-center gap-2">
+          <span className="w-20 uppercase tracking-wider text-muted-foreground">Relato</span>
+          <input type="range" min={0} max={1} step={0.05} value={narratorVol}
+            onChange={e => setNarratorVol(Number(e.target.value))} className="flex-1" />
+          <span className="w-8 text-right tabular-nums">{Math.round(narratorVol * 100)}</span>
+        </label>
+        <label className="flex items-center gap-2">
+          <span className="w-20 uppercase tracking-wider text-muted-foreground">Hinchada</span>
+          <input type="range" min={0} max={1} step={0.05} value={crowdVol}
+            onChange={e => setCrowdVol(Number(e.target.value))} className="flex-1" />
+          <span className="w-8 text-right tabular-nums">{Math.round(crowdVol * 100)}</span>
+        </label>
+      </div>
+
 
       <div className="grid grid-cols-4 gap-2 w-full max-w-3xl md:hidden">
         {[["a","◀"],["d","▶"],["w","▲"],[" ","⚽"]].map(([k,l]) => (

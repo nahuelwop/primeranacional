@@ -1,0 +1,1 @@
+ALTER TABLE public.teams ADD COLUMN IF NOT EXISTS hinchada_urls text[] NOT NULL DEFAULT '{}'::text[];
