@@ -148,7 +148,11 @@ function TorneoPage() {
           </div>
         </div>
 
-        {playMatch && (
+        {playMatch && (() => {
+          const userIsAway = playMatch.away === s.userTeamId;
+          const leftTeam = userIsAway ? TEAMS_BY_ID[playMatch.away] : TEAMS_BY_ID[playMatch.home];
+          const rightTeam = userIsAway ? TEAMS_BY_ID[playMatch.home] : TEAMS_BY_ID[playMatch.away];
+          return (
           <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm overflow-y-auto p-4 flex items-start justify-center">
             <div className="w-full max-w-4xl bg-card rounded-2xl border border-border p-4">
               <div className="flex justify-between items-center mb-3">
@@ -157,19 +161,23 @@ function TorneoPage() {
                   className="px-3 py-1 rounded-lg bg-secondary border border-border text-sm">CERRAR</button>
               </div>
               <Game
-                home={TEAMS_BY_ID[playMatch.home]}
-                away={TEAMS_BY_ID[playMatch.away]}
+                home={leftTeam}
+                away={rightTeam}
                 duration={90}
                 aiDifficulty="normal"
                 mode="1vAI"
-                onEnd={(hg, ag) => {
+                onEnd={(lg, rg) => {
+                  // Si el usuario es visitante, el marcador en pantalla está invertido respecto al fixture
+                  const hg = userIsAway ? rg : lg;
+                  const ag = userIsAway ? lg : rg;
                   s.recordUserMatch(playMatch.id, hg, ag);
                   setPlayId(null);
                 }}
               />
             </div>
           </div>
-        )}
+          );
+        })()}
 
         {allPlayed && (
           <div className="mt-8 p-6 rounded-2xl bg-gradient-to-r from-celeste/20 to-accent/20 border border-celeste/40 text-center">
