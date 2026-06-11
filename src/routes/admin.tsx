@@ -115,23 +115,23 @@ function TeamEditor({ initial, onClose, onSaved }: {
     finally { setBusy(false); }
   }
 
-  async function uploadAudio(file: File) {
+  async function uploadAudio(file: File, field: "goal_audio_urls" | "hinchada_urls") {
     setBusy(true); setErr(null);
     try {
       const ext = file.name.split(".").pop() || "mp3";
-      const path = `${form.id || "new"}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const sub = field === "goal_audio_urls" ? "goles" : "hinchada";
+      const path = `${form.id || "new"}/${sub}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
       const { error } = await supabase.storage.from("team-audios").upload(path, file, { upsert: false, contentType: file.type });
       if (error) throw error;
-      // signed URL (10 años) — bucket privado
       const { data, error: sErr } = await supabase.storage.from("team-audios").createSignedUrl(path, 60 * 60 * 24 * 365 * 10);
       if (sErr || !data) throw sErr ?? new Error("No se pudo firmar el audio");
-      setForm(f => ({ ...f, goal_audio_urls: [...f.goal_audio_urls, data.signedUrl] }));
+      setForm(f => ({ ...f, [field]: [...f[field], data.signedUrl] }));
     } catch (e) { setErr((e as Error).message); }
     finally { setBusy(false); }
   }
 
-  function removeAudio(idx: number) {
-    setForm(f => ({ ...f, goal_audio_urls: f.goal_audio_urls.filter((_, i) => i !== idx) }));
+  function removeAudio(idx: number, field: "goal_audio_urls" | "hinchada_urls") {
+    setForm(f => ({ ...f, [field]: f[field].filter((_, i) => i !== idx) }));
   }
 
   async function save() {
