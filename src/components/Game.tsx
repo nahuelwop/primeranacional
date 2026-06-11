@@ -87,12 +87,47 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
       if (!urls || urls.length === 0) return null;
       return urls[Math.floor(Math.random() * urls.length)];
     };
+    // Relato: 1 cada 2 goles totales. Si llega otro, corta el anterior.
+    let totalGoals = 0;
+    const pickAudio = (urls?: string[]) => {
+      if (!urls || urls.length === 0) return null;
+      return urls[Math.floor(Math.random() * urls.length)];
+    };
     const playGoalAudio = (team: Team) => {
+      totalGoals++;
+      if (totalGoals % 2 !== 0) return; // solo cada 2 goles
       const url = pickAudio(team.goalAudios);
       if (!url) return;
       try {
+        if (narratorRef.current) { narratorRef.current.pause(); narratorRef.current.src = ""; }
         const a = new Audio(url);
-        a.volume = 0.9;
+        a.volume = narratorVol;
+        narratorRef.current = a;
+        a.play().catch(() => {});
+      } catch {}
+    };
+
+    // Hinchada: 3 tramos de 30s (local, visitante, local), tema al azar de cada equipo.
+    const segments: Array<{ team: Team; until: number }> = [
+      { team: home, until: duration - 60 }, // primeros 30s
+      { team: away, until: duration - 30 }, // siguientes 30s
+      { team: home, until: 0 },             // últimos 30s
+    ];
+    let segIdx = -1;
+    const advanceCrowdSegment = (remaining: number) => {
+      const next = segments.findIndex(s => remaining > s.until);
+      if (next === segIdx) return;
+      segIdx = next;
+      if (segIdx < 0) return;
+      const team = segments[segIdx].team;
+      const url = pickAudio(team.hinchadas);
+      try {
+        if (crowdRef.current) { crowdRef.current.pause(); crowdRef.current.src = ""; }
+        if (!url) { crowdRef.current = null; return; }
+        const a = new Audio(url);
+        a.volume = crowdVol;
+        a.loop = true;
+        crowdRef.current = a;
         a.play().catch(() => {});
       } catch {}
     };
@@ -101,6 +136,16 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
     const particles: { x: number; y: number; vx: number; vy: number; life: number; color: string; size: number }[] = [];
     const spawnGoal = (x: number, y: number, color: string) => {
       for (let i = 0; i < 40; i++) {
+        particles.push({
+          x, y,
+          vx: (Math.random() - 0.5) * 8,
+          vy: -Math.random() * 8 - 2,
+          life: 60 + Math.random() * 30,
+          color,
+          size: 2 + Math.random() * 3,
+        });
+      }
+    };
         particles.push({
           x, y,
           vx: (Math.random() - 0.5) * 8,
