@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Shield } from "@/components/Shield";
-import { Team } from "@/data/teams";
+import { Team, type Narrator } from "@/data/teams";
 
 export type Weather = "clear" | "rain" | "wind" | "thunder";
 export type Difficulty = "easy" | "normal" | "hard";
