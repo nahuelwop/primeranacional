@@ -43,6 +43,7 @@ export type Database = {
           jump: number
           logo_url: string | null
           name: string
+          narrators: Json
           power: number
           primary_color: string
           rivals: string[]
@@ -64,6 +65,7 @@ export type Database = {
           jump?: number
           logo_url?: string | null
           name: string
+          narrators?: Json
           power?: number
           primary_color: string
           rivals?: string[]
@@ -85,6 +87,7 @@ export type Database = {
           jump?: number
           logo_url?: string | null
           name?: string
+          narrators?: Json
           power?: number
           primary_color?: string
           rivals?: string[]
