@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Shield } from "@/components/Shield";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
-import { TEAMS, type Team } from "@/data/teams";
+import { TEAMS, type Team, type Narrator } from "@/data/teams";
 import { useTeamsSync, reloadTeams, syncTeamsFromDbRows, type DbTeam } from "@/lib/teams-sync";
 
 export const Route = createFileRoute("/admin")({
