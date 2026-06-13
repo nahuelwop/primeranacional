@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Shield } from "@/components/Shield";
-import { Team } from "@/data/teams";
+import { Team, type Narrator } from "@/data/teams";
 
 export type Weather = "clear" | "rain" | "wind" | "thunder";
 export type Difficulty = "easy" | "normal" | "hard";
@@ -39,13 +39,37 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
   const stateRef = useRef({ h: 0, a: 0, posH: 0, posA: 0, shotsH: 0, shotsA: 0, otH: 0, otA: 0, savH: 0, savA: 0 });
   const overRef = useRef(false);
 
-  // Audio: relato + hinchada (volumen ajustable en vivo)
+  // Audio: relato + hinchada (volumen ajustable en vivo, refs evitan stale closures)
   const [narratorVol, setNarratorVol] = useState(0.9);
   const [crowdVol, setCrowdVol] = useState(0.35);
+  const narratorVolRef = useRef(narratorVol);
+  const crowdVolRef = useRef(crowdVol);
   const narratorRef = useRef<HTMLAudioElement | null>(null);
   const crowdRef = useRef<HTMLAudioElement | null>(null);
-  useEffect(() => { if (narratorRef.current) narratorRef.current.volume = narratorVol; }, [narratorVol]);
-  useEffect(() => { if (crowdRef.current) crowdRef.current.volume = crowdVol; }, [crowdVol]);
+  useEffect(() => { narratorVolRef.current = narratorVol; if (narratorRef.current) narratorRef.current.volume = narratorVol; }, [narratorVol]);
+  useEffect(() => { crowdVolRef.current = crowdVol; if (crowdRef.current) crowdRef.current.volume = crowdVol; }, [crowdVol]);
+
+  // Relator seleccionado por equipo (id del narrador). null = elegir al azar de todos.
+  const homeNarrators = useMemo<Narrator[]>(() => {
+    const list = home.narrators ?? [];
+    if (list.length > 0) return list;
+    if ((home.goalAudios ?? []).length > 0) return [{ id: "__legacy", name: "Default", urls: home.goalAudios! }];
+    return [];
+  }, [home]);
+  const awayNarrators = useMemo<Narrator[]>(() => {
+    const list = away.narrators ?? [];
+    if (list.length > 0) return list;
+    if ((away.goalAudios ?? []).length > 0) return [{ id: "__legacy", name: "Default", urls: away.goalAudios! }];
+    return [];
+  }, [away]);
+  const [homeNarratorId, setHomeNarratorId] = useState<string>(() => homeNarrators[0]?.id ?? "");
+  const [awayNarratorId, setAwayNarratorId] = useState<string>(() => awayNarrators[0]?.id ?? "");
+  useEffect(() => { setHomeNarratorId(homeNarrators[0]?.id ?? ""); }, [homeNarrators]);
+  useEffect(() => { setAwayNarratorId(awayNarrators[0]?.id ?? ""); }, [awayNarrators]);
+  const homeNarratorRef = useRef(homeNarratorId);
+  const awayNarratorRef = useRef(awayNarratorId);
+  useEffect(() => { homeNarratorRef.current = homeNarratorId; }, [homeNarratorId]);
+  useEffect(() => { awayNarratorRef.current = awayNarratorId; }, [awayNarratorId]);
 
   useEffect(() => {
     overRef.current = false;
@@ -88,15 +112,20 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
       if (!urls || urls.length === 0) return null;
       return urls[Math.floor(Math.random() * urls.length)];
     };
-    const playGoalAudio = (team: Team) => {
+    const playGoalAudio = (team: Team, side: "home" | "away") => {
       totalGoals++;
       if (totalGoals % 2 !== 0) return; // solo cada 2 goles
-      const url = pickAudio(team.goalAudios);
+      const list = (team.narrators && team.narrators.length > 0)
+        ? team.narrators
+        : ((team.goalAudios ?? []).length > 0 ? [{ id: "__legacy", name: "Default", urls: team.goalAudios! }] : []);
+      const selId = side === "home" ? homeNarratorRef.current : awayNarratorRef.current;
+      const chosen = list.find(n => n.id === selId) ?? list[0];
+      const url = pickAudio(chosen?.urls);
       if (!url) return;
       try {
         if (narratorRef.current) { narratorRef.current.pause(); narratorRef.current.src = ""; }
         const a = new Audio(url);
-        a.volume = narratorVol;
+        a.volume = narratorVolRef.current;
         narratorRef.current = a;
         a.play().catch(() => {});
       } catch {}
@@ -120,7 +149,7 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
         if (crowdRef.current) { crowdRef.current.pause(); crowdRef.current.src = ""; }
         if (!url) { crowdRef.current = null; return; }
         const a = new Audio(url);
-        a.volume = crowdVol;
+        a.volume = crowdVolRef.current;
         a.loop = true;
         crowdRef.current = a;
         a.play().catch(() => {});
@@ -207,28 +236,14 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
         if (keys["arrowup"] && p2.y >= ground) p2.vy = jumpScale(away.stats.jump);
         if (keys["enter"]) p2.kick = 10;
       } else {
-        // IA realista: posicionamiento defensivo + ataque medido, sin saltos compulsivos
+        // IA: persigue la pelota libremente por toda la cancha (sin barrera invisible)
         if (aiJumpCd > 0) aiJumpCd--;
         const sp2 = speedScale(away.stats.speed) * aiCfg.speed;
-        const guardX = W * 0.78;       // posición defensiva natural
-        const restX  = W * 0.62;       // descanso medio campo propio
         const predictedX = ball.x + ball.vx * aiCfg.react;
-        const ballOnOwnSide = ball.x > W * 0.5;
-        const ballComing = ball.vx > 0.5;          // viene hacia la IA
         const ballFar = Math.abs(ball.x - p2.x) > 220;
-
-        // 1) Si la pelota está lejos en campo rival y no viene → vuelve a posición
-        let targetX: number;
-        if (!ballOnOwnSide && !ballComing) {
-          targetX = restX;
-        } else if (ballOnOwnSide && ball.x > guardX + 30) {
-          // Pelota ya pasó: cubre el arco
-          targetX = guardX;
-        } else {
-          // Persigue con anticipación pero sin pegarse a la pelota
-          const offset = ball.x < p2.x ? -28 : 28;
-          targetX = predictedX + offset;
-        }
+        // Offset para encarar la pelota hacia el arco rival (izquierda)
+        const offset = ball.x < p2.x ? 18 : -18;
+        const targetX = Math.max(p2.r, Math.min(W - p2.r, predictedX + offset));
         // Banda muerta para que no oscile encima de la pelota
         const dead = 14;
         if (Math.abs(p2.x - targetX) > dead) p2.vx = p2.x < targetX ? sp2 : -sp2;
@@ -356,14 +371,14 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
         stateRef.current.otA++;
         setScore({ h: stateRef.current.h, a: stateRef.current.a });
         spawnGoal(ball.x, ball.y, away.primary);
-        playGoalAudio(away);
+        playGoalAudio(away, "away");
         resetBall(1);
       } else if (ball.x - ball.r > rpx && ball.y > crossbarY + 2) {
         stateRef.current.h++;
         stateRef.current.otH++;
         setScore({ h: stateRef.current.h, a: stateRef.current.a });
         spawnGoal(ball.x, ball.y, home.primary);
-        playGoalAudio(home);
+        playGoalAudio(home, "home");
         resetBall(-1);
       }
 
@@ -668,10 +683,10 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
         <div className="scorebug-half">1T</div>
       </div>
 
-      <canvas ref={ref} width={960} height={480} className="w-full max-w-3xl rounded-2xl border-2 border-border bg-black" />
+      <canvas ref={ref} width={1400} height={520} className="w-full max-w-6xl rounded-2xl border-2 border-border bg-black" />
 
       {/* Estadísticas en vivo */}
-      <div className="w-full max-w-3xl rounded-2xl bg-card border border-border p-3 text-sm">
+      <div className="w-full max-w-6xl rounded-2xl bg-card border border-border p-3 text-sm">
         <div className="grid grid-cols-3 gap-2 items-center">
           <div className="text-right font-display">{home.short}</div>
           <div className="text-center text-xs text-muted-foreground uppercase tracking-wider">Estadísticas</div>
@@ -683,7 +698,7 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
         </div>
       </div>
 
-      <div className="w-full max-w-3xl rounded-2xl bg-card border border-border p-3 text-xs grid sm:grid-cols-2 gap-3">
+      <div className="w-full max-w-6xl rounded-2xl bg-card border border-border p-3 text-xs grid sm:grid-cols-2 gap-3">
         <label className="flex items-center gap-2">
           <span className="w-20 uppercase tracking-wider text-muted-foreground">Relato</span>
           <input type="range" min={0} max={1} step={0.05} value={narratorVol}
@@ -696,6 +711,24 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
             onChange={e => setCrowdVol(Number(e.target.value))} className="flex-1" />
           <span className="w-8 text-right tabular-nums">{Math.round(crowdVol * 100)}</span>
         </label>
+        {homeNarrators.length > 0 && (
+          <label className="flex items-center gap-2">
+            <span className="w-20 uppercase tracking-wider text-muted-foreground">Relator {home.short}</span>
+            <select className="flex-1 h-8 rounded-md border border-input bg-transparent px-2"
+              value={homeNarratorId} onChange={e => setHomeNarratorId(e.target.value)}>
+              {homeNarrators.map(n => <option key={n.id} value={n.id}>{n.name}</option>)}
+            </select>
+          </label>
+        )}
+        {awayNarrators.length > 0 && (
+          <label className="flex items-center gap-2">
+            <span className="w-20 uppercase tracking-wider text-muted-foreground">Relator {away.short}</span>
+            <select className="flex-1 h-8 rounded-md border border-input bg-transparent px-2"
+              value={awayNarratorId} onChange={e => setAwayNarratorId(e.target.value)}>
+              {awayNarrators.map(n => <option key={n.id} value={n.id}>{n.name}</option>)}
+            </select>
+          </label>
+        )}
       </div>
 
 

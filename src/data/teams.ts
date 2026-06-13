@@ -5,6 +5,8 @@ export type Stats = {
   defense: number;
 };
 
+export type Narrator = { id: string; name: string; urls: string[] };
+
 export type Team = {
   id: string;
   name: string;
@@ -19,6 +21,7 @@ export type Team = {
   logoUrl?: string | null;
   goalAudios?: string[];
   hinchadas?: string[];
+  narrators?: Narrator[];
 };
 
 const t = (
