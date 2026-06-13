@@ -112,7 +112,7 @@ async function loadAll() {
     .select("*")
     .order("sort_order", { ascending: true });
   if (error || !data) return;
-  syncTeamsFromDbRows(data as DbTeam[]);
+  syncTeamsFromDbRows(data as unknown as DbTeam[]);
 }
 
 export function syncTeamsFromDbRows(rows: DbTeam[]) {
