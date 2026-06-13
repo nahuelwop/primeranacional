@@ -190,6 +190,7 @@ function TeamEditor({ initial, onClose, onSaved }: {
         sort_order: isNew ? 999 : TEAMS.findIndex(t => t.id === form.id),
         goal_audio_urls: payload.goal_audio_urls,
         hinchada_urls: payload.hinchada_urls,
+        narrators: payload.narrators ?? [],
       };
       const withoutOld = TEAMS.filter(t => t.id !== form.id).map((t, i): DbTeam => ({
         id: t.id,
@@ -209,6 +210,7 @@ function TeamEditor({ initial, onClose, onSaved }: {
         sort_order: i,
         goal_audio_urls: t.goalAudios ?? [],
         hinchada_urls: t.hinchadas ?? [],
+        narrators: t.narrators ?? [],
       }));
       syncTeamsFromDbRows([...withoutOld, nextRow].sort((a, b) => a.sort_order - b.sort_order));
       await onSaved();
