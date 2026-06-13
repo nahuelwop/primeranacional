@@ -683,7 +683,7 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
         <div className="scorebug-half">1T</div>
       </div>
 
-      <canvas ref={ref} width={960} height={480} className="w-full max-w-3xl rounded-2xl border-2 border-border bg-black" />
+      <canvas ref={ref} width={1400} height={520} className="w-full max-w-6xl rounded-2xl border-2 border-border bg-black" />
 
       {/* Estadísticas en vivo */}
       <div className="w-full max-w-3xl rounded-2xl bg-card border border-border p-3 text-sm">
