@@ -39,13 +39,37 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
   const stateRef = useRef({ h: 0, a: 0, posH: 0, posA: 0, shotsH: 0, shotsA: 0, otH: 0, otA: 0, savH: 0, savA: 0 });
   const overRef = useRef(false);
 
-  // Audio: relato + hinchada (volumen ajustable en vivo)
+  // Audio: relato + hinchada (volumen ajustable en vivo, refs evitan stale closures)
   const [narratorVol, setNarratorVol] = useState(0.9);
   const [crowdVol, setCrowdVol] = useState(0.35);
+  const narratorVolRef = useRef(narratorVol);
+  const crowdVolRef = useRef(crowdVol);
   const narratorRef = useRef<HTMLAudioElement | null>(null);
   const crowdRef = useRef<HTMLAudioElement | null>(null);
-  useEffect(() => { if (narratorRef.current) narratorRef.current.volume = narratorVol; }, [narratorVol]);
-  useEffect(() => { if (crowdRef.current) crowdRef.current.volume = crowdVol; }, [crowdVol]);
+  useEffect(() => { narratorVolRef.current = narratorVol; if (narratorRef.current) narratorRef.current.volume = narratorVol; }, [narratorVol]);
+  useEffect(() => { crowdVolRef.current = crowdVol; if (crowdRef.current) crowdRef.current.volume = crowdVol; }, [crowdVol]);
+
+  // Relator seleccionado por equipo (id del narrador). null = elegir al azar de todos.
+  const homeNarrators = useMemo<Narrator[]>(() => {
+    const list = home.narrators ?? [];
+    if (list.length > 0) return list;
+    if ((home.goalAudios ?? []).length > 0) return [{ id: "__legacy", name: "Default", urls: home.goalAudios! }];
+    return [];
+  }, [home]);
+  const awayNarrators = useMemo<Narrator[]>(() => {
+    const list = away.narrators ?? [];
+    if (list.length > 0) return list;
+    if ((away.goalAudios ?? []).length > 0) return [{ id: "__legacy", name: "Default", urls: away.goalAudios! }];
+    return [];
+  }, [away]);
+  const [homeNarratorId, setHomeNarratorId] = useState<string>(() => homeNarrators[0]?.id ?? "");
+  const [awayNarratorId, setAwayNarratorId] = useState<string>(() => awayNarrators[0]?.id ?? "");
+  useEffect(() => { setHomeNarratorId(homeNarrators[0]?.id ?? ""); }, [homeNarrators]);
+  useEffect(() => { setAwayNarratorId(awayNarrators[0]?.id ?? ""); }, [awayNarrators]);
+  const homeNarratorRef = useRef(homeNarratorId);
+  const awayNarratorRef = useRef(awayNarratorId);
+  useEffect(() => { homeNarratorRef.current = homeNarratorId; }, [homeNarratorId]);
+  useEffect(() => { awayNarratorRef.current = awayNarratorId; }, [awayNarratorId]);
 
   useEffect(() => {
     overRef.current = false;
