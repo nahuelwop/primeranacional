@@ -1,9 +1,9 @@
 import { create } from "zustand";
 import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { TEAMS, TEAMS_BY_ID, ZONE_A, ZONE_B, type Team } from "@/data/teams";
+import { TEAMS, TEAMS_BY_ID, ZONE_A, ZONE_B, type Team, type Narrator } from "@/data/teams";
 
-const CACHE_KEY = "primera-heads-teams-cache-v1";
+const CACHE_KEY = "primera-heads-teams-cache-v2";
 
 export type DbTeam = {
   id: string;
@@ -23,6 +23,7 @@ export type DbTeam = {
   sort_order: number;
   goal_audio_urls?: string[];
   hinchada_urls?: string[];
+  narrators?: Narrator[];
 };
 
 type State = { version: number; loaded: boolean };
@@ -43,6 +44,7 @@ function rowToTeam(row: DbTeam): Team {
     logoUrl: row.logo_url,
     goalAudios: row.goal_audio_urls ?? [],
     hinchadas: row.hinchada_urls ?? [],
+    narrators: (row.narrators as Narrator[] | undefined) ?? [],
   };
 }
 
