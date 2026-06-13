@@ -116,23 +116,61 @@ function TeamEditor({ initial, onClose, onSaved }: {
     finally { setBusy(false); }
   }
 
-  async function uploadAudio(file: File, field: "goal_audio_urls" | "hinchada_urls") {
+  async function uploadOne(file: File, sub: string): Promise<string> {
+    const ext = file.name.split(".").pop() || "mp3";
+    const path = `${form.id || "new"}/${sub}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+    const { error } = await supabase.storage.from("team-audios").upload(path, file, { upsert: false, contentType: file.type });
+    if (error) throw error;
+    const { data, error: sErr } = await supabase.storage.from("team-audios").createSignedUrl(path, 60 * 60 * 24 * 365 * 10);
+    if (sErr || !data) throw sErr ?? new Error("No se pudo firmar el audio");
+    return data.signedUrl;
+  }
+
+  async function uploadAudios(files: FileList | null, field: "goal_audio_urls" | "hinchada_urls") {
+    if (!files || files.length === 0) return;
     setBusy(true); setErr(null);
     try {
-      const ext = file.name.split(".").pop() || "mp3";
       const sub = field === "goal_audio_urls" ? "goles" : "hinchada";
-      const path = `${form.id || "new"}/${sub}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-      const { error } = await supabase.storage.from("team-audios").upload(path, file, { upsert: false, contentType: file.type });
-      if (error) throw error;
-      const { data, error: sErr } = await supabase.storage.from("team-audios").createSignedUrl(path, 60 * 60 * 24 * 365 * 10);
-      if (sErr || !data) throw sErr ?? new Error("No se pudo firmar el audio");
-      setForm(f => ({ ...f, [field]: [...f[field], data.signedUrl] }));
+      const urls: string[] = [];
+      for (const f of Array.from(files)) urls.push(await uploadOne(f, sub));
+      setForm(f => ({ ...f, [field]: [...f[field], ...urls] }));
     } catch (e) { setErr((e as Error).message); }
     finally { setBusy(false); }
   }
 
   function removeAudio(idx: number, field: "goal_audio_urls" | "hinchada_urls") {
     setForm(f => ({ ...f, [field]: f[field].filter((_, i) => i !== idx) }));
+  }
+
+  // ===== Narradores (relatores) =====
+  function addNarrator() {
+    const id = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+    setForm(f => ({ ...f, narrators: [...f.narrators, { id, name: "Nuevo relator", urls: [] }] }));
+  }
+  function updateNarrator(id: string, patch: Partial<Narrator>) {
+    setForm(f => ({ ...f, narrators: f.narrators.map(n => n.id === id ? { ...n, ...patch } : n) }));
+  }
+  function removeNarrator(id: string) {
+    setForm(f => ({ ...f, narrators: f.narrators.filter(n => n.id !== id) }));
+  }
+  async function uploadNarratorAudios(narratorId: string, files: FileList | null) {
+    if (!files || files.length === 0) return;
+    setBusy(true); setErr(null);
+    try {
+      const urls: string[] = [];
+      for (const f of Array.from(files)) urls.push(await uploadOne(f, `relatores/${narratorId}`));
+      setForm(f => ({
+        ...f,
+        narrators: f.narrators.map(n => n.id === narratorId ? { ...n, urls: [...n.urls, ...urls] } : n),
+      }));
+    } catch (e) { setErr((e as Error).message); }
+    finally { setBusy(false); }
+  }
+  function removeNarratorAudio(narratorId: string, idx: number) {
+    setForm(f => ({
+      ...f,
+      narrators: f.narrators.map(n => n.id === narratorId ? { ...n, urls: n.urls.filter((_, i) => i !== idx) } : n),
+    }));
   }
 
   async function save() {
