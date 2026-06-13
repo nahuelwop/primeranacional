@@ -112,15 +112,20 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
       if (!urls || urls.length === 0) return null;
       return urls[Math.floor(Math.random() * urls.length)];
     };
-    const playGoalAudio = (team: Team) => {
+    const playGoalAudio = (team: Team, side: "home" | "away") => {
       totalGoals++;
       if (totalGoals % 2 !== 0) return; // solo cada 2 goles
-      const url = pickAudio(team.goalAudios);
+      const list = (team.narrators && team.narrators.length > 0)
+        ? team.narrators
+        : ((team.goalAudios ?? []).length > 0 ? [{ id: "__legacy", name: "Default", urls: team.goalAudios! }] : []);
+      const selId = side === "home" ? homeNarratorRef.current : awayNarratorRef.current;
+      const chosen = list.find(n => n.id === selId) ?? list[0];
+      const url = pickAudio(chosen?.urls);
       if (!url) return;
       try {
         if (narratorRef.current) { narratorRef.current.pause(); narratorRef.current.src = ""; }
         const a = new Audio(url);
-        a.volume = narratorVol;
+        a.volume = narratorVolRef.current;
         narratorRef.current = a;
         a.play().catch(() => {});
       } catch {}
@@ -144,7 +149,7 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
         if (crowdRef.current) { crowdRef.current.pause(); crowdRef.current.src = ""; }
         if (!url) { crowdRef.current = null; return; }
         const a = new Audio(url);
-        a.volume = crowdVol;
+        a.volume = crowdVolRef.current;
         a.loop = true;
         crowdRef.current = a;
         a.play().catch(() => {});
