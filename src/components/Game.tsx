@@ -686,7 +686,7 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
       <canvas ref={ref} width={1400} height={520} className="w-full max-w-6xl rounded-2xl border-2 border-border bg-black" />
 
       {/* Estadísticas en vivo */}
-      <div className="w-full max-w-3xl rounded-2xl bg-card border border-border p-3 text-sm">
+      <div className="w-full max-w-6xl rounded-2xl bg-card border border-border p-3 text-sm">
         <div className="grid grid-cols-3 gap-2 items-center">
           <div className="text-right font-display">{home.short}</div>
           <div className="text-center text-xs text-muted-foreground uppercase tracking-wider">Estadísticas</div>
@@ -698,7 +698,7 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
         </div>
       </div>
 
-      <div className="w-full max-w-3xl rounded-2xl bg-card border border-border p-3 text-xs grid sm:grid-cols-2 gap-3">
+      <div className="w-full max-w-6xl rounded-2xl bg-card border border-border p-3 text-xs grid sm:grid-cols-2 gap-3">
         <label className="flex items-center gap-2">
           <span className="w-20 uppercase tracking-wider text-muted-foreground">Relato</span>
           <input type="range" min={0} max={1} step={0.05} value={narratorVol}
@@ -711,6 +711,24 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
             onChange={e => setCrowdVol(Number(e.target.value))} className="flex-1" />
           <span className="w-8 text-right tabular-nums">{Math.round(crowdVol * 100)}</span>
         </label>
+        {homeNarrators.length > 0 && (
+          <label className="flex items-center gap-2">
+            <span className="w-20 uppercase tracking-wider text-muted-foreground">Relator {home.short}</span>
+            <select className="flex-1 h-8 rounded-md border border-input bg-transparent px-2"
+              value={homeNarratorId} onChange={e => setHomeNarratorId(e.target.value)}>
+              {homeNarrators.map(n => <option key={n.id} value={n.id}>{n.name}</option>)}
+            </select>
+          </label>
+        )}
+        {awayNarrators.length > 0 && (
+          <label className="flex items-center gap-2">
+            <span className="w-20 uppercase tracking-wider text-muted-foreground">Relator {away.short}</span>
+            <select className="flex-1 h-8 rounded-md border border-input bg-transparent px-2"
+              value={awayNarratorId} onChange={e => setAwayNarratorId(e.target.value)}>
+              {awayNarrators.map(n => <option key={n.id} value={n.id}>{n.name}</option>)}
+            </select>
+          </label>
+        )}
       </div>
 
 
