@@ -304,11 +304,40 @@ function TeamEditor({ initial, onClose, onSaved }: {
           {num("speed")}{num("jump")}{num("power")}{num("defense")}
 
           <div className="sm:col-span-2 border-t border-border pt-3 mt-2">
-            <label className="text-xs text-muted-foreground uppercase">Audios de gol (se elige uno al azar, suena cada 2 goles)</label>
-            <div className="space-y-2 mt-2">
-              {form.goal_audio_urls.length === 0 && (
-                <div className="text-xs text-muted-foreground">Sin audios. Subí mp3/ogg/wav para los relatos.</div>
+            <div className="flex items-center justify-between">
+              <label className="text-xs text-muted-foreground uppercase">Relatores (un relator por estilo; el usuario elige cuál usar en el partido)</label>
+              <button onClick={addNarrator} className="text-xs text-celeste underline">+ agregar relator</button>
+            </div>
+            <div className="space-y-3 mt-2">
+              {form.narrators.length === 0 && (
+                <div className="text-xs text-muted-foreground">Sin relatores. Agregá uno (ej: "Relator Bricco") y subí sus audios.</div>
               )}
+              {form.narrators.map(n => (
+                <div key={n.id} className="rounded border border-border p-2 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Input value={n.name} onChange={e => updateNarrator(n.id, { name: e.target.value })}
+                      placeholder="Nombre del relator (ej: Relator Bricco)" className="flex-1" />
+                    <button onClick={() => removeNarrator(n.id)} className="text-destructive text-xs hover:underline">Eliminar relator</button>
+                  </div>
+                  {n.urls.map((url, i) => (
+                    <div key={i} className="flex items-center gap-2 bg-muted/40 rounded p-2">
+                      <audio src={url} controls className="flex-1 h-8" />
+                      <button onClick={() => removeNarratorAudio(n.id, i)} className="text-destructive text-xs hover:underline">Quitar</button>
+                    </div>
+                  ))}
+                  <label className="text-xs text-celeste underline inline-block cursor-pointer">
+                    + subir audios (podés seleccionar varios)
+                    <input type="file" accept="audio/*" hidden multiple
+                      onChange={e => { uploadNarratorAudios(n.id, e.target.files); e.target.value = ""; }} />
+                  </label>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="sm:col-span-2 border-t border-border pt-3 mt-2">
+            <label className="text-xs text-muted-foreground uppercase">Audios de gol sueltos (legacy — usar si no hay relatores arriba)</label>
+            <div className="space-y-2 mt-2">
               {form.goal_audio_urls.map((url, i) => (
                 <div key={i} className="flex items-center gap-2 bg-muted/40 rounded p-2">
                   <audio src={url} controls className="flex-1 h-8" />
@@ -316,9 +345,9 @@ function TeamEditor({ initial, onClose, onSaved }: {
                 </div>
               ))}
               <label className="text-xs text-celeste underline inline-block cursor-pointer">
-                + subir relato de gol
-                <input type="file" accept="audio/*" hidden
-                  onChange={e => e.target.files?.[0] && uploadAudio(e.target.files[0], "goal_audio_urls")} />
+                + subir audios de gol
+                <input type="file" accept="audio/*" hidden multiple
+                  onChange={e => { uploadAudios(e.target.files, "goal_audio_urls"); e.target.value = ""; }} />
               </label>
             </div>
           </div>
@@ -336,9 +365,9 @@ function TeamEditor({ initial, onClose, onSaved }: {
                 </div>
               ))}
               <label className="text-xs text-celeste underline inline-block cursor-pointer">
-                + subir tema de hinchada
-                <input type="file" accept="audio/*" hidden
-                  onChange={e => e.target.files?.[0] && uploadAudio(e.target.files[0], "hinchada_urls")} />
+                + subir temas (podés seleccionar varios)
+                <input type="file" accept="audio/*" hidden multiple
+                  onChange={e => { uploadAudios(e.target.files, "hinchada_urls"); e.target.value = ""; }} />
               </label>
             </div>
           </div>
