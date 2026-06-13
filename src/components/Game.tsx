@@ -236,28 +236,14 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
         if (keys["arrowup"] && p2.y >= ground) p2.vy = jumpScale(away.stats.jump);
         if (keys["enter"]) p2.kick = 10;
       } else {
-        // IA realista: posicionamiento defensivo + ataque medido, sin saltos compulsivos
+        // IA: persigue la pelota libremente por toda la cancha (sin barrera invisible)
         if (aiJumpCd > 0) aiJumpCd--;
         const sp2 = speedScale(away.stats.speed) * aiCfg.speed;
-        const guardX = W * 0.78;       // posición defensiva natural
-        const restX  = W * 0.62;       // descanso medio campo propio
         const predictedX = ball.x + ball.vx * aiCfg.react;
-        const ballOnOwnSide = ball.x > W * 0.5;
-        const ballComing = ball.vx > 0.5;          // viene hacia la IA
         const ballFar = Math.abs(ball.x - p2.x) > 220;
-
-        // 1) Si la pelota está lejos en campo rival y no viene → vuelve a posición
-        let targetX: number;
-        if (!ballOnOwnSide && !ballComing) {
-          targetX = restX;
-        } else if (ballOnOwnSide && ball.x > guardX + 30) {
-          // Pelota ya pasó: cubre el arco
-          targetX = guardX;
-        } else {
-          // Persigue con anticipación pero sin pegarse a la pelota
-          const offset = ball.x < p2.x ? -28 : 28;
-          targetX = predictedX + offset;
-        }
+        // Offset para encarar la pelota hacia el arco rival (izquierda)
+        const offset = ball.x < p2.x ? 18 : -18;
+        const targetX = Math.max(p2.r, Math.min(W - p2.r, predictedX + offset));
         // Banda muerta para que no oscile encima de la pelota
         const dead = 14;
         if (Math.abs(p2.x - targetX) > dead) p2.vx = p2.x < targetX ? sp2 : -sp2;
