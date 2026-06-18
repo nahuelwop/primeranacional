@@ -32,6 +32,94 @@ export type Database = {
         }
         Relationships: []
       }
+      team_players: {
+        Row: {
+          birth_date: string | null
+          created_at: string
+          height_cm: number | null
+          id: string
+          name: string
+          position: string
+          shirt_number: number | null
+          sort_order: number
+          team_id: string
+          updated_at: string
+        }
+        Insert: {
+          birth_date?: string | null
+          created_at?: string
+          height_cm?: number | null
+          id?: string
+          name: string
+          position: string
+          shirt_number?: number | null
+          sort_order?: number
+          team_id: string
+          updated_at?: string
+        }
+        Update: {
+          birth_date?: string | null
+          created_at?: string
+          height_cm?: number | null
+          id?: string
+          name?: string
+          position?: string
+          shirt_number?: number | null
+          sort_order?: number
+          team_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_players_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      team_stadiums: {
+        Row: {
+          address: string
+          capacity: number | null
+          city: string
+          created_at: string
+          founded: number | null
+          name: string
+          team_id: string
+          updated_at: string
+        }
+        Insert: {
+          address?: string
+          capacity?: number | null
+          city?: string
+          created_at?: string
+          founded?: number | null
+          name?: string
+          team_id: string
+          updated_at?: string
+        }
+        Update: {
+          address?: string
+          capacity?: number | null
+          city?: string
+          created_at?: string
+          founded?: number | null
+          name?: string
+          team_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_stadiums_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: true
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       teams: {
         Row: {
           city: string
