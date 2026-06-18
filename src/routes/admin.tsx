@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { TEAMS, type Team, type Narrator } from "@/data/teams";
 import { useTeamsSync, reloadTeams, syncTeamsFromDbRows, type DbTeam } from "@/lib/teams-sync";
+import { SquadStadiumEditor } from "@/components/SquadStadiumEditor";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({ meta: [{ title: "Admin · Primera Heads" }] }),
