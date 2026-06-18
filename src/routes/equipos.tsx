@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { Nav } from "@/components/Nav";
 import { Shield, Jersey } from "@/components/Shield";
 import { TEAMS } from "@/data/teams";
@@ -28,7 +28,8 @@ function EquiposPage() {
             <h2 className="font-display text-3xl text-celeste">ZONA {z}</h2>
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-4">
               {TEAMS.filter(t => t.zone === z).map(t => (
-                <div key={t.id} className="rounded-xl bg-card border border-border p-3 flex items-center gap-3">
+                <Link key={t.id} to="/equipos/$id" params={{ id: t.id }}
+                  className="rounded-xl bg-card border border-border p-3 flex items-center gap-3 hover:border-celeste transition">
                   <Shield team={t} size={48} />
                   <div className="flex-1 min-w-0">
                     <div className="font-display text-lg truncate">{t.name}</div>
@@ -39,7 +40,7 @@ function EquiposPage() {
                     </div>
                   </div>
                   <Jersey team={t} size={42} />
-                </div>
+                </Link>
               ))}
             </div>
           </section>

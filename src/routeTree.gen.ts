@@ -16,6 +16,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AmistosoRouteImport } from './routes/amistoso'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as EquiposIdRouteImport } from './routes/equipos.$id'
 
 const TorneoRoute = TorneoRouteImport.update({
   id: '/torneo',
@@ -52,24 +53,31 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const EquiposIdRoute = EquiposIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => EquiposRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/amistoso': typeof AmistosoRoute
   '/auth': typeof AuthRoute
-  '/equipos': typeof EquiposRoute
+  '/equipos': typeof EquiposRouteWithChildren
   '/reducido': typeof ReducidoRoute
   '/torneo': typeof TorneoRoute
+  '/equipos/$id': typeof EquiposIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/amistoso': typeof AmistosoRoute
   '/auth': typeof AuthRoute
-  '/equipos': typeof EquiposRoute
+  '/equipos': typeof EquiposRouteWithChildren
   '/reducido': typeof ReducidoRoute
   '/torneo': typeof TorneoRoute
+  '/equipos/$id': typeof EquiposIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -77,9 +85,10 @@ export interface FileRoutesById {
   '/admin': typeof AdminRoute
   '/amistoso': typeof AmistosoRoute
   '/auth': typeof AuthRoute
-  '/equipos': typeof EquiposRoute
+  '/equipos': typeof EquiposRouteWithChildren
   '/reducido': typeof ReducidoRoute
   '/torneo': typeof TorneoRoute
+  '/equipos/$id': typeof EquiposIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -91,6 +100,7 @@ export interface FileRouteTypes {
     | '/equipos'
     | '/reducido'
     | '/torneo'
+    | '/equipos/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -100,6 +110,7 @@ export interface FileRouteTypes {
     | '/equipos'
     | '/reducido'
     | '/torneo'
+    | '/equipos/$id'
   id:
     | '__root__'
     | '/'
@@ -109,6 +120,7 @@ export interface FileRouteTypes {
     | '/equipos'
     | '/reducido'
     | '/torneo'
+    | '/equipos/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -116,7 +128,7 @@ export interface RootRouteChildren {
   AdminRoute: typeof AdminRoute
   AmistosoRoute: typeof AmistosoRoute
   AuthRoute: typeof AuthRoute
-  EquiposRoute: typeof EquiposRoute
+  EquiposRoute: typeof EquiposRouteWithChildren
   ReducidoRoute: typeof ReducidoRoute
   TorneoRoute: typeof TorneoRoute
 }
@@ -172,28 +184,36 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/equipos/$id': {
+      id: '/equipos/$id'
+      path: '/$id'
+      fullPath: '/equipos/$id'
+      preLoaderRoute: typeof EquiposIdRouteImport
+      parentRoute: typeof EquiposRoute
+    }
   }
 }
+
+interface EquiposRouteChildren {
+  EquiposIdRoute: typeof EquiposIdRoute
+}
+
+const EquiposRouteChildren: EquiposRouteChildren = {
+  EquiposIdRoute: EquiposIdRoute,
+}
+
+const EquiposRouteWithChildren =
+  EquiposRoute._addFileChildren(EquiposRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
   AmistosoRoute: AmistosoRoute,
   AuthRoute: AuthRoute,
-  EquiposRoute: EquiposRoute,
+  EquiposRoute: EquiposRouteWithChildren,
   ReducidoRoute: ReducidoRoute,
   TorneoRoute: TorneoRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
