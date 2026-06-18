@@ -372,8 +372,15 @@ function TeamEditor({ initial, onClose, onSaved }: {
                 <input type="file" accept="audio/*" hidden multiple
                   onChange={e => { uploadAudios(e.target.files, "hinchada_urls"); e.target.value = ""; }} />
               </label>
-            </div>
           </div>
+
+          {!isNew && (
+            <div className="sm:col-span-2 border-t border-border pt-3 mt-2">
+              <label className="text-xs text-muted-foreground uppercase">Plantel y estadio</label>
+              <div className="mt-2"><SquadStadiumEditor teamId={form.id} /></div>
+            </div>
+          )}
+        </div>
         </div>
 
 
