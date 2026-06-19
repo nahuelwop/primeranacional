@@ -735,7 +735,16 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
             onChange={e => setCrowdVol(Number(e.target.value))} className="flex-1" />
           <span className="w-8 text-right tabular-nums">{Math.round(crowdVol * 100)}</span>
         </label>
-        {homeNarrators.length > 0 && (
+        {sharedNarrator && sharedOptions.length > 0 && (
+          <label className="flex items-center gap-2 sm:col-span-2">
+            <span className="w-20 uppercase tracking-wider text-muted-foreground">Relator</span>
+            <select className="flex-1 h-8 rounded-md border border-input bg-transparent px-2"
+              value={sharedName} onChange={e => setSharedName(e.target.value)}>
+              {sharedOptions.map(n => <option key={n.name} value={n.name}>{n.name}</option>)}
+            </select>
+          </label>
+        )}
+        {!sharedNarrator && homeNarrators.length > 0 && (
           <label className="flex items-center gap-2">
             <span className="w-20 uppercase tracking-wider text-muted-foreground">Relator {home.short}</span>
             <select className="flex-1 h-8 rounded-md border border-input bg-transparent px-2"
@@ -744,7 +753,7 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
             </select>
           </label>
         )}
-        {awayNarrators.length > 0 && (
+        {!sharedNarrator && awayNarrators.length > 0 && (
           <label className="flex items-center gap-2">
             <span className="w-20 uppercase tracking-wider text-muted-foreground">Relator {away.short}</span>
             <select className="flex-1 h-8 rounded-md border border-input bg-transparent px-2"
