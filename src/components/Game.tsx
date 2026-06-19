@@ -72,6 +72,19 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
   useEffect(() => { homeNarratorRef.current = homeNarratorId; }, [homeNarratorId]);
   useEffect(() => { awayNarratorRef.current = awayNarratorId; }, [awayNarratorId]);
 
+  // Relator compartido (amistoso 1v1): un solo relator narra ambos equipos.
+  // Opciones = nombres únicos presentes en alguno de los dos equipos.
+  const sharedOptions = useMemo<{ name: string }[]>(() => {
+    if (!sharedNarrator) return [];
+    const names = new Set<string>();
+    [...homeNarrators, ...awayNarrators].forEach(n => names.add(n.name));
+    return Array.from(names).map(name => ({ name }));
+  }, [sharedNarrator, homeNarrators, awayNarrators]);
+  const [sharedName, setSharedName] = useState<string>(() => sharedOptions[0]?.name ?? "");
+  useEffect(() => { setSharedName(sharedOptions[0]?.name ?? ""); }, [sharedOptions]);
+  const sharedNameRef = useRef(sharedName);
+  useEffect(() => { sharedNameRef.current = sharedName; }, [sharedName]);
+
   useEffect(() => {
     overRef.current = false;
     stateRef.current = { h: 0, a: 0, posH: 0, posA: 0, shotsH: 0, shotsA: 0, otH: 0, otA: 0, savH: 0, savA: 0 };
