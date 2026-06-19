@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Shield } from "@/components/Shield";
 import { Team, type Narrator } from "@/data/teams";
 
-export type Weather = "clear" | "rain" | "wind" | "thunder";
+export type Weather = "clear" | "rain" | "wind" | "thunder" | "fog";
 export type Difficulty = "easy" | "normal" | "hard";
 export type Mode = "1v1" | "1vAI";
 
