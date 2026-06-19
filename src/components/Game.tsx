@@ -129,12 +129,22 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
     const playGoalAudio = (team: Team, side: "home" | "away") => {
       totalGoals++;
       if (totalGoals % 2 !== 0) return; // solo cada 2 goles
-      const list = (team.narrators && team.narrators.length > 0)
-        ? team.narrators
-        : ((team.goalAudios ?? []).length > 0 ? [{ id: "__legacy", name: "Default", urls: team.goalAudios! }] : []);
-      const selId = side === "home" ? homeNarratorRef.current : awayNarratorRef.current;
-      const chosen = list.find(n => n.id === selId) ?? list[0];
-      const url = pickAudio(chosen?.urls);
+      let urls: string[] | undefined;
+      if (sharedNarrator) {
+        const name = sharedNameRef.current;
+        const fromScorer = (team.narrators ?? []).find(n => n.name === name);
+        const other = side === "home" ? away : home;
+        const fromOther = (other.narrators ?? []).find(n => n.name === name);
+        urls = [...(fromScorer?.urls ?? []), ...(fromOther?.urls ?? [])];
+      } else {
+        const list = (team.narrators && team.narrators.length > 0)
+          ? team.narrators
+          : ((team.goalAudios ?? []).length > 0 ? [{ id: "__legacy", name: "Default", urls: team.goalAudios! }] : []);
+        const selId = side === "home" ? homeNarratorRef.current : awayNarratorRef.current;
+        const chosen = list.find(n => n.id === selId) ?? list[0];
+        urls = chosen?.urls;
+      }
+      const url = pickAudio(urls);
       if (!url) return;
       try {
         if (narratorRef.current) { narratorRef.current.pause(); narratorRef.current.src = ""; }
