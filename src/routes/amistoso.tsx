@@ -31,8 +31,9 @@ function AmistosoPage() {
       <div className="min-h-screen flex flex-col">
         <Nav />
         <main className="flex-1 max-w-5xl w-full mx-auto px-4 py-6">
-          <Game home={home} away={away} duration={90} weather={weather} aiDifficulty={difficulty} mode={mode}
+          <Game home={home} away={away} duration={90} weather={weather} aiDifficulty={difficulty} mode={mode} sharedNarrator
             onEnd={(h, a, stats) => { setResult({ h, a, stats }); setPlaying(false); }} />
+
         </main>
       </div>
     );
