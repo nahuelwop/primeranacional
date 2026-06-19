@@ -14,6 +14,93 @@ export type Database = {
   }
   public: {
     Tables: {
+      achievements: {
+        Row: {
+          id: string
+          key: string
+          unlocked_at: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          key: string
+          unlocked_at?: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          key?: string
+          unlocked_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      career_saves: {
+        Row: {
+          budget: number
+          created_at: string
+          fixture_index: number
+          season: number
+          state: Json
+          team_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          budget?: number
+          created_at?: string
+          fixture_index?: number
+          season?: number
+          state?: Json
+          team_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          budget?: number
+          created_at?: string
+          fixture_index?: number
+          season?: number
+          state?: Json
+          team_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      match_history: {
+        Row: {
+          away_goals: number
+          away_team_id: string
+          home_goals: number
+          home_team_id: string
+          id: string
+          mode: string
+          played_at: string
+          user_id: string
+        }
+        Insert: {
+          away_goals: number
+          away_team_id: string
+          home_goals: number
+          home_team_id: string
+          id?: string
+          mode: string
+          played_at?: string
+          user_id: string
+        }
+        Update: {
+          away_goals?: number
+          away_team_id?: string
+          home_goals?: number
+          home_team_id?: string
+          id?: string
+          mode?: string
+          played_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
