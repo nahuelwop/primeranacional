@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as TorneoRouteImport } from './routes/torneo'
 import { Route as ReducidoRouteImport } from './routes/reducido'
 import { Route as EquiposRouteImport } from './routes/equipos'
+import { Route as CarreraRouteImport } from './routes/carrera'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AmistosoRouteImport } from './routes/amistoso'
 import { Route as AdminRouteImport } from './routes/admin'
@@ -31,6 +32,11 @@ const ReducidoRoute = ReducidoRouteImport.update({
 const EquiposRoute = EquiposRouteImport.update({
   id: '/equipos',
   path: '/equipos',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CarreraRoute = CarreraRouteImport.update({
+  id: '/carrera',
+  path: '/carrera',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthRoute = AuthRouteImport.update({
@@ -64,6 +70,7 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AdminRoute
   '/amistoso': typeof AmistosoRoute
   '/auth': typeof AuthRoute
+  '/carrera': typeof CarreraRoute
   '/equipos': typeof EquiposRouteWithChildren
   '/reducido': typeof ReducidoRoute
   '/torneo': typeof TorneoRoute
@@ -74,6 +81,7 @@ export interface FileRoutesByTo {
   '/admin': typeof AdminRoute
   '/amistoso': typeof AmistosoRoute
   '/auth': typeof AuthRoute
+  '/carrera': typeof CarreraRoute
   '/equipos': typeof EquiposRouteWithChildren
   '/reducido': typeof ReducidoRoute
   '/torneo': typeof TorneoRoute
@@ -85,6 +93,7 @@ export interface FileRoutesById {
   '/admin': typeof AdminRoute
   '/amistoso': typeof AmistosoRoute
   '/auth': typeof AuthRoute
+  '/carrera': typeof CarreraRoute
   '/equipos': typeof EquiposRouteWithChildren
   '/reducido': typeof ReducidoRoute
   '/torneo': typeof TorneoRoute
@@ -97,6 +106,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/amistoso'
     | '/auth'
+    | '/carrera'
     | '/equipos'
     | '/reducido'
     | '/torneo'
@@ -107,6 +117,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/amistoso'
     | '/auth'
+    | '/carrera'
     | '/equipos'
     | '/reducido'
     | '/torneo'
@@ -117,6 +128,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/amistoso'
     | '/auth'
+    | '/carrera'
     | '/equipos'
     | '/reducido'
     | '/torneo'
@@ -128,6 +140,7 @@ export interface RootRouteChildren {
   AdminRoute: typeof AdminRoute
   AmistosoRoute: typeof AmistosoRoute
   AuthRoute: typeof AuthRoute
+  CarreraRoute: typeof CarreraRoute
   EquiposRoute: typeof EquiposRouteWithChildren
   ReducidoRoute: typeof ReducidoRoute
   TorneoRoute: typeof TorneoRoute
@@ -154,6 +167,13 @@ declare module '@tanstack/react-router' {
       path: '/equipos'
       fullPath: '/equipos'
       preLoaderRoute: typeof EquiposRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/carrera': {
+      id: '/carrera'
+      path: '/carrera'
+      fullPath: '/carrera'
+      preLoaderRoute: typeof CarreraRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth': {
@@ -210,6 +230,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRoute: AdminRoute,
   AmistosoRoute: AmistosoRoute,
   AuthRoute: AuthRoute,
+  CarreraRoute: CarreraRoute,
   EquiposRoute: EquiposRouteWithChildren,
   ReducidoRoute: ReducidoRoute,
   TorneoRoute: TorneoRoute,
