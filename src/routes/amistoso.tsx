@@ -16,12 +16,21 @@ export const Route = createFileRoute("/amistoso")({
   component: AmistosoPage,
 });
 
+type WeatherChoice = Weather | "random";
+
+function resolveWeather(w: WeatherChoice): Weather {
+  if (w !== "random") return w;
+  const opts: Weather[] = ["clear", "rain", "wind", "thunder", "fog"];
+  return opts[Math.floor(Math.random() * opts.length)];
+}
+
 function AmistosoPage() {
   useTeamsSync();
   const [home, setHome] = useState<Team | null>(TEAMS[0]);
   const [away, setAway] = useState<Team | null>(TEAMS.find(t => t.id === "nuevachicago") ?? TEAMS[18]);
   const [playing, setPlaying] = useState(false);
-  const [weather, setWeather] = useState<Weather>("clear");
+  const [weather, setWeather] = useState<WeatherChoice>("clear");
+  const [activeWeather, setActiveWeather] = useState<Weather>("clear");
   const [difficulty, setDifficulty] = useState<Difficulty>("normal");
   const [mode, setMode] = useState<Mode>("1vAI");
   const [result, setResult] = useState<{ h: number; a: number; stats: MatchStats } | null>(null);
@@ -31,13 +40,14 @@ function AmistosoPage() {
       <div className="min-h-screen flex flex-col">
         <Nav />
         <main className="flex-1 max-w-5xl w-full mx-auto px-4 py-6">
-          <Game home={home} away={away} duration={90} weather={weather} aiDifficulty={difficulty} mode={mode} sharedNarrator
+          <Game home={home} away={away} duration={90} weather={activeWeather} aiDifficulty={difficulty} mode={mode} sharedNarrator
             onEnd={(h, a, stats) => { setResult({ h, a, stats }); setPlaying(false); }} />
 
         </main>
       </div>
     );
   }
+
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -106,25 +116,30 @@ function AmistosoPage() {
               <div className="flex flex-wrap gap-2">
                 {([
                   ["clear","☀️ Despejado"],["rain","🌧️ Lluvia"],
-                  ["wind","💨 Viento"],["thunder","⚡ Tormenta"],
-                ] as [Weather,string][]).map(([w,l]) => (
+                  ["wind","💨 Viento"],["fog","🌫️ Niebla"],
+                  ["thunder","⚡ Tormenta"],["random","🎲 Aleatorio"],
+                ] as [WeatherChoice,string][]).map(([w,l]) => (
                   <button key={w} onClick={() => setWeather(w)}
                     className={`px-3 py-2 rounded-lg text-sm border transition ${weather===w ? "bg-celeste text-primary-foreground border-celeste" : "bg-background border-border hover:bg-secondary"}`}>
                     {l}
                   </button>
                 ))}
               </div>
+              {weather === "random" && activeWeather && (
+                <div className="text-xs text-muted-foreground mt-2">Se sortea al iniciar el partido.</div>
+              )}
             </div>
           </div>
         </div>
 
         <div className="mt-6 flex justify-center">
           <button disabled={!home || !away || home?.id === away?.id}
-            onClick={() => { setResult(null); setPlaying(true); }}
+            onClick={() => { setResult(null); setActiveWeather(resolveWeather(weather)); setPlaying(true); }}
             className="px-8 py-4 rounded-xl bg-celeste text-primary-foreground font-display text-2xl tracking-wider glow-celeste disabled:opacity-40">
             JUGAR PARTIDO
           </button>
         </div>
+
       </main>
     </div>
   );
