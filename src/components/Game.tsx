@@ -623,6 +623,23 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
         ctx.fillStyle = "rgba(255,255,255,0.5)";
         ctx.fillRect(0, 0, W, H);
       }
+      if (weather === "fog") {
+        // Capas de niebla: gradiente blanco translúcido + bandas en movimiento
+        const t = performance.now() * 0.00015;
+        const grad = ctx.createLinearGradient(0, 0, 0, H);
+        grad.addColorStop(0, "rgba(220,225,235,0.55)");
+        grad.addColorStop(0.5, "rgba(200,210,225,0.35)");
+        grad.addColorStop(1, "rgba(180,195,215,0.55)");
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, W, H);
+        for (let i = 0; i < 3; i++) {
+          const off = ((t * (i + 1) * 80) % (W + 200)) - 200;
+          ctx.fillStyle = `rgba(255,255,255,${0.08 + i * 0.04})`;
+          ctx.beginPath();
+          ctx.ellipse(off, H * 0.4 + i * 60, 320, 70, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
       ctx.restore();
     };
 
