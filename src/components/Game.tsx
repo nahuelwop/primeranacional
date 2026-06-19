@@ -13,6 +13,7 @@ type Props = {
   weather?: Weather;
   aiDifficulty?: Difficulty;
   mode?: Mode;
+  sharedNarrator?: boolean;
   onEnd: (hg: number, ag: number, stats: MatchStats) => void;
 };
 
@@ -31,7 +32,7 @@ const ScoreColorBars = ({ team, reverse = false }: { team: Team; reverse?: boole
 );
 
 // Football Heads style arcade — sin poderes, físicas con postes y travesaño.
-export function Game({ home, away, duration = 90, weather = "clear", aiDifficulty = "normal", mode = "1vAI", onEnd }: Props) {
+export function Game({ home, away, duration = 90, weather = "clear", aiDifficulty = "normal", mode = "1vAI", sharedNarrator = false, onEnd }: Props) {
   const ref = useRef<HTMLCanvasElement>(null);
   const [score, setScore] = useState({ h: 0, a: 0 });
   const [time, setTime] = useState(duration);
@@ -70,6 +71,19 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
   const awayNarratorRef = useRef(awayNarratorId);
   useEffect(() => { homeNarratorRef.current = homeNarratorId; }, [homeNarratorId]);
   useEffect(() => { awayNarratorRef.current = awayNarratorId; }, [awayNarratorId]);
+
+  // Relator compartido (amistoso 1v1): un solo relator narra ambos equipos.
+  // Opciones = nombres únicos presentes en alguno de los dos equipos.
+  const sharedOptions = useMemo<{ name: string }[]>(() => {
+    if (!sharedNarrator) return [];
+    const names = new Set<string>();
+    [...homeNarrators, ...awayNarrators].forEach(n => names.add(n.name));
+    return Array.from(names).map(name => ({ name }));
+  }, [sharedNarrator, homeNarrators, awayNarrators]);
+  const [sharedName, setSharedName] = useState<string>(() => sharedOptions[0]?.name ?? "");
+  useEffect(() => { setSharedName(sharedOptions[0]?.name ?? ""); }, [sharedOptions]);
+  const sharedNameRef = useRef(sharedName);
+  useEffect(() => { sharedNameRef.current = sharedName; }, [sharedName]);
 
   useEffect(() => {
     overRef.current = false;
@@ -115,12 +129,22 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
     const playGoalAudio = (team: Team, side: "home" | "away") => {
       totalGoals++;
       if (totalGoals % 2 !== 0) return; // solo cada 2 goles
-      const list = (team.narrators && team.narrators.length > 0)
-        ? team.narrators
-        : ((team.goalAudios ?? []).length > 0 ? [{ id: "__legacy", name: "Default", urls: team.goalAudios! }] : []);
-      const selId = side === "home" ? homeNarratorRef.current : awayNarratorRef.current;
-      const chosen = list.find(n => n.id === selId) ?? list[0];
-      const url = pickAudio(chosen?.urls);
+      let urls: string[] | undefined;
+      if (sharedNarrator) {
+        const name = sharedNameRef.current;
+        const fromScorer = (team.narrators ?? []).find(n => n.name === name);
+        const other = side === "home" ? away : home;
+        const fromOther = (other.narrators ?? []).find(n => n.name === name);
+        urls = [...(fromScorer?.urls ?? []), ...(fromOther?.urls ?? [])];
+      } else {
+        const list = (team.narrators && team.narrators.length > 0)
+          ? team.narrators
+          : ((team.goalAudios ?? []).length > 0 ? [{ id: "__legacy", name: "Default", urls: team.goalAudios! }] : []);
+        const selId = side === "home" ? homeNarratorRef.current : awayNarratorRef.current;
+        const chosen = list.find(n => n.id === selId) ?? list[0];
+        urls = chosen?.urls;
+      }
+      const url = pickAudio(urls);
       if (!url) return;
       try {
         if (narratorRef.current) { narratorRef.current.pause(); narratorRef.current.src = ""; }
@@ -711,7 +735,16 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
             onChange={e => setCrowdVol(Number(e.target.value))} className="flex-1" />
           <span className="w-8 text-right tabular-nums">{Math.round(crowdVol * 100)}</span>
         </label>
-        {homeNarrators.length > 0 && (
+        {sharedNarrator && sharedOptions.length > 0 && (
+          <label className="flex items-center gap-2 sm:col-span-2">
+            <span className="w-20 uppercase tracking-wider text-muted-foreground">Relator</span>
+            <select className="flex-1 h-8 rounded-md border border-input bg-transparent px-2"
+              value={sharedName} onChange={e => setSharedName(e.target.value)}>
+              {sharedOptions.map(n => <option key={n.name} value={n.name}>{n.name}</option>)}
+            </select>
+          </label>
+        )}
+        {!sharedNarrator && homeNarrators.length > 0 && (
           <label className="flex items-center gap-2">
             <span className="w-20 uppercase tracking-wider text-muted-foreground">Relator {home.short}</span>
             <select className="flex-1 h-8 rounded-md border border-input bg-transparent px-2"
@@ -720,7 +753,7 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
             </select>
           </label>
         )}
-        {awayNarrators.length > 0 && (
+        {!sharedNarrator && awayNarrators.length > 0 && (
           <label className="flex items-center gap-2">
             <span className="w-20 uppercase tracking-wider text-muted-foreground">Relator {away.short}</span>
             <select className="flex-1 h-8 rounded-md border border-input bg-transparent px-2"
