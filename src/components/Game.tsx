@@ -13,6 +13,7 @@ type Props = {
   weather?: Weather;
   aiDifficulty?: Difficulty;
   mode?: Mode;
+  sharedNarrator?: boolean;
   onEnd: (hg: number, ag: number, stats: MatchStats) => void;
 };
 
