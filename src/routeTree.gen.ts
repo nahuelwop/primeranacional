@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TorneoRouteImport } from './routes/torneo'
 import { Route as ReducidoRouteImport } from './routes/reducido'
+import { Route as LogrosRouteImport } from './routes/logros'
 import { Route as EstadisticasRouteImport } from './routes/estadisticas'
 import { Route as EquiposRouteImport } from './routes/equipos'
 import { Route as CarreraRouteImport } from './routes/carrera'
@@ -28,6 +29,11 @@ const TorneoRoute = TorneoRouteImport.update({
 const ReducidoRoute = ReducidoRouteImport.update({
   id: '/reducido',
   path: '/reducido',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LogrosRoute = LogrosRouteImport.update({
+  id: '/logros',
+  path: '/logros',
   getParentRoute: () => rootRouteImport,
 } as any)
 const EstadisticasRoute = EstadisticasRouteImport.update({
@@ -79,6 +85,7 @@ export interface FileRoutesByFullPath {
   '/carrera': typeof CarreraRoute
   '/equipos': typeof EquiposRouteWithChildren
   '/estadisticas': typeof EstadisticasRoute
+  '/logros': typeof LogrosRoute
   '/reducido': typeof ReducidoRoute
   '/torneo': typeof TorneoRoute
   '/equipos/$id': typeof EquiposIdRoute
@@ -91,6 +98,7 @@ export interface FileRoutesByTo {
   '/carrera': typeof CarreraRoute
   '/equipos': typeof EquiposRouteWithChildren
   '/estadisticas': typeof EstadisticasRoute
+  '/logros': typeof LogrosRoute
   '/reducido': typeof ReducidoRoute
   '/torneo': typeof TorneoRoute
   '/equipos/$id': typeof EquiposIdRoute
@@ -104,6 +112,7 @@ export interface FileRoutesById {
   '/carrera': typeof CarreraRoute
   '/equipos': typeof EquiposRouteWithChildren
   '/estadisticas': typeof EstadisticasRoute
+  '/logros': typeof LogrosRoute
   '/reducido': typeof ReducidoRoute
   '/torneo': typeof TorneoRoute
   '/equipos/$id': typeof EquiposIdRoute
@@ -118,6 +127,7 @@ export interface FileRouteTypes {
     | '/carrera'
     | '/equipos'
     | '/estadisticas'
+    | '/logros'
     | '/reducido'
     | '/torneo'
     | '/equipos/$id'
@@ -130,6 +140,7 @@ export interface FileRouteTypes {
     | '/carrera'
     | '/equipos'
     | '/estadisticas'
+    | '/logros'
     | '/reducido'
     | '/torneo'
     | '/equipos/$id'
@@ -142,6 +153,7 @@ export interface FileRouteTypes {
     | '/carrera'
     | '/equipos'
     | '/estadisticas'
+    | '/logros'
     | '/reducido'
     | '/torneo'
     | '/equipos/$id'
@@ -155,6 +167,7 @@ export interface RootRouteChildren {
   CarreraRoute: typeof CarreraRoute
   EquiposRoute: typeof EquiposRouteWithChildren
   EstadisticasRoute: typeof EstadisticasRoute
+  LogrosRoute: typeof LogrosRoute
   ReducidoRoute: typeof ReducidoRoute
   TorneoRoute: typeof TorneoRoute
 }
@@ -173,6 +186,13 @@ declare module '@tanstack/react-router' {
       path: '/reducido'
       fullPath: '/reducido'
       preLoaderRoute: typeof ReducidoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/logros': {
+      id: '/logros'
+      path: '/logros'
+      fullPath: '/logros'
+      preLoaderRoute: typeof LogrosRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/estadisticas': {
@@ -253,6 +273,7 @@ const rootRouteChildren: RootRouteChildren = {
   CarreraRoute: CarreraRoute,
   EquiposRoute: EquiposRouteWithChildren,
   EstadisticasRoute: EstadisticasRoute,
+  LogrosRoute: LogrosRoute,
   ReducidoRoute: ReducidoRoute,
   TorneoRoute: TorneoRoute,
 }

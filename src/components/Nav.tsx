@@ -6,7 +6,10 @@ const items = [
   { to: "/torneo", label: "Torneo" },
   { to: "/reducido", label: "Reducido" },
   { to: "/amistoso", label: "Amistoso" },
+  { to: "/carrera", label: "Carrera" },
   { to: "/equipos", label: "Equipos" },
+  { to: "/estadisticas", label: "Stats" },
+  { to: "/logros", label: "Logros" },
 ] as const;
 
 export function Nav() {
