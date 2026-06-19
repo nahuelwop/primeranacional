@@ -116,25 +116,30 @@ function AmistosoPage() {
               <div className="flex flex-wrap gap-2">
                 {([
                   ["clear","☀️ Despejado"],["rain","🌧️ Lluvia"],
-                  ["wind","💨 Viento"],["thunder","⚡ Tormenta"],
-                ] as [Weather,string][]).map(([w,l]) => (
+                  ["wind","💨 Viento"],["fog","🌫️ Niebla"],
+                  ["thunder","⚡ Tormenta"],["random","🎲 Aleatorio"],
+                ] as [WeatherChoice,string][]).map(([w,l]) => (
                   <button key={w} onClick={() => setWeather(w)}
                     className={`px-3 py-2 rounded-lg text-sm border transition ${weather===w ? "bg-celeste text-primary-foreground border-celeste" : "bg-background border-border hover:bg-secondary"}`}>
                     {l}
                   </button>
                 ))}
               </div>
+              {weather === "random" && activeWeather && (
+                <div className="text-xs text-muted-foreground mt-2">Se sortea al iniciar el partido.</div>
+              )}
             </div>
           </div>
         </div>
 
         <div className="mt-6 flex justify-center">
           <button disabled={!home || !away || home?.id === away?.id}
-            onClick={() => { setResult(null); setPlaying(true); }}
+            onClick={() => { setResult(null); setActiveWeather(resolveWeather(weather)); setPlaying(true); }}
             className="px-8 py-4 rounded-xl bg-celeste text-primary-foreground font-display text-2xl tracking-wider glow-celeste disabled:opacity-40">
             JUGAR PARTIDO
           </button>
         </div>
+
       </main>
     </div>
   );
