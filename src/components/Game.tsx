@@ -37,8 +37,10 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
   const [score, setScore] = useState({ h: 0, a: 0 });
   const [time, setTime] = useState(duration);
   const [stats, setStats] = useState<MatchStats>({ possessionH: 50, shotsH: 0, shotsA: 0, onTargetH: 0, onTargetA: 0, savesH: 0, savesA: 0 });
+  const [replayActive, setReplayActive] = useState(false);
   const stateRef = useRef({ h: 0, a: 0, posH: 0, posA: 0, shotsH: 0, shotsA: 0, otH: 0, otA: 0, savH: 0, savA: 0 });
   const overRef = useRef(false);
+  const pauseClockRef = useRef(false);
 
   // Audio: relato + hinchada (volumen ajustable en vivo, refs evitan stale closures)
   const [narratorVol, setNarratorVol] = useState(0.9);
