@@ -37,8 +37,10 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
   const [score, setScore] = useState({ h: 0, a: 0 });
   const [time, setTime] = useState(duration);
   const [stats, setStats] = useState<MatchStats>({ possessionH: 50, shotsH: 0, shotsA: 0, onTargetH: 0, onTargetA: 0, savesH: 0, savesA: 0 });
+  const [replayActive, setReplayActive] = useState(false);
   const stateRef = useRef({ h: 0, a: 0, posH: 0, posA: 0, shotsH: 0, shotsA: 0, otH: 0, otA: 0, savH: 0, savA: 0 });
   const overRef = useRef(false);
+  const pauseClockRef = useRef(false);
 
   // Audio: relato + hinchada (volumen ajustable en vivo, refs evitan stale closures)
   const [narratorVol, setNarratorVol] = useState(0.9);
@@ -119,6 +121,18 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
     }[aiDifficulty];
     let frame = 0;
     let aiJumpCd = 0;
+
+    // ===== Replay de gol: ring buffer de los últimos ~2.5s =====
+    type Snap = { bx:number; by:number; bs:number; p1x:number; p1y:number; p1k:number; p1v:number; p2x:number; p2y:number; p2k:number; p2v:number };
+    const history: Snap[] = [];
+    const HISTORY_MAX = 150;
+    let replay: { frames: Snap[]; idx: number; color: string; scorer: "home"|"away" } | null = null;
+    let pendingResetDir = 0;
+
+    // ===== Papelitos al inicio (primeros 5 segundos) =====
+    const confetti: { x:number; y:number; vx:number; vy:number; w:number; h:number; color:string; rot:number; vr:number; sway:number }[] = [];
+    const confettiColors = [home.primary, home.secondary, away.primary, away.secondary, "#ffffff", "#ffe066"];
+    let confettiTimer = 300; // 5s @ 60fps
 
     // Relato: 1 cada 2 goles totales. Si llega otro, corta el anterior.
     let totalGoals = 0;
@@ -238,6 +252,52 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
 
     const update = () => {
       frame++;
+
+      // === Replay activo: reproducir snapshots, no avanzar físicas ===
+      if (replay) {
+        const snap = replay.frames[replay.idx];
+        if (snap) {
+          ball.x = snap.bx; ball.y = snap.by; ball.spin = snap.bs;
+          p1.x = snap.p1x; p1.y = snap.p1y; p1.kick = snap.p1k; p1.vx = snap.p1v;
+          p2.x = snap.p2x; p2.y = snap.p2y; p2.kick = snap.p2k; p2.vx = snap.p2v;
+        }
+        replay.idx++;
+        if (replay.idx >= replay.frames.length) {
+          replay = null;
+          pauseClockRef.current = false;
+          setReplayActive(false);
+          resetBall(pendingResetDir);
+        }
+        return;
+      }
+
+      // === Papelitos al inicio ===
+      if (confettiTimer > 0) {
+        confettiTimer--;
+        for (let i = 0; i < 6; i++) {
+          confetti.push({
+            x: Math.random() * (ref.current?.width ?? 1400),
+            y: -10,
+            vx: (Math.random() - 0.5) * 2,
+            vy: 1 + Math.random() * 2,
+            w: 4 + Math.random() * 4,
+            h: 8 + Math.random() * 6,
+            color: confettiColors[Math.floor(Math.random() * confettiColors.length)],
+            rot: Math.random() * Math.PI * 2,
+            vr: (Math.random() - 0.5) * 0.2,
+            sway: Math.random() * Math.PI * 2,
+          });
+        }
+      }
+      for (let i = confetti.length - 1; i >= 0; i--) {
+        const c = confetti[i];
+        c.sway += 0.05;
+        c.x += c.vx + Math.sin(c.sway) * 0.8;
+        c.y += c.vy;
+        c.rot += c.vr;
+        if (c.y > (ref.current?.height ?? 520) + 20) confetti.splice(i, 1);
+      }
+
 
       // P1 controles: WASD+ESPACIO o ←/→ ↑ ENTER (en 1vAI ambos sirven)
       const sp1 = speedScale(home.stats.speed);
@@ -390,20 +450,26 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
       });
 
       // Goles: solo cuando la pelota cruza la línea claramente bajo el travesaño
+      const triggerReplay = (dir: number, color: string, scorer: "home"|"away") => {
+        replay = { frames: history.slice(), idx: 0, color, scorer };
+        pendingResetDir = dir;
+        pauseClockRef.current = true;
+        setReplayActive(true);
+      };
       if (ball.x + ball.r < lpx && ball.y > crossbarY + 2) {
         stateRef.current.a++;
         stateRef.current.otA++;
         setScore({ h: stateRef.current.h, a: stateRef.current.a });
         spawnGoal(ball.x, ball.y, away.primary);
         playGoalAudio(away, "away");
-        resetBall(1);
+        triggerReplay(1, away.primary, "away");
       } else if (ball.x - ball.r > rpx && ball.y > crossbarY + 2) {
         stateRef.current.h++;
         stateRef.current.otH++;
         setScore({ h: stateRef.current.h, a: stateRef.current.a });
         spawnGoal(ball.x, ball.y, home.primary);
         playGoalAudio(home, "home");
-        resetBall(-1);
+        triggerReplay(-1, home.primary, "home");
       }
 
       // Particulas
@@ -423,6 +489,14 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
 
       crowd.forEach(c => c.bob += 0.05);
 
+      // Guardar snapshot al ring buffer
+      history.push({
+        bx: ball.x, by: ball.y, bs: ball.spin,
+        p1x: p1.x, p1y: p1.y, p1k: p1.kick, p1v: p1.vx,
+        p2x: p2.x, p2y: p2.y, p2k: p2.kick, p2v: p2.vx,
+      });
+      if (history.length > HISTORY_MAX) history.shift();
+
       // Refresca stats UI cada ~30 frames
       if (frame % 30 === 0) {
         const total = stateRef.current.posH + stateRef.current.posA;
@@ -437,6 +511,7 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         });
       }
     };
+
 
     const registerShot = (who: 1 | 2) => {
       // Evita contar varias veces el mismo contacto
@@ -518,46 +593,122 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
     };
 
     const draw = () => {
+      // Cielo nocturno con halos de focos
       const sky = ctx.createLinearGradient(0, 0, 0, ground);
-      sky.addColorStop(0, "#0b1d3d");
-      sky.addColorStop(0.5, "#1d4f9a");
-      sky.addColorStop(1, "#3a8fd8");
+      sky.addColorStop(0, "#070d20");
+      sky.addColorStop(0.5, "#163d7a");
+      sky.addColorStop(1, "#2f7fc7");
       ctx.fillStyle = sky;
       ctx.fillRect(0, 0, W, ground);
 
-      ctx.fillStyle = "#0d1424";
-      ctx.fillRect(0, 0, W, 130);
+      // Halos de iluminación (4 torres)
+      const towers = [W * 0.08, W * 0.32, W * 0.68, W * 0.92];
+      towers.forEach(tx => {
+        const grad = ctx.createRadialGradient(tx, 20, 5, tx, 20, 240);
+        grad.addColorStop(0, "rgba(255,250,210,0.45)");
+        grad.addColorStop(1, "rgba(255,250,210,0)");
+        ctx.fillStyle = grad;
+        ctx.beginPath(); ctx.arc(tx, 20, 240, 0, Math.PI * 2); ctx.fill();
+      });
+
+      // Techo del estadio (silueta)
+      ctx.fillStyle = "#06101f";
+      ctx.beginPath();
+      ctx.moveTo(0, 0); ctx.lineTo(W, 0); ctx.lineTo(W, 40);
+      for (let x = W; x >= 0; x -= 60) {
+        ctx.lineTo(x, 40 + Math.sin(x * 0.02) * 6);
+      }
+      ctx.lineTo(0, 40); ctx.closePath(); ctx.fill();
+
+      // Tribunas: 2 niveles separados por una platea VIP
+      // Nivel alto
+      ctx.fillStyle = "#0b1730";
+      ctx.fillRect(0, 40, W, 70);
+      // Platea VIP (cabinas)
+      ctx.fillStyle = "#1a253f";
+      ctx.fillRect(0, 108, W, 14);
+      for (let x = 0; x < W; x += 28) {
+        ctx.fillStyle = "rgba(255,220,120,0.4)";
+        ctx.fillRect(x + 4, 112, 18, 7);
+      }
+      // Nivel bajo
+      ctx.fillStyle = "#0d1a36";
+      ctx.fillRect(0, 122, W, 50);
+
+      // Hinchada (puntitos por toda la tribuna)
       crowd.forEach(c => {
         const y = c.y + Math.sin(c.bob) * 1.5;
         ctx.fillStyle = c.c;
-        ctx.beginPath(); ctx.arc(c.x, y, 5, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(c.x, y, 4.5, 0, Math.PI * 2); ctx.fill();
       });
-      for (let i = 0; i < 8; i++) {
-        const fx = (i * W / 8) + (Date.now() / 200 % 20);
-        const fy = 100 + Math.sin(Date.now() / 400 + i) * 4;
-        ctx.fillStyle = i % 2 ? "#7ec8ff" : "#ffffff";
-        ctx.fillRect(fx, fy, 18, 12);
+
+      // Banderas de los hinchas
+      for (let i = 0; i < 10; i++) {
+        const fx = (i * W / 10) + (Date.now() / 200 % 22);
+        const fy = 78 + Math.sin(Date.now() / 400 + i) * 4;
+        ctx.fillStyle = i % 2 ? home.primary : away.primary;
+        ctx.fillRect(fx, fy, 22, 14);
+        ctx.fillStyle = i % 2 ? home.secondary : away.secondary;
+        ctx.fillRect(fx, fy + 4, 22, 5);
         ctx.fillStyle = "#1a1a1a";
-        ctx.fillRect(fx - 1, fy, 2, 26);
+        ctx.fillRect(fx - 1, fy, 2, 30);
       }
 
-      ctx.fillStyle = "#e63946";
-      ctx.fillRect(0, ground - 18, W, 18);
-      ctx.fillStyle = "#fff";
-      ctx.font = "bold 12px system-ui";
-      for (let i = 0; i < W; i += 140) ctx.fillText("PRIMERA NACIONAL", i + 10, ground - 5);
+      // Torres de luz (mástiles)
+      towers.forEach(tx => {
+        ctx.fillStyle = "#1a1f2e";
+        ctx.fillRect(tx - 3, 0, 6, 50);
+        ctx.fillStyle = "#2a3146";
+        ctx.fillRect(tx - 18, 0, 36, 14);
+        // Bombillas
+        for (let i = 0; i < 6; i++) {
+          ctx.fillStyle = "#fff8c0";
+          ctx.beginPath(); ctx.arc(tx - 14 + i * 6, 7, 2.2, 0, Math.PI * 2); ctx.fill();
+        }
+      });
 
+      // Marcador LED gigante (centro arriba)
+      ctx.fillStyle = "#000";
+      ctx.fillRect(W / 2 - 70, 6, 140, 30);
+      ctx.strokeStyle = "#2a3146"; ctx.lineWidth = 2;
+      ctx.strokeRect(W / 2 - 70, 6, 140, 30);
+      ctx.fillStyle = home.primary;
+      ctx.fillRect(W / 2 - 66, 10, 6, 22);
+      ctx.fillStyle = away.primary;
+      ctx.fillRect(W / 2 + 60, 10, 6, 22);
+      ctx.fillStyle = "#ff5630";
+      ctx.font = "bold 18px ui-monospace, monospace";
+      ctx.textAlign = "center";
+      ctx.fillText(`${stateRef.current.h} - ${stateRef.current.a}`, W / 2, 26);
+      ctx.textAlign = "start";
+
+      // Vallas publicitarias LED dinámicas
+      const adColors = [home.primary, "#0d1424", away.primary, "#0d1424"];
+      const adTexts = ["PRIMERA NACIONAL", home.short, "TNT SPORTS", away.short];
+      const adIdx = Math.floor(Date.now() / 2000) % adColors.length;
+      ctx.fillStyle = adColors[adIdx];
+      ctx.fillRect(0, ground - 22, W, 22);
+      ctx.fillStyle = "#fff";
+      ctx.font = "bold 13px system-ui";
+      for (let i = 0; i < W; i += 160) ctx.fillText(adTexts[adIdx], i + 12, ground - 7);
+
+      // Césped a rayas
       for (let i = 0; i < W; i += 50) {
-        ctx.fillStyle = (i / 50) % 2 === 0 ? "#3a9d4d" : "#2f8341";
+        ctx.fillStyle = (i / 50) % 2 === 0 ? "#3aa550" : "#2f8c43";
         ctx.fillRect(i, ground, 50, H - ground);
       }
-      ctx.strokeStyle = "rgba(255,255,255,0.6)";
+      // Líneas de cancha: mediocampo, círculo central, áreas
+      ctx.strokeStyle = "rgba(255,255,255,0.7)";
       ctx.lineWidth = 2;
       ctx.beginPath(); ctx.moveTo(W / 2, ground); ctx.lineTo(W / 2, H); ctx.stroke();
+      ctx.beginPath(); ctx.arc(W / 2, ground + (H - ground) / 2, 38, 0, Math.PI * 2); ctx.stroke();
+      // Áreas
+      ctx.strokeRect(goalW, ground + 6, 90, H - ground - 12);
+      ctx.strokeRect(W - goalW - 90, ground + 6, 90, H - ground - 12);
 
       const drawGoal = (x: number) => {
         // Red
-        ctx.strokeStyle = "rgba(255,255,255,0.4)"; ctx.lineWidth = 1;
+        ctx.strokeStyle = "rgba(255,255,255,0.45)"; ctx.lineWidth = 1;
         for (let y = ground - goalH; y < ground; y += 8) {
           ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + goalW, y); ctx.stroke();
         }
@@ -573,6 +724,7 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
       };
       drawGoal(0);
       drawGoal(W - goalW);
+
 
       drawHead(p1);
       drawHead(p2);
@@ -641,7 +793,37 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         }
       }
       ctx.restore();
+
+      // Papelitos al inicio (sobre todo)
+      confetti.forEach(c => {
+        ctx.save();
+        ctx.translate(c.x, c.y);
+        ctx.rotate(c.rot);
+        ctx.fillStyle = c.color;
+        ctx.fillRect(-c.w / 2, -c.h / 2, c.w, c.h);
+        ctx.restore();
+      });
+
+      // Overlay REPLAY
+      if (replay) {
+        ctx.fillStyle = "rgba(0,0,0,0.35)";
+        ctx.fillRect(0, 0, W, H);
+        // Banda diagonal roja
+        ctx.save();
+        ctx.translate(W / 2, H / 2);
+        ctx.rotate(-0.08);
+        ctx.fillStyle = "rgba(230,57,70,0.92)";
+        ctx.fillRect(-W, -40, W * 2, 80);
+        ctx.fillStyle = "#fff";
+        ctx.font = "bold 56px system-ui";
+        ctx.textAlign = "center";
+        const blink = Math.floor(Date.now() / 300) % 2 === 0;
+        ctx.fillText(blink ? "● REPLAY DE GOL" : "REPLAY DE GOL", 0, 20);
+        ctx.restore();
+        ctx.textAlign = "start";
+      }
     };
+
 
     let raf = 0;
     let last = performance.now();
@@ -660,6 +842,7 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
     advanceCrowdSegment(duration);
     const tick = setInterval(() => {
       setTime(t => {
+        if (pauseClockRef.current) return t;
         const next = t - 1;
         advanceCrowdSegment(next);
         if (t <= 1) {
