@@ -180,8 +180,9 @@ function AmistosoPage() {
   );
 }
 
-function Selector({ label, value, onChange }: { label: string; value: Team | null; onChange: (t: Team) => void }) {
+function Selector({ label, value, onChange, kit, onKitChange }: { label: string; value: Team | null; onChange: (t: Team) => void; kit: Kit; onKitChange: (k: Kit) => void }) {
   const [zone, setZone] = useState<"A"|"B">(value?.zone ?? "A");
+  const displayed = value ? applyKit(value, kit) : null;
   return (
     <div className="rounded-2xl bg-card border border-border p-4">
       <div className="flex items-center justify-between mb-3">
@@ -196,20 +197,29 @@ function Selector({ label, value, onChange }: { label: string; value: Team | nul
         </div>
       </div>
 
-      {value && (
+      {displayed && (
         <div className="flex items-center gap-3 mb-3 p-3 rounded-xl bg-background border border-border">
-          <Shield team={value} size={48} />
+          <Shield team={displayed} size={48} />
           <div className="flex-1">
-            <div className="font-display text-lg">{value.name}</div>
-            <div className="text-xs text-muted-foreground">{value.city}</div>
+            <div className="font-display text-lg">{displayed.name}</div>
+            <div className="text-xs text-muted-foreground">{displayed.city}</div>
             <div className="text-xs mt-1 grid grid-cols-4 gap-1">
-              <span>VEL {value.stats.speed}</span><span>SAL {value.stats.jump}</span>
-              <span>POT {value.stats.power}</span><span>DEF {value.stats.defense}</span>
+              <span>VEL {displayed.stats.speed}</span><span>SAL {displayed.stats.jump}</span>
+              <span>POT {displayed.stats.power}</span><span>DEF {displayed.stats.defense}</span>
+            </div>
+            <div className="mt-2 flex rounded-lg border border-border bg-background p-0.5">
+              {(["titular","alternativa"] as Kit[]).map(k => (
+                <button key={k} onClick={() => onKitChange(k)}
+                  className={`flex-1 px-2 py-1 rounded-md text-[11px] capitalize transition ${kit===k ? "bg-celeste text-primary-foreground" : "hover:bg-secondary"}`}>
+                  {k}
+                </button>
+              ))}
             </div>
           </div>
-          <Jersey team={value} size={48} />
+          <Jersey team={displayed} size={48} />
         </div>
       )}
+
 
       <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-72 overflow-y-auto pr-1">
         {TEAMS.filter(t => t.zone === zone).map(t => (
