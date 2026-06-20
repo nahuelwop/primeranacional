@@ -842,6 +842,7 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
     advanceCrowdSegment(duration);
     const tick = setInterval(() => {
       setTime(t => {
+        if (pauseClockRef.current) return t;
         const next = t - 1;
         advanceCrowdSegment(next);
         if (t <= 1) {
