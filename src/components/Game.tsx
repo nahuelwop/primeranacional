@@ -593,46 +593,122 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
     };
 
     const draw = () => {
+      // Cielo nocturno con halos de focos
       const sky = ctx.createLinearGradient(0, 0, 0, ground);
-      sky.addColorStop(0, "#0b1d3d");
-      sky.addColorStop(0.5, "#1d4f9a");
-      sky.addColorStop(1, "#3a8fd8");
+      sky.addColorStop(0, "#070d20");
+      sky.addColorStop(0.5, "#163d7a");
+      sky.addColorStop(1, "#2f7fc7");
       ctx.fillStyle = sky;
       ctx.fillRect(0, 0, W, ground);
 
-      ctx.fillStyle = "#0d1424";
-      ctx.fillRect(0, 0, W, 130);
+      // Halos de iluminación (4 torres)
+      const towers = [W * 0.08, W * 0.32, W * 0.68, W * 0.92];
+      towers.forEach(tx => {
+        const grad = ctx.createRadialGradient(tx, 20, 5, tx, 20, 240);
+        grad.addColorStop(0, "rgba(255,250,210,0.45)");
+        grad.addColorStop(1, "rgba(255,250,210,0)");
+        ctx.fillStyle = grad;
+        ctx.beginPath(); ctx.arc(tx, 20, 240, 0, Math.PI * 2); ctx.fill();
+      });
+
+      // Techo del estadio (silueta)
+      ctx.fillStyle = "#06101f";
+      ctx.beginPath();
+      ctx.moveTo(0, 0); ctx.lineTo(W, 0); ctx.lineTo(W, 40);
+      for (let x = W; x >= 0; x -= 60) {
+        ctx.lineTo(x, 40 + Math.sin(x * 0.02) * 6);
+      }
+      ctx.lineTo(0, 40); ctx.closePath(); ctx.fill();
+
+      // Tribunas: 2 niveles separados por una platea VIP
+      // Nivel alto
+      ctx.fillStyle = "#0b1730";
+      ctx.fillRect(0, 40, W, 70);
+      // Platea VIP (cabinas)
+      ctx.fillStyle = "#1a253f";
+      ctx.fillRect(0, 108, W, 14);
+      for (let x = 0; x < W; x += 28) {
+        ctx.fillStyle = "rgba(255,220,120,0.4)";
+        ctx.fillRect(x + 4, 112, 18, 7);
+      }
+      // Nivel bajo
+      ctx.fillStyle = "#0d1a36";
+      ctx.fillRect(0, 122, W, 50);
+
+      // Hinchada (puntitos por toda la tribuna)
       crowd.forEach(c => {
         const y = c.y + Math.sin(c.bob) * 1.5;
         ctx.fillStyle = c.c;
-        ctx.beginPath(); ctx.arc(c.x, y, 5, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(c.x, y, 4.5, 0, Math.PI * 2); ctx.fill();
       });
-      for (let i = 0; i < 8; i++) {
-        const fx = (i * W / 8) + (Date.now() / 200 % 20);
-        const fy = 100 + Math.sin(Date.now() / 400 + i) * 4;
-        ctx.fillStyle = i % 2 ? "#7ec8ff" : "#ffffff";
-        ctx.fillRect(fx, fy, 18, 12);
+
+      // Banderas de los hinchas
+      for (let i = 0; i < 10; i++) {
+        const fx = (i * W / 10) + (Date.now() / 200 % 22);
+        const fy = 78 + Math.sin(Date.now() / 400 + i) * 4;
+        ctx.fillStyle = i % 2 ? home.primary : away.primary;
+        ctx.fillRect(fx, fy, 22, 14);
+        ctx.fillStyle = i % 2 ? home.secondary : away.secondary;
+        ctx.fillRect(fx, fy + 4, 22, 5);
         ctx.fillStyle = "#1a1a1a";
-        ctx.fillRect(fx - 1, fy, 2, 26);
+        ctx.fillRect(fx - 1, fy, 2, 30);
       }
 
-      ctx.fillStyle = "#e63946";
-      ctx.fillRect(0, ground - 18, W, 18);
-      ctx.fillStyle = "#fff";
-      ctx.font = "bold 12px system-ui";
-      for (let i = 0; i < W; i += 140) ctx.fillText("PRIMERA NACIONAL", i + 10, ground - 5);
+      // Torres de luz (mástiles)
+      towers.forEach(tx => {
+        ctx.fillStyle = "#1a1f2e";
+        ctx.fillRect(tx - 3, 0, 6, 50);
+        ctx.fillStyle = "#2a3146";
+        ctx.fillRect(tx - 18, 0, 36, 14);
+        // Bombillas
+        for (let i = 0; i < 6; i++) {
+          ctx.fillStyle = "#fff8c0";
+          ctx.beginPath(); ctx.arc(tx - 14 + i * 6, 7, 2.2, 0, Math.PI * 2); ctx.fill();
+        }
+      });
 
+      // Marcador LED gigante (centro arriba)
+      ctx.fillStyle = "#000";
+      ctx.fillRect(W / 2 - 70, 6, 140, 30);
+      ctx.strokeStyle = "#2a3146"; ctx.lineWidth = 2;
+      ctx.strokeRect(W / 2 - 70, 6, 140, 30);
+      ctx.fillStyle = home.primary;
+      ctx.fillRect(W / 2 - 66, 10, 6, 22);
+      ctx.fillStyle = away.primary;
+      ctx.fillRect(W / 2 + 60, 10, 6, 22);
+      ctx.fillStyle = "#ff5630";
+      ctx.font = "bold 18px ui-monospace, monospace";
+      ctx.textAlign = "center";
+      ctx.fillText(`${stateRef.current.h} - ${stateRef.current.a}`, W / 2, 26);
+      ctx.textAlign = "start";
+
+      // Vallas publicitarias LED dinámicas
+      const adColors = [home.primary, "#0d1424", away.primary, "#0d1424"];
+      const adTexts = ["PRIMERA NACIONAL", home.short, "TNT SPORTS", away.short];
+      const adIdx = Math.floor(Date.now() / 2000) % adColors.length;
+      ctx.fillStyle = adColors[adIdx];
+      ctx.fillRect(0, ground - 22, W, 22);
+      ctx.fillStyle = "#fff";
+      ctx.font = "bold 13px system-ui";
+      for (let i = 0; i < W; i += 160) ctx.fillText(adTexts[adIdx], i + 12, ground - 7);
+
+      // Césped a rayas
       for (let i = 0; i < W; i += 50) {
-        ctx.fillStyle = (i / 50) % 2 === 0 ? "#3a9d4d" : "#2f8341";
+        ctx.fillStyle = (i / 50) % 2 === 0 ? "#3aa550" : "#2f8c43";
         ctx.fillRect(i, ground, 50, H - ground);
       }
-      ctx.strokeStyle = "rgba(255,255,255,0.6)";
+      // Líneas de cancha: mediocampo, círculo central, áreas
+      ctx.strokeStyle = "rgba(255,255,255,0.7)";
       ctx.lineWidth = 2;
       ctx.beginPath(); ctx.moveTo(W / 2, ground); ctx.lineTo(W / 2, H); ctx.stroke();
+      ctx.beginPath(); ctx.arc(W / 2, ground + (H - ground) / 2, 38, 0, Math.PI * 2); ctx.stroke();
+      // Áreas
+      ctx.strokeRect(goalW, ground + 6, 90, H - ground - 12);
+      ctx.strokeRect(W - goalW - 90, ground + 6, 90, H - ground - 12);
 
       const drawGoal = (x: number) => {
         // Red
-        ctx.strokeStyle = "rgba(255,255,255,0.4)"; ctx.lineWidth = 1;
+        ctx.strokeStyle = "rgba(255,255,255,0.45)"; ctx.lineWidth = 1;
         for (let y = ground - goalH; y < ground; y += 8) {
           ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + goalW, y); ctx.stroke();
         }
@@ -648,6 +724,7 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
       };
       drawGoal(0);
       drawGoal(W - goalW);
+
 
       drawHead(p1);
       drawHead(p2);
