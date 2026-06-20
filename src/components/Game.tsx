@@ -157,8 +157,8 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
 
     // Hinchada: 3 tramos de 30s (local, visitante, local), tema al azar de cada equipo.
     const segments: Array<{ team: Team; until: number }> = [
-      { team: home, until: duration - 60 }, // primeros 30s
-      { team: away, until: duration - 30 }, // siguientes 30s
+      { team: home, until: duration / 2 }, // primera mitad
+      { team: away, until: 0 },             // segunda mitad
       { team: home, until: 0 },             // últimos 30s
     ];
     let segIdx = -1;
