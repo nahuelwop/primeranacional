@@ -1,10 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Nav } from "@/components/Nav";
 import { Shield, Jersey } from "@/components/Shield";
 import { TEAMS, Team } from "@/data/teams";
 import { useTeamsSync } from "@/lib/teams-sync";
 import { Game, type Weather, type Difficulty, type Mode, type MatchStats } from "@/components/Game";
+import { Penales } from "@/components/Penales";
 
 export const Route = createFileRoute("/amistoso")({
   head: () => ({
@@ -17,6 +18,7 @@ export const Route = createFileRoute("/amistoso")({
 });
 
 type WeatherChoice = Weather | "random";
+type Kit = "titular" | "alternativa";
 
 function resolveWeather(w: WeatherChoice): Weather {
   if (w !== "random") return w;
@@ -24,29 +26,42 @@ function resolveWeather(w: WeatherChoice): Weather {
   return opts[Math.floor(Math.random() * opts.length)];
 }
 
+function applyKit(team: Team, kit: Kit): Team {
+  if (kit === "titular") return team;
+  return { ...team, primary: team.secondary, secondary: team.primary };
+}
+
 function AmistosoPage() {
   useTeamsSync();
   const [home, setHome] = useState<Team | null>(TEAMS[0]);
   const [away, setAway] = useState<Team | null>(TEAMS.find(t => t.id === "nuevachicago") ?? TEAMS[18]);
+  const [homeKit, setHomeKit] = useState<Kit>("titular");
+  const [awayKit, setAwayKit] = useState<Kit>("titular");
   const [playing, setPlaying] = useState(false);
   const [weather, setWeather] = useState<WeatherChoice>("clear");
   const [activeWeather, setActiveWeather] = useState<Weather>("clear");
   const [difficulty, setDifficulty] = useState<Difficulty>("normal");
   const [mode, setMode] = useState<Mode>("1vAI");
   const [result, setResult] = useState<{ h: number; a: number; stats: MatchStats } | null>(null);
+  const [showPenales, setShowPenales] = useState(false);
+  const [penalesResult, setPenalesResult] = useState<{ winner: "H" | "A"; h: number; a: number } | null>(null);
 
-  if (playing && home && away) {
+  const homeKitted = useMemo(() => home ? applyKit(home, homeKit) : null, [home, homeKit]);
+  const awayKitted = useMemo(() => away ? applyKit(away, awayKit) : null, [away, awayKit]);
+
+  if (playing && homeKitted && awayKitted) {
     return (
       <div className="min-h-screen flex flex-col">
         <Nav />
         <main className="flex-1 max-w-5xl w-full mx-auto px-4 py-6">
-          <Game home={home} away={away} duration={90} weather={activeWeather} aiDifficulty={difficulty} mode={mode} sharedNarrator
-            onEnd={(h, a, stats) => { setResult({ h, a, stats }); setPlaying(false); }} />
+          <Game home={homeKitted} away={awayKitted} duration={90} weather={activeWeather} aiDifficulty={difficulty} mode={mode} sharedNarrator
+            onEnd={(h, a, stats) => { setResult({ h, a, stats }); setPlaying(false); setShowPenales(false); setPenalesResult(null); }} />
 
         </main>
       </div>
     );
   }
+
 
 
   return (
