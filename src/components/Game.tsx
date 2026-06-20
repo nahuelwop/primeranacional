@@ -793,7 +793,37 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         }
       }
       ctx.restore();
+
+      // Papelitos al inicio (sobre todo)
+      confetti.forEach(c => {
+        ctx.save();
+        ctx.translate(c.x, c.y);
+        ctx.rotate(c.rot);
+        ctx.fillStyle = c.color;
+        ctx.fillRect(-c.w / 2, -c.h / 2, c.w, c.h);
+        ctx.restore();
+      });
+
+      // Overlay REPLAY
+      if (replay) {
+        ctx.fillStyle = "rgba(0,0,0,0.35)";
+        ctx.fillRect(0, 0, W, H);
+        // Banda diagonal roja
+        ctx.save();
+        ctx.translate(W / 2, H / 2);
+        ctx.rotate(-0.08);
+        ctx.fillStyle = "rgba(230,57,70,0.92)";
+        ctx.fillRect(-W, -40, W * 2, 80);
+        ctx.fillStyle = "#fff";
+        ctx.font = "bold 56px system-ui";
+        ctx.textAlign = "center";
+        const blink = Math.floor(Date.now() / 300) % 2 === 0;
+        ctx.fillText(blink ? "● REPLAY DE GOL" : "REPLAY DE GOL", 0, 20);
+        ctx.restore();
+        ctx.textAlign = "start";
+      }
     };
+
 
     let raf = 0;
     let last = performance.now();
