@@ -163,7 +163,7 @@ function TorneoPage() {
               <Game
                 home={leftTeam}
                 away={rightTeam}
-                duration={90}
+                duration={60}
                 aiDifficulty="normal"
                 mode="1vAI"
                 onEnd={(lg, rg) => {

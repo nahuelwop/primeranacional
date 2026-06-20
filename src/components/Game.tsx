@@ -32,7 +32,7 @@ const ScoreColorBars = ({ team, reverse = false }: { team: Team; reverse?: boole
 );
 
 // Football Heads style arcade — sin poderes, físicas con postes y travesaño.
-export function Game({ home, away, duration = 90, weather = "clear", aiDifficulty = "normal", mode = "1vAI", sharedNarrator = false, onEnd }: Props) {
+export function Game({ home, away, duration = 60, weather = "clear", aiDifficulty = "normal", mode = "1vAI", sharedNarrator = false, onEnd }: Props) {
   const ref = useRef<HTMLCanvasElement>(null);
   const [score, setScore] = useState({ h: 0, a: 0 });
   const [time, setTime] = useState(duration);
@@ -157,8 +157,8 @@ export function Game({ home, away, duration = 90, weather = "clear", aiDifficult
 
     // Hinchada: 3 tramos de 30s (local, visitante, local), tema al azar de cada equipo.
     const segments: Array<{ team: Team; until: number }> = [
-      { team: home, until: duration - 60 }, // primeros 30s
-      { team: away, until: duration - 30 }, // siguientes 30s
+      { team: home, until: duration / 2 }, // primera mitad
+      { team: away, until: 0 },             // segunda mitad
       { team: home, until: 0 },             // últimos 30s
     ];
     let segIdx = -1;

@@ -151,7 +151,7 @@ function CarreraPage() {
       <Shell>
         <main className="flex-1 max-w-5xl w-full mx-auto px-4 py-6">
           <div className="text-center text-sm text-muted-foreground mb-2">Temporada {season} · Fecha {nextMatch.round}</div>
-          <Game home={homeT} away={awayT} duration={90} mode="1vAI" sharedNarrator onEnd={onMatchEnd} />
+          <Game home={homeT} away={awayT} duration={60} mode="1vAI" sharedNarrator onEnd={onMatchEnd} />
         </main>
       </Shell>
     );
