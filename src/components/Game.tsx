@@ -32,7 +32,7 @@ const ScoreColorBars = ({ team, reverse = false }: { team: Team; reverse?: boole
 );
 
 // Football Heads style arcade — sin poderes, físicas con postes y travesaño.
-export function Game({ home, away, duration = 90, weather = "clear", aiDifficulty = "normal", mode = "1vAI", sharedNarrator = false, onEnd }: Props) {
+export function Game({ home, away, duration = 60, weather = "clear", aiDifficulty = "normal", mode = "1vAI", sharedNarrator = false, onEnd }: Props) {
   const ref = useRef<HTMLCanvasElement>(null);
   const [score, setScore] = useState({ h: 0, a: 0 });
   const [time, setTime] = useState(duration);
