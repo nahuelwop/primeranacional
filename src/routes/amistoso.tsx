@@ -90,12 +90,32 @@ function AmistosoPage() {
               <div className="text-center text-xs text-muted-foreground">Al arco</div>
               <div className="text-left tabular-nums">{result.stats.onTargetA}</div>
             </div>
+
+            {result.h === result.a && home && away && !showPenales && !penalesResult && (
+              <div className="mt-3 flex justify-center">
+                <button onClick={() => setShowPenales(true)}
+                  className="px-4 py-2 rounded-lg bg-celeste text-primary-foreground font-display tracking-wider">
+                  DEFINIR POR PENALES
+                </button>
+              </div>
+            )}
+
+            {showPenales && homeKitted && awayKitted && !penalesResult && (
+              <Penales home={homeKitted} away={awayKitted}
+                onEnd={(winner, h, a) => setPenalesResult({ winner, h, a })} />
+            )}
+
+            {penalesResult && (
+              <div className="mt-3 text-center font-display text-xl">
+                Final por penales: {home?.short} {penalesResult.h} — {penalesResult.a} {away?.short}
+              </div>
+            )}
           </div>
         )}
 
         <div className="grid md:grid-cols-2 gap-6 mt-6">
-          <Selector label="LOCAL" value={home} onChange={setHome} />
-          <Selector label="VISITANTE" value={away} onChange={setAway} />
+          <Selector label="LOCAL" value={home} onChange={setHome} kit={homeKit} onKitChange={setHomeKit} />
+          <Selector label="VISITANTE" value={away} onChange={setAway} kit={awayKit} onKitChange={setAwayKit} />
         </div>
 
         <div className="mt-6 rounded-2xl bg-card border border-border p-4">
