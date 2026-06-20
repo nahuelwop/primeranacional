@@ -253,6 +253,52 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
     const update = () => {
       frame++;
 
+      // === Replay activo: reproducir snapshots, no avanzar físicas ===
+      if (replay) {
+        const snap = replay.frames[replay.idx];
+        if (snap) {
+          ball.x = snap.bx; ball.y = snap.by; ball.spin = snap.bs;
+          p1.x = snap.p1x; p1.y = snap.p1y; p1.kick = snap.p1k; p1.vx = snap.p1v;
+          p2.x = snap.p2x; p2.y = snap.p2y; p2.kick = snap.p2k; p2.vx = snap.p2v;
+        }
+        replay.idx++;
+        if (replay.idx >= replay.frames.length) {
+          replay = null;
+          pauseClockRef.current = false;
+          setReplayActive(false);
+          resetBall(pendingResetDir);
+        }
+        return;
+      }
+
+      // === Papelitos al inicio ===
+      if (confettiTimer > 0) {
+        confettiTimer--;
+        for (let i = 0; i < 6; i++) {
+          confetti.push({
+            x: Math.random() * (ref.current?.width ?? 1400),
+            y: -10,
+            vx: (Math.random() - 0.5) * 2,
+            vy: 1 + Math.random() * 2,
+            w: 4 + Math.random() * 4,
+            h: 8 + Math.random() * 6,
+            color: confettiColors[Math.floor(Math.random() * confettiColors.length)],
+            rot: Math.random() * Math.PI * 2,
+            vr: (Math.random() - 0.5) * 0.2,
+            sway: Math.random() * Math.PI * 2,
+          });
+        }
+      }
+      for (let i = confetti.length - 1; i >= 0; i--) {
+        const c = confetti[i];
+        c.sway += 0.05;
+        c.x += c.vx + Math.sin(c.sway) * 0.8;
+        c.y += c.vy;
+        c.rot += c.vr;
+        if (c.y > (ref.current?.height ?? 520) + 20) confetti.splice(i, 1);
+      }
+
+
       // P1 controles: WASD+ESPACIO o ←/→ ↑ ENTER (en 1vAI ambos sirven)
       const sp1 = speedScale(home.stats.speed);
       const p1Left = keys["a"] || (mode === "1vAI" && keys["arrowleft"]);
