@@ -450,20 +450,26 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
       });
 
       // Goles: solo cuando la pelota cruza la línea claramente bajo el travesaño
+      const triggerReplay = (dir: number, color: string, scorer: "home"|"away") => {
+        replay = { frames: history.slice(), idx: 0, color, scorer };
+        pendingResetDir = dir;
+        pauseClockRef.current = true;
+        setReplayActive(true);
+      };
       if (ball.x + ball.r < lpx && ball.y > crossbarY + 2) {
         stateRef.current.a++;
         stateRef.current.otA++;
         setScore({ h: stateRef.current.h, a: stateRef.current.a });
         spawnGoal(ball.x, ball.y, away.primary);
         playGoalAudio(away, "away");
-        resetBall(1);
+        triggerReplay(1, away.primary, "away");
       } else if (ball.x - ball.r > rpx && ball.y > crossbarY + 2) {
         stateRef.current.h++;
         stateRef.current.otH++;
         setScore({ h: stateRef.current.h, a: stateRef.current.a });
         spawnGoal(ball.x, ball.y, home.primary);
         playGoalAudio(home, "home");
-        resetBall(-1);
+        triggerReplay(-1, home.primary, "home");
       }
 
       // Particulas
@@ -483,6 +489,14 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
 
       crowd.forEach(c => c.bob += 0.05);
 
+      // Guardar snapshot al ring buffer
+      history.push({
+        bx: ball.x, by: ball.y, bs: ball.spin,
+        p1x: p1.x, p1y: p1.y, p1k: p1.kick, p1v: p1.vx,
+        p2x: p2.x, p2y: p2.y, p2k: p2.kick, p2v: p2.vx,
+      });
+      if (history.length > HISTORY_MAX) history.shift();
+
       // Refresca stats UI cada ~30 frames
       if (frame % 30 === 0) {
         const total = stateRef.current.posH + stateRef.current.posA;
@@ -497,6 +511,7 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         });
       }
     };
+
 
     const registerShot = (who: 1 | 2) => {
       // Evita contar varias veces el mismo contacto
