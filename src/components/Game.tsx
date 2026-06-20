@@ -122,6 +122,18 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
     let frame = 0;
     let aiJumpCd = 0;
 
+    // ===== Replay de gol: ring buffer de los últimos ~2.5s =====
+    type Snap = { bx:number; by:number; bs:number; p1x:number; p1y:number; p1k:number; p1v:number; p2x:number; p2y:number; p2k:number; p2v:number };
+    const history: Snap[] = [];
+    const HISTORY_MAX = 150;
+    let replay: { frames: Snap[]; idx: number; color: string; scorer: "home"|"away" } | null = null;
+    let pendingResetDir = 0;
+
+    // ===== Papelitos al inicio (primeros 5 segundos) =====
+    const confetti: { x:number; y:number; vx:number; vy:number; w:number; h:number; color:string; rot:number; vr:number; sway:number }[] = [];
+    const confettiColors = [home.primary, home.secondary, away.primary, away.secondary, "#ffffff", "#ffe066"];
+    let confettiTimer = 300; // 5s @ 60fps
+
     // Relato: 1 cada 2 goles totales. Si llega otro, corta el anterior.
     let totalGoals = 0;
     const pickAudio = (urls?: string[]) => {
