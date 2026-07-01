@@ -113,27 +113,41 @@ export const useTournament = create<State & Actions>()(persist((set, get) => ({
     });
   },
   startPlayoffs: () => {
-    const { standA, standB } = get();
+    const { standA, standB, userTeamId } = get();
     const a1 = sortStandings(standA)[0]?.teamId;
     const b1 = sortStandings(standB)[0]?.teamId;
     if (!a1 || !b1) return;
-    const sim = simulateMatch(a1, b1);
-    const winner = sim.hg >= sim.ag ? a1 : b1;
-    const loser = winner === a1 ? b1 : a1;
-    const finalDirecta: Pair = { a: a1, b: b1, ag: sim.hg, bg: sim.ag, winner };
-    const bracket = buildReducido(standA, standB, loser);
+    const userInFinal = userTeamId === a1 || userTeamId === b1;
+    let finalDirecta: Pair;
+    let winner: string | undefined;
+    let loser: string | undefined;
+    if (userInFinal) {
+      // Dejar sin jugar; el usuario lo dispara con recordUserPlayoff("final", ...).
+      finalDirecta = { a: a1, b: b1 };
+    } else {
+      const sim = simulateMatch(a1, b1);
+      winner = sim.hg >= sim.ag ? a1 : b1;
+      loser = winner === a1 ? b1 : a1;
+      finalDirecta = { a: a1, b: b1, ag: sim.hg, bg: sim.ag, winner };
+    }
+    // Si aún no sabemos el perdedor de la final, seedeamos con el 9° de A como placeholder;
+    // se corrige cuando el usuario juegue la final.
+    const bracket = buildReducido(standA, standB, loser ?? sortStandings(standA)[8]?.teamId);
     set({ finalDirecta, bracket, champion: winner });
   },
   advanceBracket: () => {
     const br = get().bracket;
+    const userTeamId = get().userTeamId;
     if (!br) return;
-    const playRound = (pairs: Pair[]): Pair[] =>
-      pairs.map(p => {
-        if (!p.a || !p.b || p.winner) return p;
-        const s = simulateMatch(p.a, p.b);
-        const winner = s.hg >= s.ag ? p.a : p.b;
-        return { ...p, ag: s.hg, bg: s.ag, winner };
-      });
+    const playPair = (p: Pair): Pair => {
+      if (!p.a || !p.b || p.winner) return p;
+      // No autosimular si es partido del usuario
+      if (userTeamId && (p.a === userTeamId || p.b === userTeamId)) return p;
+      const s = simulateMatch(p.a, p.b);
+      const w = s.hg >= s.ag ? p.a : p.b;
+      return { ...p, ag: s.hg, bg: s.ag, winner: w };
+    };
+    const playRound = (pairs: Pair[]): Pair[] => pairs.map(playPair);
     const next = (won: Pair[]): Pair[] => {
       const out: Pair[] = [];
       for (let i = 0; i < won.length; i += 2)
@@ -149,8 +163,43 @@ export const useTournament = create<State & Actions>()(persist((set, get) => ({
     else if (!final.length) final = next(semis);
     else if (final.some(p => !p.winner)) {
       final = playRound(final);
-      set({ reducidoChampion: final[0].winner });
+      if (final[0]?.winner) set({ reducidoChampion: final[0].winner });
     }
     set({ bracket: { octavos, cuartos, semis, final } });
   },
 }), { name: "primera-nacional-heads-2026" }));
+
+// ===== Reducido: helpers para partidos jugables del usuario =====
+// Nota: como zustand no permite acciones externas fácilmente sin retype,
+// se exponen como helpers que reciben el store.
+export function recordUserPlayoff(kind: "final" | "octavos" | "cuartos" | "semis" | "final_reducido",
+  idx: number, hg: number, ag: number) {
+  const s = useTournament.getState();
+  if (kind === "final") {
+    const p = s.finalDirecta;
+    if (!p || !p.a || !p.b) return;
+    const winner = hg >= ag ? p.a : p.b;
+    const loser = winner === p.a ? p.b : p.a;
+    useTournament.setState({
+      finalDirecta: { ...p, ag: hg, bg: ag, winner },
+      champion: winner,
+    });
+    // Reseedear el reducido con el perdedor correcto
+    const bracket = buildReducido(s.standA, s.standB, loser);
+    useTournament.setState({ bracket });
+    return;
+  }
+  const br = s.bracket;
+  if (!br) return;
+  const roundKey = kind === "final_reducido" ? "final" : kind;
+  const arr = [...(br[roundKey] as Pair[])];
+  const p = arr[idx];
+  if (!p || !p.a || !p.b) return;
+  const winner = hg >= ag ? p.a : p.b;
+  arr[idx] = { ...p, ag: hg, bg: ag, winner };
+  const nextBr = { ...br, [roundKey]: arr } as Bracket;
+  useTournament.setState({ bracket: nextBr });
+  if (kind === "final_reducido" && winner) {
+    useTournament.setState({ reducidoChampion: winner });
+  }
+}
