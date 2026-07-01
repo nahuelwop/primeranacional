@@ -234,12 +234,14 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
     }
 
     const crowd: { x: number; y: number; c: string; bob: number }[] = [];
-    const palette = ["#7ec8ff", "#ffffff", "#ffe066", "#ff6b6b", "#9bd1ff", "#f0f0f0"];
-    for (let row = 0; row < 4; row++) {
-      for (let i = 0; i < W / 14; i++) {
+    const palette = ["#7ec8ff", "#ffffff", "#ffe066", "#ff6b6b", "#9bd1ff", "#f0f0f0", home.primary, away.primary];
+    const rows = crowdIntensity === "ascenso" ? 6 : crowdIntensity === "clasico" ? 5 : 4;
+    const spacing = crowdIntensity === "normal" ? 14 : 10;
+    for (let row = 0; row < rows; row++) {
+      for (let i = 0; i < W / spacing; i++) {
         crowd.push({
-          x: i * 14 + (row % 2) * 7,
-          y: 30 + row * 18,
+          x: i * spacing + (row % 2) * (spacing / 2),
+          y: 30 + row * 15,
           c: palette[Math.floor(Math.random() * palette.length)],
           bob: Math.random() * Math.PI * 2,
         });
