@@ -662,16 +662,32 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         ctx.beginPath(); ctx.arc(c.x, y, 4.5, 0, Math.PI * 2); ctx.fill();
       });
 
-      // Banderas de los hinchas
-      for (let i = 0; i < 10; i++) {
-        const fx = (i * W / 10) + (Date.now() / 200 % 22);
-        const fy = 78 + Math.sin(Date.now() / 400 + i) * 4;
-        ctx.fillStyle = i % 2 ? home.primary : away.primary;
-        ctx.fillRect(fx, fy, 22, 14);
-        ctx.fillStyle = i % 2 ? home.secondary : away.secondary;
-        ctx.fillRect(fx, fy + 4, 22, 5);
+      // Banderas de los hinchas (más cantidad y ondulación según intensidad)
+      const flagCount = crowdIntensity === "ascenso" ? 26 : crowdIntensity === "clasico" ? 20 : 14;
+      for (let i = 0; i < flagCount; i++) {
+        const fx = (i * W / flagCount) + (Date.now() / 200 % 30);
+        const sway = Math.sin(Date.now() / 350 + i * 0.7) * 6;
+        const fy = 70 + (i % 3) * 8 + sway;
+        const useHome = i % 2 === 0;
+        ctx.fillStyle = useHome ? home.primary : away.primary;
+        ctx.fillRect(fx, fy, 24, 15);
+        ctx.fillStyle = useHome ? home.secondary : away.secondary;
+        ctx.fillRect(fx, fy + 5, 24, 5);
         ctx.fillStyle = "#1a1a1a";
-        ctx.fillRect(fx - 1, fy, 2, 30);
+        ctx.fillRect(fx - 1, fy, 2, 34);
+      }
+      // Papelitos/humo en partidos calientes (clásicos y ascensos)
+      if (crowdIntensity !== "normal") {
+        const t = Date.now() / 1000;
+        for (let i = 0; i < 40; i++) {
+          const x = (i * 41 + (t * 20) % W) % W;
+          const y = 40 + ((i * 13 + t * 30) % 130);
+          const col = i % 3 === 0 ? home.primary : i % 3 === 1 ? away.primary : "#ffffff";
+          ctx.fillStyle = col;
+          ctx.globalAlpha = 0.5;
+          ctx.fillRect(x, y, 3, 6);
+        }
+        ctx.globalAlpha = 1;
       }
 
       // Torres de luz (mástiles)
