@@ -129,6 +129,7 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
     }[aiDifficulty];
     let frame = 0;
     let aiJumpCd = 0;
+    let goalsCancelLeft = Number.isFinite(cancelOpponentGoals) ? Math.max(0, cancelOpponentGoals) : 999;
 
     // ===== Replay de gol: ring buffer de los últimos ~2.5s =====
     type Snap = { bx:number; by:number; bs:number; p1x:number; p1y:number; p1k:number; p1v:number; p2x:number; p2y:number; p2k:number; p2v:number };
