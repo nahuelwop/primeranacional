@@ -22,6 +22,15 @@ export type Team = {
   goalAudios?: string[];
   hinchadas?: string[];
   narrators?: Narrator[];
+  // Ficha del club (editable en admin)
+  fullName?: string | null;
+  foundedYear?: number | null;
+  province?: string | null;
+  nickname?: string | null;
+  rivalId?: string | null;
+  primeraSeasons?: number | null;
+  achievements?: string | null;
+  history?: string | null;
 };
 
 const t = (
