@@ -465,17 +465,28 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         setReplayActive(true);
       };
       if (ball.x + ball.r < lpx && ball.y > crossbarY + 2) {
-        stateRef.current.a++;
-        stateRef.current.otA++;
-        setScore({ h: stateRef.current.h, a: stateRef.current.a });
-        spawnGoal(ball.x, ball.y, away.primary);
-        playGoalAudio(away, "away");
-        triggerReplay(1, away.primary, "away");
+        // Gol del rival (away) — puede anularse por corrupción
+        if (goalsCancelLeft > 0) {
+          goalsCancelLeft--;
+          setVarMsg("GOL ANULADO POR EL VAR 🤨");
+          setTimeout(() => setVarMsg(null), 1800);
+          resetBall(1);
+        } else {
+          stateRef.current.a++;
+          stateRef.current.otA++;
+          setScore({ h: stateRef.current.h, a: stateRef.current.a });
+          spawnGoal(ball.x, ball.y, away.primary);
+          playGoalAudio(away, "away");
+          triggerReplay(1, away.primary, "away");
+        }
       } else if (ball.x - ball.r > rpx && ball.y > crossbarY + 2) {
-        stateRef.current.h++;
+        // Gol propio (home) — puede contar doble
+        const bonus = Math.random() < doubleGoalChance ? 2 : 1;
+        stateRef.current.h += bonus;
         stateRef.current.otH++;
         setScore({ h: stateRef.current.h, a: stateRef.current.a });
         spawnGoal(ball.x, ball.y, home.primary);
+        if (bonus === 2) { setVarMsg("¡GOL DOBLE! 🎩"); setTimeout(() => setVarMsg(null), 1800); }
         playGoalAudio(home, "home");
         triggerReplay(-1, home.primary, "home");
       }
