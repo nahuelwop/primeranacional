@@ -922,7 +922,12 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
   const possA = 100 - stats.possessionH;
 
   return (
-    <div className="flex flex-col items-center gap-3 w-full">
+    <div className="flex flex-col items-center gap-3 w-full relative">
+      {matchLabel && (
+        <div className="w-full max-w-6xl px-4 py-1.5 rounded-lg bg-accent/20 border border-accent/40 text-center font-display tracking-[0.3em] text-accent text-sm animate-fade-in">
+          ★ {matchLabel} ★
+        </div>
+      )}
       <div className="scorebug" role="status" aria-label={`${home.short} ${score.h}, ${away.short} ${score.a}, ${time} segundos`}>
         <div className="scorebug-brand">N</div>
         <div className="scorebug-team scorebug-home">
@@ -932,8 +937,8 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
           <Shield team={home} size={42} eager />
         </div>
         <ScoreColorBars team={home} />
-        <div className="scorebug-score">{score.h}</div>
-        <div className="scorebug-score">{score.a}</div>
+        <div key={`h-${score.h}`} className="scorebug-score animate-scale-in" style={{ textShadow: score.h > 0 ? `0 0 12px ${home.primary}` : undefined }}>{score.h}</div>
+        <div key={`a-${score.a}`} className="scorebug-score animate-scale-in" style={{ textShadow: score.a > 0 ? `0 0 12px ${away.primary}` : undefined }}>{score.a}</div>
         <ScoreColorBars team={away} reverse />
         <div className="scorebug-shield scorebug-shield-away">
           <Shield team={away} size={42} eager />
@@ -945,7 +950,17 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         <div className="scorebug-half">1T</div>
       </div>
 
-      <canvas ref={ref} width={1400} height={520} className="w-full max-w-6xl rounded-2xl border-2 border-border bg-black" />
+      <div className="relative w-full max-w-6xl">
+        <canvas ref={ref} width={1400} height={520} className="w-full rounded-2xl border-2 border-border bg-black" />
+        {varMsg && (
+          <div className="absolute inset-x-0 top-4 flex justify-center pointer-events-none animate-fade-in">
+            <div className="px-5 py-2 rounded-xl bg-black/85 border-2 border-accent text-accent font-display text-xl tracking-wider">
+              {varMsg}
+            </div>
+          </div>
+        )}
+      </div>
+
 
       {/* Estadísticas en vivo */}
       <div className="w-full max-w-6xl rounded-2xl bg-card border border-border p-3 text-sm">
