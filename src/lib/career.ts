@@ -1,16 +1,30 @@
 import { TEAMS_BY_ID, ZONE_A, ZONE_B, type Team } from "@/data/teams";
 import { generateRoundRobin, simulateMatch, emptyStandings, applyMatchToStandings, sortStandings, type Match, type StandingRow } from "@/lib/tournament";
 
+export type StadiumUpgrades = {
+  capacity: boolean;   // +10%
+  pitch: boolean;      // +15%
+  vip: boolean;        // +25%
+  led: boolean;        // +10%
+};
+
+export type CorruptionKind = "leve" | "medio" | "obvio" | "seca_nuca";
+export type ActiveCorruption = { kind: CorruptionKind; matchesLeft: number } | null;
+export type IncomePenalty = { pct: number; matchesLeft: number } | null;
+
 export type CareerState = {
-  // Solo persistimos lo necesario; el fixture se regenera en memoria desde semilla determinística no es trivial,
-  // así que guardamos los partidos del usuario y los standings simulados.
   zone: "A" | "B";
-  matches: Match[];           // todos los partidos de la zona en la temporada actual
-  standings: StandingRow[];   // tabla actual
-  totalGoalsScored: number;   // acumulado histórico (para logro 100 goles)
-  streakUnbeaten: number;     // racha invicto actual
-  bestUnbeaten: number;       // mejor racha invicto histórica
+  matches: Match[];           // partidos de la zona del usuario
+  standings: StandingRow[];   // tabla del usuario
+  otherStandings?: StandingRow[]; // tabla de la otra zona (simulada)
+  otherMatches?: Match[];         // partidos de la otra zona
+  totalGoalsScored: number;
+  streakUnbeaten: number;
+  bestUnbeaten: number;
   zoneChampions: { season: number; zone: "A" | "B"; teamId: string }[];
+  stadiumUpgrades?: StadiumUpgrades;
+  activeCorruption?: ActiveCorruption;
+  incomePenalty?: IncomePenalty;
 };
 
 export function teamZone(teamId: string): "A" | "B" {
