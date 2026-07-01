@@ -14,6 +14,11 @@ type Props = {
   aiDifficulty?: Difficulty;
   mode?: Mode;
   sharedNarrator?: boolean;
+  crowdIntensity?: "normal" | "clasico" | "ascenso";
+  matchLabel?: string;
+  startingScore?: { h: number; a: number };
+  cancelOpponentGoals?: number;   // # de goles rivales a anular (Infinity = todos)
+  doubleGoalChance?: number;      // 0..1 · probabilidad de que un gol propio cuente doble
   onEnd: (hg: number, ag: number, stats: MatchStats) => void;
 };
 
@@ -32,13 +37,14 @@ const ScoreColorBars = ({ team, reverse = false }: { team: Team; reverse?: boole
 );
 
 // Football Heads style arcade — sin poderes, físicas con postes y travesaño.
-export function Game({ home, away, duration = 60, weather = "clear", aiDifficulty = "normal", mode = "1vAI", sharedNarrator = false, onEnd }: Props) {
+export function Game({ home, away, duration = 60, weather = "clear", aiDifficulty = "normal", mode = "1vAI", sharedNarrator = false, crowdIntensity = "normal", matchLabel, startingScore, cancelOpponentGoals = 0, doubleGoalChance = 0, onEnd }: Props) {
   const ref = useRef<HTMLCanvasElement>(null);
-  const [score, setScore] = useState({ h: 0, a: 0 });
+  const [score, setScore] = useState({ h: startingScore?.h ?? 0, a: startingScore?.a ?? 0 });
   const [time, setTime] = useState(duration);
   const [stats, setStats] = useState<MatchStats>({ possessionH: 50, shotsH: 0, shotsA: 0, onTargetH: 0, onTargetA: 0, savesH: 0, savesA: 0 });
   const [replayActive, setReplayActive] = useState(false);
-  const stateRef = useRef({ h: 0, a: 0, posH: 0, posA: 0, shotsH: 0, shotsA: 0, otH: 0, otA: 0, savH: 0, savA: 0 });
+  const [varMsg, setVarMsg] = useState<string | null>(null);
+  const stateRef = useRef({ h: startingScore?.h ?? 0, a: startingScore?.a ?? 0, posH: 0, posA: 0, shotsH: 0, shotsA: 0, otH: 0, otA: 0, savH: 0, savA: 0 });
   const overRef = useRef(false);
   const pauseClockRef = useRef(false);
 
@@ -89,8 +95,10 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
 
   useEffect(() => {
     overRef.current = false;
-    stateRef.current = { h: 0, a: 0, posH: 0, posA: 0, shotsH: 0, shotsA: 0, otH: 0, otA: 0, savH: 0, savA: 0 };
-    setScore({ h: 0, a: 0 });
+    const initH = startingScore?.h ?? 0;
+    const initA = startingScore?.a ?? 0;
+    stateRef.current = { h: initH, a: initA, posH: 0, posA: 0, shotsH: 0, shotsA: 0, otH: 0, otA: 0, savH: 0, savA: 0 };
+    setScore({ h: initH, a: initA });
     setTime(duration);
     setStats({ possessionH: 50, shotsH: 0, shotsA: 0, onTargetH: 0, onTargetA: 0, savesH: 0, savesA: 0 });
 
@@ -121,6 +129,7 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
     }[aiDifficulty];
     let frame = 0;
     let aiJumpCd = 0;
+    let goalsCancelLeft = Number.isFinite(cancelOpponentGoals) ? Math.max(0, cancelOpponentGoals) : 999;
 
     // ===== Replay de gol: ring buffer de los últimos ~2.5s =====
     type Snap = { bx:number; by:number; bs:number; p1x:number; p1y:number; p1k:number; p1v:number; p2x:number; p2y:number; p2k:number; p2v:number };
@@ -225,12 +234,14 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
     }
 
     const crowd: { x: number; y: number; c: string; bob: number }[] = [];
-    const palette = ["#7ec8ff", "#ffffff", "#ffe066", "#ff6b6b", "#9bd1ff", "#f0f0f0"];
-    for (let row = 0; row < 4; row++) {
-      for (let i = 0; i < W / 14; i++) {
+    const palette = ["#7ec8ff", "#ffffff", "#ffe066", "#ff6b6b", "#9bd1ff", "#f0f0f0", home.primary, away.primary];
+    const rows = crowdIntensity === "ascenso" ? 6 : crowdIntensity === "clasico" ? 5 : 4;
+    const spacing = crowdIntensity === "normal" ? 14 : 10;
+    for (let row = 0; row < rows; row++) {
+      for (let i = 0; i < W / spacing; i++) {
         crowd.push({
-          x: i * 14 + (row % 2) * 7,
-          y: 30 + row * 18,
+          x: i * spacing + (row % 2) * (spacing / 2),
+          y: 30 + row * 15,
           c: palette[Math.floor(Math.random() * palette.length)],
           bob: Math.random() * Math.PI * 2,
         });
@@ -457,17 +468,28 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         setReplayActive(true);
       };
       if (ball.x + ball.r < lpx && ball.y > crossbarY + 2) {
-        stateRef.current.a++;
-        stateRef.current.otA++;
-        setScore({ h: stateRef.current.h, a: stateRef.current.a });
-        spawnGoal(ball.x, ball.y, away.primary);
-        playGoalAudio(away, "away");
-        triggerReplay(1, away.primary, "away");
+        // Gol del rival (away) — puede anularse por corrupción
+        if (goalsCancelLeft > 0) {
+          goalsCancelLeft--;
+          setVarMsg("GOL ANULADO POR EL VAR 🤨");
+          setTimeout(() => setVarMsg(null), 1800);
+          resetBall(1);
+        } else {
+          stateRef.current.a++;
+          stateRef.current.otA++;
+          setScore({ h: stateRef.current.h, a: stateRef.current.a });
+          spawnGoal(ball.x, ball.y, away.primary);
+          playGoalAudio(away, "away");
+          triggerReplay(1, away.primary, "away");
+        }
       } else if (ball.x - ball.r > rpx && ball.y > crossbarY + 2) {
-        stateRef.current.h++;
+        // Gol propio (home) — puede contar doble
+        const bonus = Math.random() < doubleGoalChance ? 2 : 1;
+        stateRef.current.h += bonus;
         stateRef.current.otH++;
         setScore({ h: stateRef.current.h, a: stateRef.current.a });
         spawnGoal(ball.x, ball.y, home.primary);
+        if (bonus === 2) { setVarMsg("¡GOL DOBLE! 🎩"); setTimeout(() => setVarMsg(null), 1800); }
         playGoalAudio(home, "home");
         triggerReplay(-1, home.primary, "home");
       }
@@ -642,16 +664,32 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         ctx.beginPath(); ctx.arc(c.x, y, 4.5, 0, Math.PI * 2); ctx.fill();
       });
 
-      // Banderas de los hinchas
-      for (let i = 0; i < 10; i++) {
-        const fx = (i * W / 10) + (Date.now() / 200 % 22);
-        const fy = 78 + Math.sin(Date.now() / 400 + i) * 4;
-        ctx.fillStyle = i % 2 ? home.primary : away.primary;
-        ctx.fillRect(fx, fy, 22, 14);
-        ctx.fillStyle = i % 2 ? home.secondary : away.secondary;
-        ctx.fillRect(fx, fy + 4, 22, 5);
+      // Banderas de los hinchas (más cantidad y ondulación según intensidad)
+      const flagCount = crowdIntensity === "ascenso" ? 26 : crowdIntensity === "clasico" ? 20 : 14;
+      for (let i = 0; i < flagCount; i++) {
+        const fx = (i * W / flagCount) + (Date.now() / 200 % 30);
+        const sway = Math.sin(Date.now() / 350 + i * 0.7) * 6;
+        const fy = 70 + (i % 3) * 8 + sway;
+        const useHome = i % 2 === 0;
+        ctx.fillStyle = useHome ? home.primary : away.primary;
+        ctx.fillRect(fx, fy, 24, 15);
+        ctx.fillStyle = useHome ? home.secondary : away.secondary;
+        ctx.fillRect(fx, fy + 5, 24, 5);
         ctx.fillStyle = "#1a1a1a";
-        ctx.fillRect(fx - 1, fy, 2, 30);
+        ctx.fillRect(fx - 1, fy, 2, 34);
+      }
+      // Papelitos/humo en partidos calientes (clásicos y ascensos)
+      if (crowdIntensity !== "normal") {
+        const t = Date.now() / 1000;
+        for (let i = 0; i < 40; i++) {
+          const x = (i * 41 + (t * 20) % W) % W;
+          const y = 40 + ((i * 13 + t * 30) % 130);
+          const col = i % 3 === 0 ? home.primary : i % 3 === 1 ? away.primary : "#ffffff";
+          ctx.fillStyle = col;
+          ctx.globalAlpha = 0.5;
+          ctx.fillRect(x, y, 3, 6);
+        }
+        ctx.globalAlpha = 1;
       }
 
       // Torres de luz (mástiles)
@@ -884,7 +922,12 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
   const possA = 100 - stats.possessionH;
 
   return (
-    <div className="flex flex-col items-center gap-3 w-full">
+    <div className="flex flex-col items-center gap-3 w-full relative">
+      {matchLabel && (
+        <div className="w-full max-w-6xl px-4 py-1.5 rounded-lg bg-accent/20 border border-accent/40 text-center font-display tracking-[0.3em] text-accent text-sm animate-fade-in">
+          ★ {matchLabel} ★
+        </div>
+      )}
       <div className="scorebug" role="status" aria-label={`${home.short} ${score.h}, ${away.short} ${score.a}, ${time} segundos`}>
         <div className="scorebug-brand">N</div>
         <div className="scorebug-team scorebug-home">
@@ -894,8 +937,8 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
           <Shield team={home} size={42} eager />
         </div>
         <ScoreColorBars team={home} />
-        <div className="scorebug-score">{score.h}</div>
-        <div className="scorebug-score">{score.a}</div>
+        <div key={`h-${score.h}`} className="scorebug-score animate-scale-in" style={{ textShadow: score.h > 0 ? `0 0 12px ${home.primary}` : undefined }}>{score.h}</div>
+        <div key={`a-${score.a}`} className="scorebug-score animate-scale-in" style={{ textShadow: score.a > 0 ? `0 0 12px ${away.primary}` : undefined }}>{score.a}</div>
         <ScoreColorBars team={away} reverse />
         <div className="scorebug-shield scorebug-shield-away">
           <Shield team={away} size={42} eager />
@@ -907,7 +950,17 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         <div className="scorebug-half">1T</div>
       </div>
 
-      <canvas ref={ref} width={1400} height={520} className="w-full max-w-6xl rounded-2xl border-2 border-border bg-black" />
+      <div className="relative w-full max-w-6xl">
+        <canvas ref={ref} width={1400} height={520} className="w-full rounded-2xl border-2 border-border bg-black" />
+        {varMsg && (
+          <div className="absolute inset-x-0 top-4 flex justify-center pointer-events-none animate-fade-in">
+            <div className="px-5 py-2 rounded-xl bg-black/85 border-2 border-accent text-accent font-display text-xl tracking-wider">
+              {varMsg}
+            </div>
+          </div>
+        )}
+      </div>
+
 
       {/* Estadísticas en vivo */}
       <div className="w-full max-w-6xl rounded-2xl bg-card border border-border p-3 text-sm">

@@ -24,6 +24,14 @@ export type DbTeam = {
   goal_audio_urls?: string[];
   hinchada_urls?: string[];
   narrators?: Narrator[];
+  full_name?: string | null;
+  founded_year?: number | null;
+  province?: string | null;
+  nickname?: string | null;
+  rival_id?: string | null;
+  primera_seasons?: number | null;
+  achievements?: string | null;
+  history?: string | null;
 };
 
 type State = { version: number; loaded: boolean };
@@ -45,6 +53,14 @@ function rowToTeam(row: DbTeam): Team {
     goalAudios: row.goal_audio_urls ?? [],
     hinchadas: row.hinchada_urls ?? [],
     narrators: (row.narrators as Narrator[] | undefined) ?? [],
+    fullName: row.full_name ?? null,
+    foundedYear: row.founded_year ?? null,
+    province: row.province ?? null,
+    nickname: row.nickname ?? null,
+    rivalId: row.rival_id ?? null,
+    primeraSeasons: row.primera_seasons ?? null,
+    achievements: row.achievements ?? null,
+    history: row.history ?? null,
   };
 }
 

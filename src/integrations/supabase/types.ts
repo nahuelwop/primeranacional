@@ -209,18 +209,26 @@ export type Database = {
       }
       teams: {
         Row: {
+          achievements: string | null
           city: string
           created_at: string
           defense: number
+          founded_year: number | null
+          full_name: string | null
           goal_audio_urls: string[]
           hinchada_urls: string[]
+          history: string | null
           id: string
           jump: number
           logo_url: string | null
           name: string
           narrators: Json
+          nickname: string | null
           power: number
           primary_color: string
+          primera_seasons: number | null
+          province: string | null
+          rival_id: string | null
           rivals: string[]
           secondary_color: string
           short: string
@@ -231,18 +239,26 @@ export type Database = {
           zone: string
         }
         Insert: {
+          achievements?: string | null
           city: string
           created_at?: string
           defense?: number
+          founded_year?: number | null
+          full_name?: string | null
           goal_audio_urls?: string[]
           hinchada_urls?: string[]
+          history?: string | null
           id: string
           jump?: number
           logo_url?: string | null
           name: string
           narrators?: Json
+          nickname?: string | null
           power?: number
           primary_color: string
+          primera_seasons?: number | null
+          province?: string | null
+          rival_id?: string | null
           rivals?: string[]
           secondary_color: string
           short: string
@@ -253,18 +269,26 @@ export type Database = {
           zone: string
         }
         Update: {
+          achievements?: string | null
           city?: string
           created_at?: string
           defense?: number
+          founded_year?: number | null
+          full_name?: string | null
           goal_audio_urls?: string[]
           hinchada_urls?: string[]
+          history?: string | null
           id?: string
           jump?: number
           logo_url?: string | null
           name?: string
           narrators?: Json
+          nickname?: string | null
           power?: number
           primary_color?: string
+          primera_seasons?: number | null
+          province?: string | null
+          rival_id?: string | null
           rivals?: string[]
           secondary_color?: string
           short?: string
