@@ -24,10 +24,17 @@ function TorneoPage() {
   useEffect(() => { s.init(); }, []);
   const totalRounds = useMemo(() => Math.max(0, ...s.fixture.map(m => m.round)), [s.fixture]);
   const [zone, setZone] = useState<"A" | "B">("A");
-  const [round, setRound] = useState(1);
   const [playId, setPlayId] = useState<string | null>(null);
+  // El usuario NO puede saltar fechas: siempre miramos la fecha activa.
+  const round = Math.min(s.currentRound, totalRounds || 1);
 
-  useEffect(() => { setRound(Math.min(s.currentRound, totalRounds || 1)); }, [s.currentRound, totalRounds]);
+  // Auto-sim rivales de la fecha actual cada vez que cambia.
+  useEffect(() => {
+    if (s.userTeamId && s.currentRound <= totalRounds) {
+      s.playRound(s.currentRound);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.currentRound, s.userTeamId, totalRounds]);
 
   // === Selector de equipo (campaña) ===
   if (!s.userTeamId) return <TeamPicker onPick={(id) => {
@@ -63,26 +70,16 @@ function TorneoPage() {
             <div className="flex items-center gap-2 mt-2">
               <Shield team={userTeam} size={28} />
               <span className="font-display text-lg">{userTeam.name}</span>
-              <span className="text-xs text-muted-foreground">· Fecha {Math.min(s.currentRound, totalRounds)}/{totalRounds}</span>
+              <span className="text-xs text-muted-foreground">· Fecha {round}/{totalRounds}</span>
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
             {nextUserMatch && (
               <button onClick={() => setPlayId(nextUserMatch.id)}
-                className="px-4 py-2 rounded-lg bg-accent text-accent-foreground font-display tracking-wider">
-                JUGAR PRÓXIMO
+                className="px-5 py-3 rounded-xl bg-celeste text-primary-foreground font-display tracking-wider glow-celeste">
+                JUGAR MI PARTIDO (Fecha {nextUserMatch.round})
               </button>
             )}
-            <button onClick={() => s.playRound(s.currentRound)}
-              disabled={s.currentRound > totalRounds}
-              className="px-4 py-2 rounded-lg bg-celeste text-primary-foreground font-display tracking-wider disabled:opacity-40">
-              SIMULAR RIVALES
-            </button>
-            <button onClick={() => s.playAll()}
-              disabled={s.currentRound > totalRounds}
-              className="px-4 py-2 rounded-lg bg-secondary border border-border font-display tracking-wider disabled:opacity-40">
-              SIMULAR HASTA MI PARTIDO
-            </button>
             <button onClick={() => { if (confirm("¿Reiniciar campaña?")) s.reset(); }}
               className="px-4 py-2 rounded-lg bg-destructive/20 border border-destructive/40 text-destructive font-display tracking-wider">
               REINICIAR
@@ -105,12 +102,7 @@ function TorneoPage() {
           <div className="rounded-2xl bg-card border border-border p-4">
             <div className="flex items-center justify-between mb-3">
               <h2 className="font-display text-2xl">FECHA {round}</h2>
-              <div className="flex gap-1">
-                <button disabled={round<=1} onClick={() => setRound(r => r - 1)}
-                  className="px-3 py-1 rounded bg-secondary disabled:opacity-30">‹</button>
-                <button disabled={round>=totalRounds} onClick={() => setRound(r => r + 1)}
-                  className="px-3 py-1 rounded bg-secondary disabled:opacity-30">›</button>
-              </div>
+              <span className="text-xs text-muted-foreground">Los rivales se simulan solos · Jugás en orden</span>
             </div>
             <div className="space-y-2">
               {fixtureRound.map(m => {
@@ -152,6 +144,7 @@ function TorneoPage() {
           const userIsAway = playMatch.away === s.userTeamId;
           const leftTeam = userIsAway ? TEAMS_BY_ID[playMatch.away] : TEAMS_BY_ID[playMatch.home];
           const rightTeam = userIsAway ? TEAMS_BY_ID[playMatch.home] : TEAMS_BY_ID[playMatch.away];
+          const crowdIntensity: "normal" | "clasico" | "ascenso" = playMatch.isClasico ? "clasico" : "normal";
           return (
           <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm overflow-y-auto p-4 flex items-start justify-center">
             <div className="w-full max-w-4xl bg-card rounded-2xl border border-border p-4">
@@ -166,8 +159,9 @@ function TorneoPage() {
                 duration={60}
                 aiDifficulty="normal"
                 mode="1vAI"
+                crowdIntensity={crowdIntensity}
+                matchLabel={playMatch.isClasico ? "CLÁSICO" : undefined}
                 onEnd={(lg, rg) => {
-                  // Si el usuario es visitante, el marcador en pantalla está invertido respecto al fixture
                   const hg = userIsAway ? rg : lg;
                   const ag = userIsAway ? lg : rg;
                   s.recordUserMatch(playMatch.id, hg, ag);
@@ -178,6 +172,7 @@ function TorneoPage() {
           </div>
           );
         })()}
+
 
         {allPlayed && (
           <div className="mt-8 p-6 rounded-2xl bg-gradient-to-r from-celeste/20 to-accent/20 border border-celeste/40 text-center">
