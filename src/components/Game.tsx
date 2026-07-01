@@ -39,11 +39,12 @@ const ScoreColorBars = ({ team, reverse = false }: { team: Team; reverse?: boole
 // Football Heads style arcade — sin poderes, físicas con postes y travesaño.
 export function Game({ home, away, duration = 60, weather = "clear", aiDifficulty = "normal", mode = "1vAI", sharedNarrator = false, crowdIntensity = "normal", matchLabel, startingScore, cancelOpponentGoals = 0, doubleGoalChance = 0, onEnd }: Props) {
   const ref = useRef<HTMLCanvasElement>(null);
-  const [score, setScore] = useState({ h: 0, a: 0 });
+  const [score, setScore] = useState({ h: startingScore?.h ?? 0, a: startingScore?.a ?? 0 });
   const [time, setTime] = useState(duration);
   const [stats, setStats] = useState<MatchStats>({ possessionH: 50, shotsH: 0, shotsA: 0, onTargetH: 0, onTargetA: 0, savesH: 0, savesA: 0 });
   const [replayActive, setReplayActive] = useState(false);
-  const stateRef = useRef({ h: 0, a: 0, posH: 0, posA: 0, shotsH: 0, shotsA: 0, otH: 0, otA: 0, savH: 0, savA: 0 });
+  const [varMsg, setVarMsg] = useState<string | null>(null);
+  const stateRef = useRef({ h: startingScore?.h ?? 0, a: startingScore?.a ?? 0, posH: 0, posA: 0, shotsH: 0, shotsA: 0, otH: 0, otA: 0, savH: 0, savA: 0 });
   const overRef = useRef(false);
   const pauseClockRef = useRef(false);
 
