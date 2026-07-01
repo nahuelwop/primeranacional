@@ -95,8 +95,10 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
 
   useEffect(() => {
     overRef.current = false;
-    stateRef.current = { h: 0, a: 0, posH: 0, posA: 0, shotsH: 0, shotsA: 0, otH: 0, otA: 0, savH: 0, savA: 0 };
-    setScore({ h: 0, a: 0 });
+    const initH = startingScore?.h ?? 0;
+    const initA = startingScore?.a ?? 0;
+    stateRef.current = { h: initH, a: initA, posH: 0, posA: 0, shotsH: 0, shotsA: 0, otH: 0, otA: 0, savH: 0, savA: 0 };
+    setScore({ h: initH, a: initA });
     setTime(duration);
     setStats({ possessionH: 50, shotsH: 0, shotsA: 0, onTargetH: 0, onTargetA: 0, savesH: 0, savesA: 0 });
 
