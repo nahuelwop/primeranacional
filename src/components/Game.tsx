@@ -14,6 +14,11 @@ type Props = {
   aiDifficulty?: Difficulty;
   mode?: Mode;
   sharedNarrator?: boolean;
+  crowdIntensity?: "normal" | "clasico" | "ascenso";
+  matchLabel?: string;
+  startingScore?: { h: number; a: number };
+  cancelOpponentGoals?: number;   // # de goles rivales a anular (Infinity = todos)
+  doubleGoalChance?: number;      // 0..1 · probabilidad de que un gol propio cuente doble
   onEnd: (hg: number, ag: number, stats: MatchStats) => void;
 };
 
@@ -32,7 +37,7 @@ const ScoreColorBars = ({ team, reverse = false }: { team: Team; reverse?: boole
 );
 
 // Football Heads style arcade — sin poderes, físicas con postes y travesaño.
-export function Game({ home, away, duration = 60, weather = "clear", aiDifficulty = "normal", mode = "1vAI", sharedNarrator = false, onEnd }: Props) {
+export function Game({ home, away, duration = 60, weather = "clear", aiDifficulty = "normal", mode = "1vAI", sharedNarrator = false, crowdIntensity = "normal", matchLabel, startingScore, cancelOpponentGoals = 0, doubleGoalChance = 0, onEnd }: Props) {
   const ref = useRef<HTMLCanvasElement>(null);
   const [score, setScore] = useState({ h: 0, a: 0 });
   const [time, setTime] = useState(duration);
