@@ -9,6 +9,8 @@ import { Game, type MatchStats } from "@/components/Game";
 import {
   buildSeason, simulateRoundExceptUser, recordUserMatch, nextPendingMatchForUser,
   isSeasonFinished, seasonChampion, budgetReward, type CareerState,
+  STADIUM_UPGRADE_CATALOG, CORRUPTION_CATALOG,
+  buyUpgrade, activateCorruption, tickCorruption, currentCorruptionEffects, incomeMultiplier,
 } from "@/lib/career";
 import { sortStandings } from "@/lib/tournament";
 import { ACHIEVEMENTS } from "@/lib/achievements";
