@@ -186,7 +186,18 @@ function TeamEditor({ initial, onClose, onSaved }: {
     setBusy(true); setErr(null);
     try {
       if (!form.id || !form.name || !form.short) throw new Error("ID, nombre y abreviatura son obligatorios");
-      const payload = { ...form, logo_url: form.logo_url || null } as any;
+      const payload = {
+        ...form,
+        logo_url: form.logo_url || null,
+        full_name: form.full_name || null,
+        founded_year: form.founded_year === "" ? null : Number(form.founded_year),
+        province: form.province || null,
+        nickname: form.nickname || null,
+        rival_id: form.rival_id || null,
+        primera_seasons: form.primera_seasons === "" ? null : Number(form.primera_seasons),
+        achievements: form.achievements || null,
+        history: form.history || null,
+      } as any;
       const { error } = isNew
         ? await supabase.from("teams").insert(payload)
         : await supabase.from("teams").update(payload).eq("id", form.id);
