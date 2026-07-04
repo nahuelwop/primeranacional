@@ -67,7 +67,81 @@ export function buildSeason(teamId: string): CareerState {
   const ids = (zone === "A" ? ZONE_A : ZONE_B).map(t => t.id);
   const matches = generateRoundRobin(ids, zone);
   const standings = emptyStandings(ids);
-  return { zone, matches, standings, totalGoalsScored: 0, streakUnbeaten: 0, bestUnbeaten: 0, zoneChampions: [] };
+  const otherZone: "A" | "B" = zone === "A" ? "B" : "A";
+  const otherIds = (otherZone === "A" ? ZONE_A : ZONE_B).map(t => t.id);
+  const otherMatches = generateRoundRobin(otherIds, otherZone).map(m => {
+    const { hg, ag } = simulateMatch(m.home, m.away);
+    return { ...m, played: true, homeGoals: hg, awayGoals: ag };
+  });
+  let otherStandings = emptyStandings(otherIds);
+  for (const m of otherMatches) otherStandings = applyMatchToStandings(otherStandings, m);
+  return {
+    zone, matches, standings, otherStandings, otherMatches,
+    totalGoalsScored: 0, streakUnbeaten: 0, bestUnbeaten: 0, zoneChampions: [],
+    stadiumUpgrades: { capacity: false, pitch: false, vip: false, led: false },
+    activeCorruption: null, incomePenalty: null,
+  };
+}
+
+// ============ Ingresos & corrupción ============
+export function incomeMultiplier(state: CareerState): number {
+  let mult = 1;
+  const up = state.stadiumUpgrades;
+  if (up) for (const opt of STADIUM_UPGRADE_CATALOG) if (up[opt.key]) mult += opt.incomeBonusPct / 100;
+  if (state.incomePenalty) mult *= 1 - state.incomePenalty.pct / 100;
+  return Math.max(0.05, mult);
+}
+
+export function currentCorruptionEffects(state: CareerState): {
+  startingScore?: { h: number; a: number };
+  cancelOpponentGoals?: number;
+  doubleGoalChance?: number;
+} {
+  const ac = state.activeCorruption;
+  if (!ac || ac.matchesLeft <= 0) return {};
+  const opt = CORRUPTION_CATALOG.find(o => o.kind === ac.kind);
+  return opt?.effects ?? {};
+}
+
+export function buyUpgrade(state: CareerState, budget: number, key: StadiumUpgradeKey):
+  { state: CareerState; budget: number; ok: boolean; error?: string } {
+  const opt = STADIUM_UPGRADE_CATALOG.find(o => o.key === key);
+  if (!opt) return { state, budget, ok: false, error: "Mejora desconocida" };
+  if (state.stadiumUpgrades?.[key]) return { state, budget, ok: false, error: "Ya la tenés" };
+  if (budget < opt.cost) return { state, budget, ok: false, error: "Sin presupuesto" };
+  const upgrades = { ...(state.stadiumUpgrades ?? { capacity: false, pitch: false, vip: false, led: false }) };
+  upgrades[key] = true;
+  return { state: { ...state, stadiumUpgrades: upgrades }, budget: budget - opt.cost, ok: true };
+}
+
+export function activateCorruption(state: CareerState, budget: number, kind: CorruptionKind):
+  { state: CareerState; budget: number; ok: boolean; error?: string } {
+  const opt = CORRUPTION_CATALOG.find(o => o.kind === kind);
+  if (!opt) return { state, budget, ok: false, error: "Opción desconocida" };
+  if (state.activeCorruption && state.activeCorruption.matchesLeft > 0)
+    return { state, budget, ok: false, error: "Ya hay un arreglo activo" };
+  if (budget < opt.cost) return { state, budget, ok: false, error: "Sin presupuesto" };
+  return {
+    state: {
+      ...state,
+      activeCorruption: { kind: opt.kind, matchesLeft: opt.matches },
+      incomePenalty: { pct: opt.penaltyPct, matchesLeft: opt.matches },
+    },
+    budget: budget - opt.cost, ok: true,
+  };
+}
+
+export function tickCorruption(state: CareerState): CareerState {
+  const next = { ...state };
+  if (next.activeCorruption && next.activeCorruption.matchesLeft > 0) {
+    const left = next.activeCorruption.matchesLeft - 1;
+    next.activeCorruption = left > 0 ? { ...next.activeCorruption, matchesLeft: left } : null;
+  }
+  if (next.incomePenalty && next.incomePenalty.matchesLeft > 0) {
+    const left = next.incomePenalty.matchesLeft - 1;
+    next.incomePenalty = left > 0 ? { ...next.incomePenalty, matchesLeft: left } : null;
+  }
+  return next;
 }
 
 // Avanza simulando todos los partidos NO jugados de una fecha (excepto los del usuario).
