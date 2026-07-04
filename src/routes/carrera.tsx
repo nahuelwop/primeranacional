@@ -292,6 +292,97 @@ function CarreraPage() {
           </table>
         </div>
 
+        {/* Tabla otra zona */}
+        {state.otherStandings && state.otherStandings.length > 0 && (
+          <div className="rounded-2xl bg-card border border-border overflow-hidden">
+            <div className="px-4 py-2 font-display text-sm uppercase text-muted-foreground border-b border-border">
+              Tabla Zona {state.zone === "A" ? "B" : "A"} (simulada)
+            </div>
+            <table className="w-full text-sm">
+              <thead className="text-xs text-muted-foreground uppercase">
+                <tr><th className="text-left px-3 py-2">Pos</th><th className="text-left px-3 py-2">Equipo</th>
+                  <th className="px-2 py-2">PJ</th><th className="px-2 py-2">PG</th><th className="px-2 py-2">PE</th><th className="px-2 py-2">PP</th>
+                  <th className="px-2 py-2">DG</th><th className="px-2 py-2">Pts</th></tr>
+              </thead>
+              <tbody>
+                {sortStandings(state.otherStandings).map((r, i) => {
+                  const t = TEAMS_BY_ID[r.teamId];
+                  return (
+                    <tr key={r.teamId} className="border-t border-border">
+                      <td className="px-3 py-1.5 tabular-nums">{i + 1}</td>
+                      <td className="px-3 py-1.5 flex items-center gap-2"><Shield team={t} size={20} /> {t?.short}</td>
+                      <td className="text-center tabular-nums">{r.pj}</td>
+                      <td className="text-center tabular-nums">{r.pg}</td>
+                      <td className="text-center tabular-nums">{r.pe}</td>
+                      <td className="text-center tabular-nums">{r.pp}</td>
+                      <td className="text-center tabular-nums">{r.dg}</td>
+                      <td className="text-center tabular-nums font-display">{r.pts}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Panel del Club: mejoras de estadio + corrupción */}
+        <div className="grid md:grid-cols-2 gap-4">
+          <div className="rounded-2xl bg-card border border-border p-4">
+            <div className="flex items-center justify-between mb-2">
+              <div className="font-display text-lg">🏟️ Mejoras del estadio</div>
+              <div className="text-xs text-muted-foreground">Ingresos ×{incomeMultiplier(state).toFixed(2)}</div>
+            </div>
+            <div className="space-y-2">
+              {STADIUM_UPGRADE_CATALOG.map(opt => {
+                const owned = state.stadiumUpgrades?.[opt.key];
+                return (
+                  <div key={opt.key} className="flex items-center gap-2 border border-border rounded-lg p-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-display">{opt.name}</div>
+                      <div className="text-xs text-muted-foreground">{opt.desc}</div>
+                    </div>
+                    {owned ? (
+                      <span className="text-xs px-2 py-1 rounded bg-celeste/20 text-celeste font-display">ACTIVA</span>
+                    ) : (
+                      <button onClick={() => onBuyUpgrade(opt.key)}
+                        disabled={budget < opt.cost}
+                        className="text-xs px-3 py-1.5 rounded bg-celeste text-primary-foreground font-display disabled:opacity-40">
+                        ${opt.cost}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="rounded-2xl bg-card border border-border p-4">
+            <div className="flex items-center justify-between mb-2">
+              <div className="font-display text-lg">💼 Coimas & arreglos</div>
+              {state.activeCorruption && state.activeCorruption.matchesLeft > 0 ? (
+                <div className="text-xs text-yellow-500">
+                  Activo: {CORRUPTION_CATALOG.find(o => o.kind === state.activeCorruption!.kind)?.name} · {state.activeCorruption.matchesLeft} fechas
+                </div>
+              ) : <div className="text-xs text-muted-foreground">Ninguno activo</div>}
+            </div>
+            <div className="space-y-2">
+              {CORRUPTION_CATALOG.map(opt => (
+                <div key={opt.kind} className="flex items-center gap-2 border border-border rounded-lg p-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-display">{opt.name} <span className="text-xs text-muted-foreground">· {opt.matches} fechas · -{opt.penaltyPct}% ingresos</span></div>
+                    <div className="text-xs text-muted-foreground">{opt.desc}</div>
+                  </div>
+                  <button onClick={() => onActivateCorruption(opt.kind)}
+                    disabled={budget < opt.cost || !!(state.activeCorruption && state.activeCorruption.matchesLeft > 0)}
+                    className="text-xs px-3 py-1.5 rounded bg-yellow-500 text-black font-display disabled:opacity-40">
+                    {opt.cost > 0 ? `$${opt.cost}` : "GRATIS"}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
         {/* Stats acumuladas */}
         <div className="grid sm:grid-cols-3 gap-3 text-center">
           <div className="rounded-xl bg-card border border-border p-3">
