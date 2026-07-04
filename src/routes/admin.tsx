@@ -100,6 +100,14 @@ function TeamEditor({ initial, onClose, onSaved }: {
     goal_audio_urls: (initial?.goalAudios ?? []) as string[],
     hinchada_urls: (initial?.hinchadas ?? []) as string[],
     narrators: (initial?.narrators ?? []) as Narrator[],
+    full_name: initial?.fullName ?? "",
+    founded_year: initial?.foundedYear ?? ("" as number | ""),
+    province: initial?.province ?? "",
+    nickname: initial?.nickname ?? "",
+    rival_id: initial?.rivalId ?? "",
+    primera_seasons: initial?.primeraSeasons ?? ("" as number | ""),
+    achievements: initial?.achievements ?? "",
+    history: initial?.history ?? "",
   });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
