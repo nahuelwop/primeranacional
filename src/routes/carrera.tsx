@@ -165,11 +165,16 @@ function CarreraPage() {
   if (playing && state && team && nextMatch) {
     const homeT = TEAMS_BY_ID[nextMatch.home];
     const awayT = TEAMS_BY_ID[nextMatch.away];
+    const fx = currentCorruptionEffects(state);
     return (
       <Shell>
         <main className="flex-1 max-w-5xl w-full mx-auto px-4 py-6">
           <div className="text-center text-sm text-muted-foreground mb-2">Temporada {season} · Fecha {nextMatch.round}</div>
-          <Game home={homeT} away={awayT} duration={60} mode="1vAI" sharedNarrator onEnd={onMatchEnd} />
+          <Game home={homeT} away={awayT} duration={60} mode="1vAI" sharedNarrator
+            startingScore={fx.startingScore ? (nextMatch.home === teamId ? fx.startingScore : { h: fx.startingScore.a, a: fx.startingScore.h }) : undefined}
+            cancelOpponentGoals={fx.cancelOpponentGoals ?? 0}
+            doubleGoalChance={fx.doubleGoalChance ?? 0}
+            onEnd={onMatchEnd} />
         </main>
       </Shell>
     );
