@@ -90,30 +90,46 @@ function CarreraPage() {
 
   async function onMatchEnd(hg: number, ag: number, _stats: MatchStats) {
     if (!state || !teamId || !user || !nextMatch) return;
-    // 1. registrar partido en historial global
     await recordMatchHistory({ userId: user.id, home: nextMatch.home, away: nextMatch.away, hg, ag, mode: "carrera" }).catch(() => {});
-    // 2. actualizar estado
     let next = recordUserMatch(state, nextMatch.id, hg, ag, teamId);
-    // 3. simular el resto de los partidos de la fecha
     next = simulateRoundExceptUser(next, nextMatch.round, teamId);
-    // 4. bonus presupuesto
     const userIsHome = nextMatch.home === teamId;
     const mg = userIsHome ? hg : ag;
     const og = userIsHome ? ag : hg;
-    const reward = budgetReward(mg, og);
+    const rawReward = budgetReward(mg, og);
+    const mult = incomeMultiplier(next);
+    const reward = Math.round(rawReward * mult);
+    // descontamos partidos de corrupción activa
+    next = tickCorruption(next);
     const nextBudget = budget + reward;
     setBudget(nextBudget); setState(next);
     setPlaying(false);
-    // 5. logros progresivos
     if (next.totalGoalsScored >= 100) await tryUnlock("100_goles");
     if (next.bestUnbeaten >= 10) await tryUnlock("10_invicto");
-    // 6. ¿temporada terminada?
     let nextSeason = season;
     if (isSeasonFinished(next)) {
       const champ = seasonChampion(next);
       if (champ === teamId) await tryUnlock(next.zone === "A" ? "campeon_zona_a" : "campeon_zona_b");
     }
     await persist(next, nextBudget, nextSeason);
+  }
+
+  async function onBuyUpgrade(key: typeof STADIUM_UPGRADE_CATALOG[number]["key"]) {
+    if (!state) return;
+    const r = buyUpgrade(state, budget, key);
+    if (!r.ok) { alert(r.error); return; }
+    setState(r.state); setBudget(r.budget);
+    await persist(r.state, r.budget, season);
+  }
+
+  async function onActivateCorruption(kind: typeof CORRUPTION_CATALOG[number]["kind"]) {
+    if (!state) return;
+    const opt = CORRUPTION_CATALOG.find(o => o.kind === kind)!;
+    if (!confirm(`¿Activar "${opt.name}"?\n${opt.desc}\nCosto: $${opt.cost} · Penalidad ingresos: -${opt.penaltyPct}% por ${opt.matches} fechas.`)) return;
+    const r = activateCorruption(state, budget, kind);
+    if (!r.ok) { alert(r.error); return; }
+    setState(r.state); setBudget(r.budget);
+    await persist(r.state, r.budget, season);
   }
 
   async function advanceSeason() {
