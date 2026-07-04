@@ -53,6 +53,42 @@ function TeamDetailPage() {
           <Jersey team={team} size={72} />
         </header>
 
+        {/* Ficha del club */}
+        {(team.fullName || team.foundedYear || team.province || team.nickname || team.rivalId || team.primeraSeasons != null || team.achievements || team.history) && (
+          <section className="mt-6 rounded-xl bg-card border border-border p-4">
+            <h2 className="font-display text-xl text-celeste">FICHA DEL CLUB</h2>
+            <dl className="mt-3 grid sm:grid-cols-2 gap-y-2 gap-x-6 text-sm">
+              {team.fullName && <div><dt className="text-xs uppercase text-muted-foreground">Nombre completo</dt><dd>{team.fullName}</dd></div>}
+              {team.foundedYear && <div><dt className="text-xs uppercase text-muted-foreground">Fundación</dt><dd>{team.foundedYear}</dd></div>}
+              <div><dt className="text-xs uppercase text-muted-foreground">Ciudad</dt><dd>{team.city}</dd></div>
+              {team.province && <div><dt className="text-xs uppercase text-muted-foreground">Provincia</dt><dd>{team.province}</dd></div>}
+              {team.nickname && <div><dt className="text-xs uppercase text-muted-foreground">Apodo</dt><dd>{team.nickname}</dd></div>}
+              {team.rivalId && TEAMS.find(x => x.id === team.rivalId) && (
+                <div><dt className="text-xs uppercase text-muted-foreground">Rival histórico</dt>
+                  <dd><Link to="/equipos/$id" params={{ id: team.rivalId }} className="underline">{TEAMS.find(x => x.id === team.rivalId)?.name}</Link></dd>
+                </div>
+              )}
+              {team.primeraSeasons != null && <div><dt className="text-xs uppercase text-muted-foreground">Temporadas en Primera</dt><dd>{team.primeraSeasons}</dd></div>}
+              <div><dt className="text-xs uppercase text-muted-foreground">Colores</dt>
+                <dd className="flex items-center gap-2"><span className="inline-block w-4 h-4 rounded" style={{ background: team.primary }} /><span className="inline-block w-4 h-4 rounded" style={{ background: team.secondary }} /></dd>
+              </div>
+            </dl>
+            {team.achievements && (
+              <div className="mt-4">
+                <h3 className="text-xs uppercase text-muted-foreground mb-1">Logros destacados</h3>
+                <div className="text-sm whitespace-pre-wrap">{team.achievements}</div>
+              </div>
+            )}
+            {team.history && (
+              <div className="mt-4">
+                <h3 className="text-xs uppercase text-muted-foreground mb-1">Historia</h3>
+                <div className="text-sm whitespace-pre-wrap leading-relaxed">{team.history}</div>
+              </div>
+            )}
+          </section>
+        )}
+
+
         <section className="mt-8 grid md:grid-cols-3 gap-4">
           <div className="md:col-span-1 rounded-xl bg-card border border-border p-4">
             <h2 className="font-display text-xl text-celeste">ESTADIO</h2>
