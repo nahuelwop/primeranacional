@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Nav } from "@/components/Nav";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Shield } from "@/components/Shield";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
@@ -100,6 +101,14 @@ function TeamEditor({ initial, onClose, onSaved }: {
     goal_audio_urls: (initial?.goalAudios ?? []) as string[],
     hinchada_urls: (initial?.hinchadas ?? []) as string[],
     narrators: (initial?.narrators ?? []) as Narrator[],
+    full_name: initial?.fullName ?? "",
+    founded_year: initial?.foundedYear ?? ("" as number | ""),
+    province: initial?.province ?? "",
+    nickname: initial?.nickname ?? "",
+    rival_id: initial?.rivalId ?? "",
+    primera_seasons: initial?.primeraSeasons ?? ("" as number | ""),
+    achievements: initial?.achievements ?? "",
+    history: initial?.history ?? "",
   });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -178,7 +187,18 @@ function TeamEditor({ initial, onClose, onSaved }: {
     setBusy(true); setErr(null);
     try {
       if (!form.id || !form.name || !form.short) throw new Error("ID, nombre y abreviatura son obligatorios");
-      const payload = { ...form, logo_url: form.logo_url || null } as any;
+      const payload = {
+        ...form,
+        logo_url: form.logo_url || null,
+        full_name: form.full_name || null,
+        founded_year: form.founded_year === "" ? null : Number(form.founded_year),
+        province: form.province || null,
+        nickname: form.nickname || null,
+        rival_id: form.rival_id || null,
+        primera_seasons: form.primera_seasons === "" ? null : Number(form.primera_seasons),
+        achievements: form.achievements || null,
+        history: form.history || null,
+      } as any;
       const { error } = isNew
         ? await supabase.from("teams").insert(payload)
         : await supabase.from("teams").update(payload).eq("id", form.id);
@@ -372,6 +392,52 @@ function TeamEditor({ initial, onClose, onSaved }: {
                 <input type="file" accept="audio/*" hidden multiple
                   onChange={e => { uploadAudios(e.target.files, "hinchada_urls"); e.target.value = ""; }} />
               </label>
+          </div>
+
+          <div className="sm:col-span-2 border-t border-border pt-3 mt-2 space-y-2">
+            <label className="text-xs text-muted-foreground uppercase">Ficha del club (visible en /equipos)</label>
+            <div className="grid sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-muted-foreground uppercase">Nombre completo</label>
+                <Input value={form.full_name} onChange={e => setForm(f => ({ ...f, full_name: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground uppercase">Año de fundación</label>
+                <Input type="number" value={form.founded_year} onChange={e => setForm(f => ({ ...f, founded_year: e.target.value === "" ? "" : Number(e.target.value) }))} />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground uppercase">Provincia</label>
+                <Input value={form.province} onChange={e => setForm(f => ({ ...f, province: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground uppercase">Apodo</label>
+                <Input value={form.nickname} onChange={e => setForm(f => ({ ...f, nickname: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground uppercase">Rival histórico</label>
+                <select className="w-full h-9 rounded-md border border-input bg-transparent px-3"
+                  value={form.rival_id} onChange={e => setForm(f => ({ ...f, rival_id: e.target.value }))}>
+                  <option value="">— sin rival —</option>
+                  {TEAMS.filter(t => t.id !== form.id).map(t => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground uppercase">Temporadas en Primera</label>
+                <Input type="number" value={form.primera_seasons} onChange={e => setForm(f => ({ ...f, primera_seasons: e.target.value === "" ? "" : Number(e.target.value) }))} />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground uppercase">Logros destacados</label>
+              <Textarea rows={3} value={form.achievements} onChange={e => setForm(f => ({ ...f, achievements: e.target.value }))}
+                placeholder="Ej: Campeón Primera B 1994, Ascenso a Primera 2010..." />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground uppercase">Historia</label>
+              <Textarea rows={6} value={form.history} onChange={e => setForm(f => ({ ...f, history: e.target.value }))}
+                placeholder="Historia libre del club..." />
+            </div>
           </div>
 
           {!isNew && (
