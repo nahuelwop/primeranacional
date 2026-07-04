@@ -1,6 +1,37 @@
 import { TEAMS_BY_ID, ZONE_A, ZONE_B, type Team } from "@/data/teams";
 import { generateRoundRobin, simulateMatch, emptyStandings, applyMatchToStandings, sortStandings, type Match, type StandingRow } from "@/lib/tournament";
 
+// ============ Stadium upgrades ============
+export type StadiumUpgradeKey = keyof StadiumUpgrades;
+export const STADIUM_UPGRADE_CATALOG: Array<{
+  key: StadiumUpgradeKey; name: string; desc: string; cost: number; incomeBonusPct: number;
+}> = [
+  { key: "capacity", name: "Ampliar cancha",          desc: "+10% ingresos por partido.",  cost: 400,  incomeBonusPct: 10 },
+  { key: "pitch",    name: "Mejorar césped",          desc: "+15% ingresos y mejor imagen.", cost: 650,  incomeBonusPct: 15 },
+  { key: "led",      name: "Publicidad LED",          desc: "+10% ingresos por sponsors.",  cost: 500,  incomeBonusPct: 10 },
+  { key: "vip",      name: "Palcos VIP",              desc: "+25% ingresos por hinchada premium.", cost: 1200, incomeBonusPct: 25 },
+];
+
+// ============ Corruption ============
+export const CORRUPTION_CATALOG: Array<{
+  kind: CorruptionKind; name: string; cost: number; matches: number;
+  desc: string; penaltyPct: number;
+  effects: { startingScore?: { h: number; a: number }; cancelOpponentGoals?: number; doubleGoalChance?: number };
+}> = [
+  { kind: "leve",      name: "Coima leve",     cost: 150, matches: 3,  penaltyPct: 20,
+    desc: "El VAR anula 1 gol rival por partido durante 3 fechas.",
+    effects: { cancelOpponentGoals: 1 } },
+  { kind: "medio",     name: "Arreglo medio",  cost: 400, matches: 5,  penaltyPct: 40,
+    desc: "20% de chance de que tus goles cuenten doble durante 5 fechas.",
+    effects: { doubleGoalChance: 0.2 } },
+  { kind: "obvio",     name: "Arreglo obvio",  cost: 900, matches: 8,  penaltyPct: 70,
+    desc: "Empezás 1-0 arriba y el VAR anula 2 goles rivales por partido (8 fechas).",
+    effects: { startingScore: { h: 1, a: 0 }, cancelOpponentGoals: 2 } },
+  { kind: "seca_nuca", name: "Seca nuca",      cost: 0,   matches: 20, penaltyPct: 90,
+    desc: "Sin costo pero robás sin disimulo: 3-0 arriba, todos los goles rivales anulados, tus goles cuentan doble. Ingresos -90% por 20 fechas.",
+    effects: { startingScore: { h: 3, a: 0 }, cancelOpponentGoals: Infinity, doubleGoalChance: 0.5 } },
+];
+
 export type StadiumUpgrades = {
   capacity: boolean;   // +10%
   pitch: boolean;      // +15%
