@@ -88,12 +88,15 @@ function CarreraPage() {
   const nextMatch = useMemo(() => state && teamId ? nextPendingMatchForUser(state, teamId) : null, [state, teamId]);
   const team = teamId ? TEAMS_BY_ID[teamId] : undefined;
 
-  async function onMatchEnd(hg: number, ag: number, _stats: MatchStats) {
+  async function onMatchEnd(lg: number, rg: number, _stats: MatchStats) {
     if (!state || !teamId || !user || !nextMatch) return;
+    // El usuario SIEMPRE controla el lado izquierdo (P1). Traducimos a home/away reales del fixture.
+    const userIsHome = nextMatch.home === teamId;
+    const hg = userIsHome ? lg : rg;
+    const ag = userIsHome ? rg : lg;
     await recordMatchHistory({ userId: user.id, home: nextMatch.home, away: nextMatch.away, hg, ag, mode: "carrera" }).catch(() => {});
     let next = recordUserMatch(state, nextMatch.id, hg, ag, teamId);
     next = simulateRoundExceptUser(next, nextMatch.round, teamId);
-    const userIsHome = nextMatch.home === teamId;
     const mg = userIsHome ? hg : ag;
     const og = userIsHome ? ag : hg;
     const rawReward = budgetReward(mg, og);
@@ -163,15 +166,19 @@ function CarreraPage() {
   }
 
   if (playing && state && team && nextMatch) {
-    const homeT = TEAMS_BY_ID[nextMatch.home];
-    const awayT = TEAMS_BY_ID[nextMatch.away];
+    const userIsHome = nextMatch.home === teamId;
+    // El usuario SIEMPRE juega como P1 (izquierda), sin importar si es local o visitante en el fixture.
+    const leftTeam = TEAMS_BY_ID[teamId];
+    const rightTeam = userIsHome ? TEAMS_BY_ID[nextMatch.away] : TEAMS_BY_ID[nextMatch.home];
     const fx = currentCorruptionEffects(state);
     return (
       <Shell>
         <main className="flex-1 max-w-5xl w-full mx-auto px-4 py-6">
-          <div className="text-center text-sm text-muted-foreground mb-2">Temporada {season} · Fecha {nextMatch.round}</div>
-          <Game home={homeT} away={awayT} duration={60} mode="1vAI" sharedNarrator
-            startingScore={fx.startingScore ? (nextMatch.home === teamId ? fx.startingScore : { h: fx.startingScore.a, a: fx.startingScore.h }) : undefined}
+          <div className="text-center text-sm text-muted-foreground mb-2">
+            Temporada {season} · Fecha {nextMatch.round} · {userIsHome ? "Local" : "Visitante"}
+          </div>
+          <Game home={leftTeam} away={rightTeam} duration={60} mode="1vAI" sharedNarrator
+            startingScore={fx.startingScore}
             cancelOpponentGoals={fx.cancelOpponentGoals ?? 0}
             doubleGoalChance={fx.doubleGoalChance ?? 0}
             onEnd={onMatchEnd} />
