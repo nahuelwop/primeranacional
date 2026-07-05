@@ -4,7 +4,7 @@ import { Shield, Jersey } from "@/components/Shield";
 import { TEAMS } from "@/data/teams";
 import { useTeamsSync } from "@/lib/teams-sync";
 
-export const Route = createFileRoute("/equipos")({
+export const Route = createFileRoute("/equipos/")({
   head: () => ({
     meta: [
       { title: "Equipos · Primera Heads" },
