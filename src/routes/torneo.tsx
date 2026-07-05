@@ -142,7 +142,7 @@ function TorneoPage() {
 
         {playMatch && (() => {
           const userIsAway = playMatch.away === s.userTeamId;
-          const leftTeam = userIsAway ? TEAMS_BY_ID[playMatch.away] : TEAMS_BY_ID[playMatch.home];
+          const leftTeam = TEAMS_BY_ID[s.userTeamId!];
           const rightTeam = userIsAway ? TEAMS_BY_ID[playMatch.home] : TEAMS_BY_ID[playMatch.away];
           const crowdIntensity: "normal" | "clasico" | "ascenso" = playMatch.isClasico ? "clasico" : "normal";
           return (

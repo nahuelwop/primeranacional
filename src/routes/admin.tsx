@@ -232,6 +232,14 @@ function TeamEditor({ initial, onClose, onSaved }: {
         goal_audio_urls: t.goalAudios ?? [],
         hinchada_urls: t.hinchadas ?? [],
         narrators: t.narrators ?? [],
+        full_name: t.fullName ?? null,
+        founded_year: t.foundedYear ?? null,
+        province: t.province ?? null,
+        nickname: t.nickname ?? null,
+        rival_id: t.rivalId ?? null,
+        primera_seasons: t.primeraSeasons ?? null,
+        achievements: t.achievements ?? null,
+        history: t.history ?? null,
       }));
       syncTeamsFromDbRows([...withoutOld, nextRow].sort((a, b) => a.sort_order - b.sort_order));
       await onSaved();

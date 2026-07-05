@@ -138,10 +138,10 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
     let replay: { frames: Snap[]; idx: number; color: string; scorer: "home"|"away" } | null = null;
     let pendingResetDir = 0;
 
-    // ===== Papelitos al inicio (primeros 5 segundos) =====
+    // ===== Papelitos al inicio (primeros 3 segundos) =====
     const confetti: { x:number; y:number; vx:number; vy:number; w:number; h:number; color:string; rot:number; vr:number; sway:number }[] = [];
     const confettiColors = [home.primary, home.secondary, away.primary, away.secondary, "#ffffff", "#ffe066"];
-    let confettiTimer = 300; // 5s @ 60fps
+    let confettiTimer = 180; // 3s @ 60fps
 
     // Relato: 1 cada 2 goles totales. Si llega otro, corta el anterior.
     let totalGoals = 0;
@@ -937,8 +937,8 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
           <Shield team={home} size={42} eager />
         </div>
         <ScoreColorBars team={home} />
-        <div key={`h-${score.h}`} className="scorebug-score animate-scale-in" style={{ textShadow: score.h > 0 ? `0 0 12px ${home.primary}` : undefined }}>{score.h}</div>
-        <div key={`a-${score.a}`} className="scorebug-score animate-scale-in" style={{ textShadow: score.a > 0 ? `0 0 12px ${away.primary}` : undefined }}>{score.a}</div>
+        <div className="scorebug-score">{score.h}</div>
+        <div className="scorebug-score">{score.a}</div>
         <ScoreColorBars team={away} reverse />
         <div className="scorebug-shield scorebug-shield-away">
           <Shield team={away} size={42} eager />
