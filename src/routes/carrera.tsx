@@ -165,7 +165,7 @@ function CarreraPage() {
     );
   }
 
-  if (playing && state && team && nextMatch) {
+  if (playing && state && team && nextMatch && teamId) {
     const userIsHome = nextMatch.home === teamId;
     // El usuario SIEMPRE juega como P1 (izquierda), sin importar si es local o visitante en el fixture.
     const leftTeam = TEAMS_BY_ID[teamId];
