@@ -58,7 +58,7 @@ export function SeasonIntro({ season, teamId, objetivo, videoUrl, onDone }: Prop
             <div className="grid grid-cols-3 md:grid-cols-5 gap-4 max-w-3xl">
               {TEAMS.slice(0, 15).map(t => (
                 <div key={t.id} className="aspect-video rounded-lg border border-celeste/30 grid place-items-center"
-                  style={{ background: `linear-gradient(135deg, ${t.colors[0]}, ${t.colors[1] ?? "#111"})` }}>
+                  style={{ background: `linear-gradient(135deg, ${t.primary}, ${t.secondary ?? "#111"})` }}>
                   <Shield team={t} size={32} />
                 </div>
               ))}
