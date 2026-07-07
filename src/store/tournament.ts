@@ -59,6 +59,11 @@ export const useTournament = create<State & Actions>()(persist((set, get) => ({
   standA: [],
   standB: [],
   currentRound: 1,
+  season: 1,
+  introVista: false,
+  difficulty: "normal",
+  objetivo: "reducido",
+  lastRoundSummarized: 0,
   init: () => {
     if (get().fixture.length) return;
     set({
@@ -76,8 +81,41 @@ export const useTournament = create<State & Actions>()(persist((set, get) => ({
     userTeamId: undefined,
     finalDirecta: undefined, bracket: undefined,
     champion: undefined, reducidoChampion: undefined,
+    season: 1, introVista: false, difficulty: "normal", objetivo: "reducido",
+    lastRoundSummarized: 0,
   }),
   setUserTeam: (id) => set({ userTeamId: id }),
+  setIntroVista: (v) => set({ introVista: v }),
+  setDifficulty: (d) => set({ difficulty: d }),
+  setObjetivo: (o) => set({ objetivo: o }),
+  setLastRoundSummarized: (r) => set({ lastRoundSummarized: r }),
+  newSeason: () => set(state => ({
+    fixture: buildFix(),
+    standA: emptyStandings(aIds),
+    standB: emptyStandings(bIds),
+    currentRound: 1,
+    season: state.season + 1,
+    introVista: false,
+    lastRoundSummarized: 0,
+    finalDirecta: undefined, bracket: undefined,
+    champion: undefined, reducidoChampion: undefined,
+  })),
+  simulateUserMatch: (matchId) => {
+    const { fixture, standA, standB, currentRound } = get();
+    const m = fixture.find(x => x.id === matchId);
+    if (!m || m.played) return null;
+    const { hg, ag } = simulateMatch(m.home, m.away);
+    let a = standA, b = standB;
+    const played = { ...m, homeGoals: hg, awayGoals: ag, played: true };
+    const r = applyBoth(a, b, played); a = r.a; b = r.b;
+    const newFix = fixture.map(x => x.id === matchId ? played : x);
+    const roundDone = newFix.filter(x => x.round === played.round).every(x => x.played);
+    set({
+      fixture: newFix, standA: a, standB: b,
+      currentRound: roundDone && played.round >= currentRound ? played.round + 1 : currentRound,
+    });
+    return { hg, ag };
+  },
   playRound: (round) => {
     const { fixture, standA, standB, userTeamId } = get();
     let a = standA, b = standB;
