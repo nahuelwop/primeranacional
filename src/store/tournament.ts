@@ -7,6 +7,8 @@ import {
   buildReducido, Bracket, Pair, buildOfficialFixture,
 } from "@/lib/tournament";
 
+export type TDifficulty = "easy" | "normal" | "hard" | "expert";
+
 type State = {
   fixture: Match[];
   standA: StandingRow[];
@@ -17,6 +19,11 @@ type State = {
   bracket?: Bracket;
   champion?: string;
   reducidoChampion?: string;
+  season: number;
+  introVista: boolean;
+  difficulty: TDifficulty;
+  objetivo: "ascenso_directo" | "reducido" | "mantener";
+  lastRoundSummarized: number;
 };
 
 type Actions = {
@@ -26,8 +33,14 @@ type Actions = {
   playRound: (round: number) => void;
   playAll: () => void;
   recordUserMatch: (matchId: string, hg: number, ag: number) => void;
+  simulateUserMatch: (matchId: string) => { hg: number; ag: number } | null;
   startPlayoffs: () => void;
   advanceBracket: () => void;
+  setIntroVista: (v: boolean) => void;
+  setDifficulty: (d: TDifficulty) => void;
+  setObjetivo: (o: "ascenso_directo" | "reducido" | "mantener") => void;
+  setLastRoundSummarized: (r: number) => void;
+  newSeason: () => void;
 };
 
 const aIds = ZONE_A.map(t => t.id);
