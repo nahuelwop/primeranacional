@@ -11,6 +11,7 @@ import {
   isSeasonFinished, seasonChampion, budgetReward, type CareerState,
   STADIUM_UPGRADE_CATALOG, CORRUPTION_CATALOG,
   buyUpgrade, activateCorruption, tickCorruption, currentCorruptionEffects, incomeMultiplier,
+  OBJETIVO_LABEL, type Objetivo,
 } from "@/lib/career";
 import { sortStandings } from "@/lib/tournament";
 import { ACHIEVEMENTS } from "@/lib/achievements";
@@ -18,6 +19,11 @@ import {
   fetchCareer, upsertCareer, deleteCareer,
   fetchAchievements, unlockAchievement, recordMatchHistory,
 } from "@/lib/career-api";
+import { SeasonIntro } from "@/components/SeasonIntro";
+import { DifficultyPicker } from "@/components/DifficultyPicker";
+import { CoimasMenu } from "@/components/CoimasMenu";
+import { useGameSettings } from "@/lib/game-settings";
+import { DIFFICULTY_INFO, toGameAi } from "@/lib/difficulty";
 
 export const Route = createFileRoute("/carrera")({
   head: () => ({ meta: [
@@ -30,6 +36,7 @@ export const Route = createFileRoute("/carrera")({
 function CarreraPage() {
   useTeamsSync();
   const { user, loading } = useAuth();
+  const { settings } = useGameSettings();
   const [teamId, setTeamId] = useState<string | null>(null);
   const [season, setSeason] = useState(1);
   const [budget, setBudget] = useState(1000);
@@ -38,6 +45,13 @@ function CarreraPage() {
   const [busy, setBusy] = useState(true);
   const [playing, setPlaying] = useState(false);
   const [recentAch, setRecentAch] = useState<string[]>([]);
+  const [pickingDifficulty, setPickingDifficulty] = useState(false);
+  const [showIntro, setShowIntro] = useState(false);
+  void pickingDifficulty; void setPickingDifficulty; void showIntro; void setShowIntro;
+  void settings; void OBJETIVO_LABEL; void SeasonIntro; void DifficultyPicker; void CoimasMenu; void DIFFICULTY_INFO; void toGameAi;
+
+
+
 
   // Cargar partida del usuario.
   useEffect(() => {

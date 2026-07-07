@@ -68,6 +68,36 @@ export type Database = {
         }
         Relationships: []
       }
+      game_settings: {
+        Row: {
+          anular_goles_ratio: number
+          coimas_enabled: boolean
+          coimas_flags: Json
+          created_at: string
+          id: string
+          intro_video_url: string | null
+          updated_at: string
+        }
+        Insert: {
+          anular_goles_ratio?: number
+          coimas_enabled?: boolean
+          coimas_flags?: Json
+          created_at?: string
+          id?: string
+          intro_video_url?: string | null
+          updated_at?: string
+        }
+        Update: {
+          anular_goles_ratio?: number
+          coimas_enabled?: boolean
+          coimas_flags?: Json
+          created_at?: string
+          id?: string
+          intro_video_url?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       match_history: {
         Row: {
           away_goals: number
