@@ -43,6 +43,13 @@ export type CorruptionKind = "leve" | "medio" | "obvio" | "seca_nuca";
 export type ActiveCorruption = { kind: CorruptionKind; matchesLeft: number } | null;
 export type IncomePenalty = { pct: number; matchesLeft: number } | null;
 
+export type Objetivo = "ascenso_directo" | "reducido" | "mantener";
+export const OBJETIVO_LABEL: Record<Objetivo, string> = {
+  ascenso_directo: "Ascender a Primera División",
+  reducido: "Entrar al Reducido",
+  mantener: "Mantener la categoría",
+};
+
 export type CareerState = {
   zone: "A" | "B";
   matches: Match[];           // partidos de la zona del usuario
@@ -56,6 +63,10 @@ export type CareerState = {
   stadiumUpgrades?: StadiumUpgrades;
   activeCorruption?: ActiveCorruption;
   incomePenalty?: IncomePenalty;
+  difficulty?: "easy" | "normal" | "hard" | "expert";
+  objetivo?: Objetivo;
+  introVista?: boolean;
+  lastRoundSummarized?: number;
 };
 
 export function teamZone(teamId: string): "A" | "B" {
