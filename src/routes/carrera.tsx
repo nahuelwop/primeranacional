@@ -46,7 +46,9 @@ function CarreraPage() {
   const [playing, setPlaying] = useState(false);
   const [recentAch, setRecentAch] = useState<string[]>([]);
   const [pickingDifficulty, setPickingDifficulty] = useState(false);
-  const [pickingObjetivo, setPickingObjetivo] = useState<((o: Objetivo) => void) | null>(null);
+  const [showIntro, setShowIntro] = useState(false);
+  void pickingObjetivo; void setPickingObjetivo; void pickingDifficulty;
+
 
 
   // Cargar partida del usuario.
