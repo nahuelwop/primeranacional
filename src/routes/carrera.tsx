@@ -11,6 +11,7 @@ import {
   isSeasonFinished, seasonChampion, budgetReward, type CareerState,
   STADIUM_UPGRADE_CATALOG, CORRUPTION_CATALOG,
   buyUpgrade, activateCorruption, tickCorruption, currentCorruptionEffects, incomeMultiplier,
+  OBJETIVO_LABEL, type Objetivo,
 } from "@/lib/career";
 import { sortStandings } from "@/lib/tournament";
 import { ACHIEVEMENTS } from "@/lib/achievements";
@@ -18,6 +19,11 @@ import {
   fetchCareer, upsertCareer, deleteCareer,
   fetchAchievements, unlockAchievement, recordMatchHistory,
 } from "@/lib/career-api";
+import { SeasonIntro } from "@/components/SeasonIntro";
+import { DifficultyPicker } from "@/components/DifficultyPicker";
+import { CoimasMenu } from "@/components/CoimasMenu";
+import { useGameSettings } from "@/lib/game-settings";
+import { DIFFICULTY_INFO, toGameAi } from "@/lib/difficulty";
 
 export const Route = createFileRoute("/carrera")({
   head: () => ({ meta: [
