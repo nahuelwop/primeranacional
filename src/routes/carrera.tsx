@@ -36,6 +36,7 @@ export const Route = createFileRoute("/carrera")({
 function CarreraPage() {
   useTeamsSync();
   const { user, loading } = useAuth();
+  const { settings } = useGameSettings();
   const [teamId, setTeamId] = useState<string | null>(null);
   const [season, setSeason] = useState(1);
   const [budget, setBudget] = useState(1000);
@@ -44,6 +45,9 @@ function CarreraPage() {
   const [busy, setBusy] = useState(true);
   const [playing, setPlaying] = useState(false);
   const [recentAch, setRecentAch] = useState<string[]>([]);
+  const [pickingDifficulty, setPickingDifficulty] = useState(false);
+  const [pickingObjetivo, setPickingObjetivo] = useState<((o: Objetivo) => void) | null>(null);
+
 
   // Cargar partida del usuario.
   useEffect(() => {
