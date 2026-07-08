@@ -45,10 +45,6 @@ function CarreraPage() {
   const [busy, setBusy] = useState(true);
   const [playing, setPlaying] = useState(false);
   const [recentAch, setRecentAch] = useState<string[]>([]);
-  const [pickingDifficulty, setPickingDifficulty] = useState(false);
-  const [showIntro, setShowIntro] = useState(false);
-  void pickingDifficulty; void setPickingDifficulty; void showIntro; void setShowIntro;
-  void settings; void OBJETIVO_LABEL; void SeasonIntro; void DifficultyPicker; void CoimasMenu; void DIFFICULTY_INFO; void toGameAi;
 
 
 
@@ -157,6 +153,9 @@ function CarreraPage() {
     fresh.bestUnbeaten = state.bestUnbeaten;
     fresh.streakUnbeaten = 0;
     fresh.zoneChampions = [...state.zoneChampions];
+    fresh.difficulty = state.difficulty; // conservar dificultad
+    fresh.objetivo = state.objetivo;
+    fresh.introVista = false; // re-mostrar intro nueva temporada
     const champ = seasonChampion(state);
     if (champ) fresh.zoneChampions.push({ season, zone: state.zone, teamId: champ });
     const nextSeason = season + 1;
@@ -179,6 +178,35 @@ function CarreraPage() {
     );
   }
 
+  // Gate 1: elegir dificultad al iniciar carrera nueva
+  if (state && teamId && !state.difficulty) {
+    return (
+      <Shell>
+        <DifficultyPicker onPick={async (d) => {
+          const next = { ...state, difficulty: d, objetivo: state.objetivo ?? "ascenso_directo" as Objetivo };
+          setState(next);
+          await persist(next);
+        }} />
+      </Shell>
+    );
+  }
+
+  // Gate 2: intro de temporada (una vez por temporada)
+  if (state && teamId && state.difficulty && !state.introVista) {
+    return (
+      <Shell>
+        <SeasonIntro season={season} teamId={teamId}
+          objetivo={OBJETIVO_LABEL[state.objetivo ?? "ascenso_directo"]}
+          videoUrl={settings.intro_video_url}
+          onDone={async () => {
+            const next = { ...state, introVista: true };
+            setState(next);
+            await persist(next);
+          }} />
+      </Shell>
+    );
+  }
+
   if (playing && state && team && nextMatch && teamId) {
     const userIsHome = nextMatch.home === teamId;
     // El usuario SIEMPRE juega como P1 (izquierda), sin importar si es local o visitante en el fixture.
@@ -190,8 +218,10 @@ function CarreraPage() {
         <main className="flex-1 max-w-5xl w-full mx-auto px-4 py-6">
           <div className="text-center text-sm text-muted-foreground mb-2">
             Temporada {season} · Fecha {nextMatch.round} · {userIsHome ? "Local" : "Visitante"}
+            {state.difficulty && <span className="ml-2 text-celeste">· {DIFFICULTY_INFO[state.difficulty].emoji} {DIFFICULTY_INFO[state.difficulty].label}</span>}
           </div>
           <Game home={leftTeam} away={rightTeam} duration={60} mode="1vAI" sharedNarrator
+            aiDifficulty={toGameAi(state.difficulty ?? "normal")}
             startingScore={fx.startingScore}
             cancelOpponentGoals={fx.cancelOpponentGoals ?? 0}
             doubleGoalChance={fx.doubleGoalChance ?? 0}

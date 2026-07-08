@@ -10,21 +10,63 @@ import { useAuth } from "@/lib/auth";
 import { TEAMS, type Team, type Narrator } from "@/data/teams";
 import { useTeamsSync, reloadTeams, syncTeamsFromDbRows, type DbTeam } from "@/lib/teams-sync";
 import { SquadStadiumEditor } from "@/components/SquadStadiumEditor";
+import { fetchGameSettings, saveGameSettings, type CoimasFlags, type GameSettings, DEFAULT_SETTINGS } from "@/lib/game-settings";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({ meta: [{ title: "Admin · Primera Heads" }] }),
   component: AdminPage,
 });
 
+type Tab = "equipos" | "ajustes";
+
 function AdminPage() {
   const { isAdmin, loading, user } = useAuth();
   useTeamsSync();
   const nav = useNavigate();
+  const [tab, setTab] = useState<Tab>("equipos");
 
   useEffect(() => {
     if (!loading && (!user || !isAdmin)) nav({ to: "/auth" });
   }, [loading, user, isAdmin, nav]);
 
+  if (loading) return <div className="p-10">Cargando...</div>;
+  if (!isAdmin) return null;
+
+  return (
+    <div className="min-h-screen flex flex-col">
+      <Nav />
+      <main className="flex-1 max-w-6xl w-full mx-auto px-4 py-8">
+        <div className="flex items-center justify-between gap-4 flex-wrap mb-4">
+          <div>
+            <h1 className="font-display text-5xl">PANEL ADMIN</h1>
+            <p className="text-muted-foreground text-sm">Gestioná equipos y configuración global del juego.</p>
+          </div>
+          <Link to="/" className="text-sm underline self-center">← Volver</Link>
+        </div>
+
+        {/* Menú de pestañas */}
+        <div className="flex gap-2 border-b border-border mb-6">
+          {([
+            { k: "equipos", label: "⚽ EQUIPOS" },
+            { k: "ajustes", label: "⚙️ AJUSTES DEL JUEGO" },
+          ] as { k: Tab; label: string }[]).map(t => (
+            <button key={t.k} onClick={() => setTab(t.k)}
+              className={`px-4 py-2 font-display text-sm tracking-wider border-b-2 transition ${
+                tab === t.k ? "border-celeste text-celeste" : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {tab === "equipos" && <EquiposTab />}
+        {tab === "ajustes" && <AjustesTab />}
+      </main>
+    </div>
+  );
+}
+
+function EquiposTab() {
   const [editing, setEditing] = useState<Team | null>(null);
   const [creating, setCreating] = useState(false);
   const [filter, setFilter] = useState("");
@@ -34,51 +76,159 @@ function AdminPage() {
     return TEAMS.filter(t => !q || t.name.toLowerCase().includes(q) || t.short.toLowerCase().includes(q));
   }, [filter, TEAMS.length]);
 
-  if (loading) return <div className="p-10">Cargando...</div>;
-  if (!isAdmin) return null;
-
   return (
-    <div className="min-h-screen flex flex-col">
-      <Nav />
-      <main className="flex-1 max-w-6xl w-full mx-auto px-4 py-8">
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div>
-            <h1 className="font-display text-5xl">PANEL ADMIN</h1>
-            <p className="text-muted-foreground text-sm">Editá escudos, estadísticas y equipos. Los cambios se ven en todos los usuarios.</p>
-          </div>
-          <div className="flex gap-2">
-            <Link to="/" className="text-sm underline self-center">← Volver</Link>
-            <Button onClick={() => { setCreating(true); setEditing(null); }}>+ Nuevo equipo</Button>
-          </div>
-        </div>
+    <div>
+      <div className="flex items-center gap-3 flex-wrap">
+        <Input className="max-w-sm" placeholder="Buscar equipo..." value={filter} onChange={e => setFilter(e.target.value)} />
+        <Button onClick={() => { setCreating(true); setEditing(null); }}>+ Nuevo equipo</Button>
+      </div>
 
-        <Input className="mt-4 max-w-sm" placeholder="Buscar..." value={filter} onChange={e => setFilter(e.target.value)} />
+      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-4">
+        {list.map(t => (
+          <button key={t.id} onClick={() => { setEditing(t); setCreating(false); }}
+            className="text-left rounded-xl bg-card border border-border p-3 flex items-center gap-3 hover:border-celeste transition">
+            <Shield team={t} size={48} />
+            <div className="flex-1 min-w-0">
+              <div className="font-display text-lg truncate">{t.name}</div>
+              <div className="text-xs text-muted-foreground">Zona {t.zone} · {t.city}</div>
+              <div className="text-[10px] text-muted-foreground">VEL {t.stats.speed} · SAL {t.stats.jump} · POT {t.stats.power} · DEF {t.stats.defense}</div>
+            </div>
+          </button>
+        ))}
+      </div>
 
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-4">
-          {list.map(t => (
-            <button key={t.id} onClick={() => { setEditing(t); setCreating(false); }}
-              className="text-left rounded-xl bg-card border border-border p-3 flex items-center gap-3 hover:border-celeste transition">
-              <Shield team={t} size={48} />
-              <div className="flex-1 min-w-0">
-                <div className="font-display text-lg truncate">{t.name}</div>
-                <div className="text-xs text-muted-foreground">Zona {t.zone} · {t.city}</div>
-                <div className="text-[10px] text-muted-foreground">VEL {t.stats.speed} · SAL {t.stats.jump} · POT {t.stats.power} · DEF {t.stats.defense}</div>
-              </div>
-            </button>
-          ))}
-        </div>
-
-        {(editing || creating) && (
-          <TeamEditor
-            initial={editing}
-            onClose={() => { setEditing(null); setCreating(false); }}
-            onSaved={async () => { await reloadTeams(); }}
-          />
-        )}
-      </main>
+      {(editing || creating) && (
+        <TeamEditor
+          initial={editing}
+          onClose={() => { setEditing(null); setCreating(false); }}
+          onSaved={async () => { await reloadTeams(); }}
+        />
+      )}
     </div>
   );
 }
+
+const COIMAS_LABELS: { key: keyof CoimasFlags; label: string }[] = [
+  { key: "forzar_victoria", label: "Forzar victoria" },
+  { key: "forzar_empate", label: "Forzar empate" },
+  { key: "forzar_derrota", label: "Forzar derrota" },
+  { key: "clasificar_reducido", label: "Clasificar al Reducido" },
+  { key: "forzar_ascensos", label: "Forzar ascenso" },
+  { key: "forzar_descensos", label: "Forzar descenso rival" },
+  { key: "anular_goles", label: "Anular goles rivales" },
+];
+
+function AjustesTab() {
+  const [settings, setSettings] = useState<GameSettings>(DEFAULT_SETTINGS);
+  const [loaded, setLoaded] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchGameSettings().then(s => { setSettings(s); setLoaded(true); }).catch(e => { setErr((e as Error).message); setLoaded(true); });
+  }, []);
+
+  function set<K extends keyof GameSettings>(k: K, v: GameSettings[K]) {
+    setSettings(s => ({ ...s, [k]: v }));
+  }
+  function toggleFlag(key: keyof CoimasFlags) {
+    setSettings(s => ({ ...s, coimas_flags: { ...s.coimas_flags, [key]: !s.coimas_flags[key] } }));
+  }
+
+  async function uploadIntroFile(file: File) {
+    setBusy(true); setErr(null); setMsg(null);
+    try {
+      const ext = file.name.split(".").pop() || "mp4";
+      const path = `intro/season-intro-${Date.now()}.${ext}`;
+      const { error } = await supabase.storage.from("team-logos").upload(path, file, { upsert: true, contentType: file.type });
+      if (error) throw error;
+      const { data } = supabase.storage.from("team-logos").getPublicUrl(path);
+      set("intro_video_url", data.publicUrl);
+      setMsg("Video subido. Recordá guardar los cambios.");
+    } catch (e) { setErr((e as Error).message); }
+    finally { setBusy(false); }
+  }
+
+  async function save() {
+    setBusy(true); setErr(null); setMsg(null);
+    try {
+      await saveGameSettings({
+        intro_video_url: settings.intro_video_url,
+        coimas_enabled: settings.coimas_enabled,
+        coimas_flags: settings.coimas_flags,
+        anular_goles_ratio: settings.anular_goles_ratio,
+      });
+      setMsg("Ajustes guardados ✔");
+    } catch (e) { setErr((e as Error).message); }
+    finally { setBusy(false); }
+  }
+
+  if (!loaded) return <div className="text-muted-foreground">Cargando ajustes…</div>;
+
+  return (
+    <div className="space-y-6 max-w-3xl">
+      {/* Intro de temporada */}
+      <section className="rounded-2xl bg-card border border-border p-5">
+        <h2 className="font-display text-xl mb-1">🎬 Intro de temporada</h2>
+        <p className="text-xs text-muted-foreground mb-3">Video opcional que se reproduce al iniciar cada temporada. Si está vacío, se usa la intro animada por defecto.</p>
+        <div className="space-y-2">
+          <label className="text-xs text-muted-foreground uppercase">URL del video (MP4/WebM)</label>
+          <Input value={settings.intro_video_url ?? ""} onChange={e => set("intro_video_url", e.target.value || null)} placeholder="https://..." />
+          <div className="flex items-center gap-3">
+            <label className="text-xs text-celeste underline inline-block cursor-pointer">
+              o subir archivo desde tu PC
+              <input type="file" accept="video/*" hidden
+                onChange={e => e.target.files?.[0] && uploadIntroFile(e.target.files[0])} />
+            </label>
+            {settings.intro_video_url && (
+              <button onClick={() => set("intro_video_url", null)} className="text-xs text-destructive hover:underline">Quitar video</button>
+            )}
+          </div>
+          {settings.intro_video_url && (
+            <video src={settings.intro_video_url} controls className="w-full max-h-64 rounded-lg border border-border mt-2" />
+          )}
+        </div>
+      </section>
+
+      {/* Coimas & arreglos */}
+      <section className="rounded-2xl bg-card border border-yellow-500/40 p-5">
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="font-display text-xl text-yellow-500">💼 Coimas & Arreglos</h2>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={settings.coimas_enabled} onChange={e => set("coimas_enabled", e.target.checked)} />
+            Habilitar sistema
+          </label>
+        </div>
+        <p className="text-xs text-muted-foreground mb-3">Cuando está desactivado el menú no aparece en Carrera/Torneo. Cuando está activo, sólo se muestran las opciones marcadas.</p>
+        <div className="grid sm:grid-cols-2 gap-2">
+          {COIMAS_LABELS.map(({ key, label }) => (
+            <label key={key} className={`flex items-center gap-2 p-2 rounded border border-border text-sm ${!settings.coimas_enabled ? "opacity-40" : ""}`}>
+              <input type="checkbox" disabled={!settings.coimas_enabled}
+                checked={!!settings.coimas_flags[key]}
+                onChange={() => toggleFlag(key)} />
+              {label}
+            </label>
+          ))}
+        </div>
+        <div className="mt-3">
+          <label className="text-xs text-muted-foreground uppercase">Anular goles rivales — ratio (1 de cada X)</label>
+          <Input type="number" min={2} max={10} value={settings.anular_goles_ratio}
+            onChange={e => set("anular_goles_ratio", Math.max(2, Number(e.target.value) || 3))} className="max-w-[120px]" />
+        </div>
+      </section>
+
+      {(msg || err) && (
+        <div className={`text-sm ${err ? "text-destructive" : "text-celeste"}`}>{err ?? msg}</div>
+      )}
+
+      <div className="flex justify-end">
+        <Button onClick={save} disabled={busy}>{busy ? "Guardando…" : "Guardar ajustes"}</Button>
+      </div>
+    </div>
+  );
+}
+
 
 function TeamEditor({ initial, onClose, onSaved }: {
   initial: Team | null; onClose: () => void; onSaved: () => Promise<void>;
