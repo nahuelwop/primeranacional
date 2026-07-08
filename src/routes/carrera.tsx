@@ -153,6 +153,9 @@ function CarreraPage() {
     fresh.bestUnbeaten = state.bestUnbeaten;
     fresh.streakUnbeaten = 0;
     fresh.zoneChampions = [...state.zoneChampions];
+    fresh.difficulty = state.difficulty; // conservar dificultad
+    fresh.objetivo = state.objetivo;
+    fresh.introVista = false; // re-mostrar intro nueva temporada
     const champ = seasonChampion(state);
     if (champ) fresh.zoneChampions.push({ season, zone: state.zone, teamId: champ });
     const nextSeason = season + 1;
