@@ -45,10 +45,6 @@ function CarreraPage() {
   const [busy, setBusy] = useState(true);
   const [playing, setPlaying] = useState(false);
   const [recentAch, setRecentAch] = useState<string[]>([]);
-  const [pickingDifficulty, setPickingDifficulty] = useState(false);
-  const [showIntro, setShowIntro] = useState(false);
-  void pickingDifficulty; void setPickingDifficulty; void showIntro; void setShowIntro;
-  void settings; void OBJETIVO_LABEL; void SeasonIntro; void DifficultyPicker; void CoimasMenu; void DIFFICULTY_INFO; void toGameAi;
 
 
 
