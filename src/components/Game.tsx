@@ -3,7 +3,7 @@ import { Shield } from "@/components/Shield";
 import { Team, type Narrator } from "@/data/teams";
 
 export type Weather = "clear" | "rain" | "wind" | "thunder" | "fog";
-export type Difficulty = "easy" | "normal" | "hard";
+export type Difficulty = "easy" | "normal" | "hard" | "expert";
 export type Mode = "1v1" | "1vAI";
 
 type Props = {
