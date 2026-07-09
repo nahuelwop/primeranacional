@@ -116,6 +116,18 @@ const COIMAS_LABELS: { key: keyof CoimasFlags; label: string }[] = [
   { key: "forzar_ascensos", label: "Forzar ascenso" },
   { key: "forzar_descensos", label: "Forzar descenso rival" },
   { key: "anular_goles", label: "Anular goles rivales" },
+  { key: "arbitro_amigo", label: "Árbitro amigo" },
+  { key: "penal_inventado", label: "Penal inventado" },
+  { key: "expulsar_rival", label: "Expulsar rival" },
+  { key: "doping", label: "Doping (boost físico)" },
+  { key: "hinchada_comprada", label: "Hinchada comprada" },
+  { key: "sponsor_fantasma", label: "Sponsor fantasma (+$)" },
+  { key: "gol_fantasma", label: "Gol fantasma" },
+  { key: "var_apagado", label: "VAR apagado" },
+  { key: "amarilla_rival", label: "Amarilla al rival" },
+  { key: "cambio_fixture", label: "Cambiar fixture" },
+  { key: "descontar_puntos_rival", label: "Descontar puntos rival" },
+  { key: "bonus_presupuesto", label: "Bonus presupuesto" },
 ];
 
 function AjustesTab() {

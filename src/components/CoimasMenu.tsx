@@ -13,6 +13,18 @@ const LABELS: Record<string, { label: string; icon: string }> = {
   forzar_ascensos:     { label: "Forzar ascenso",        icon: "⬆️" },
   forzar_descensos:    { label: "Forzar descenso rival", icon: "⬇️" },
   anular_goles:        { label: "Anular goles rivales",  icon: "🚫" },
+  arbitro_amigo:       { label: "Árbitro amigo",         icon: "🧑‍⚖️" },
+  penal_inventado:     { label: "Penal inventado",       icon: "🎯" },
+  expulsar_rival:      { label: "Expulsar rival",        icon: "🟥" },
+  doping:              { label: "Doping (boost físico)", icon: "💊" },
+  hinchada_comprada:   { label: "Hinchada comprada",     icon: "📣" },
+  sponsor_fantasma:    { label: "Sponsor fantasma (+$)", icon: "💰" },
+  gol_fantasma:        { label: "Gol fantasma",          icon: "👻" },
+  var_apagado:         { label: "VAR apagado",           icon: "📺" },
+  amarilla_rival:      { label: "Amarilla al rival",     icon: "🟨" },
+  cambio_fixture:      { label: "Cambiar fixture",       icon: "🔀" },
+  descontar_puntos_rival: { label: "Descontar puntos rival", icon: "➖" },
+  bonus_presupuesto:   { label: "Bonus presupuesto",     icon: "🏦" },
 };
 
 export function CoimasMenu({ mode, settings, onCoima }: {

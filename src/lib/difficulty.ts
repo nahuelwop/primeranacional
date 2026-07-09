@@ -7,7 +7,7 @@ export const DIFFICULTY_INFO: Record<Difficulty, { label: string; emoji: string;
   expert: { label: "EXPERTO", emoji: "🔴", desc: "Máxima velocidad, casi sin errores, aprovecha errores del jugador.", color: "text-red-500" },
 };
 
-// Traduce nuestra dificultad al prop aiDifficulty del componente Game (easy|normal|hard).
-export function toGameAi(d: Difficulty): "easy" | "normal" | "hard" {
-  return d === "expert" ? "hard" : d;
+// Traduce nuestra dificultad al prop aiDifficulty del componente Game.
+export function toGameAi(d: Difficulty): "easy" | "normal" | "hard" | "expert" {
+  return d;
 }

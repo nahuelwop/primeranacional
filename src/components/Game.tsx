@@ -3,7 +3,7 @@ import { Shield } from "@/components/Shield";
 import { Team, type Narrator } from "@/data/teams";
 
 export type Weather = "clear" | "rain" | "wind" | "thunder" | "fog";
-export type Difficulty = "easy" | "normal" | "hard";
+export type Difficulty = "easy" | "normal" | "hard" | "expert";
 export type Mode = "1v1" | "1vAI";
 
 type Props = {
@@ -122,13 +122,18 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
     const ball = { x: W / 2, y: H / 2 - 30, vx: 1.8, vy: -2.8, r: 13, spin: 0, squash: 0, lastTouch: 0 as 0 | 1 | 2 };
 
 
+    // Configuración por dificultad
+    // jumpCd en frames (60fps): 48 = 0.8s, 72 = 1.2s
     const aiCfg = {
-      easy:   { speed: 0.55, jumpProb: 0.35, kickProb: 0.18, react: 40, jumpCd: 90 },
-      normal: { speed: 0.85, jumpProb: 0.60, kickProb: 0.45, react: 18, jumpCd: 55 },
-      hard:   { speed: 1.05, jumpProb: 0.85, kickProb: 0.75, react: 8,  jumpCd: 35 },
-    }[aiDifficulty];
+      easy:   { speed: 0.55, jumpProb: 0.35, kickProb: 0.20, react: 40, jumpCd: 90, smart: 0.35 },
+      normal: { speed: 0.85, jumpProb: 0.55, kickProb: 0.50, react: 20, jumpCd: 66, smart: 0.60 },
+      hard:   { speed: 1.00, jumpProb: 0.70, kickProb: 0.72, react: 10, jumpCd: 60, smart: 0.85 },
+      expert: { speed: 1.12, jumpProb: 0.80, kickProb: 0.85, react: 6,  jumpCd: 54, smart: 1.00 },
+    }[aiDifficulty] ?? { speed: 0.85, jumpProb: 0.55, kickProb: 0.50, react: 20, jumpCd: 66, smart: 0.6 };
     let frame = 0;
     let aiJumpCd = 0;
+    let aiAirborne = false; // true entre despegue y aterrizaje
+    let aiLastKickFrame = -999;
     let goalsCancelLeft = Number.isFinite(cancelOpponentGoals) ? Math.max(0, cancelOpponentGoals) : 999;
 
     // ===== Replay de gol: ring buffer de los últimos ~2.5s =====
@@ -331,40 +336,77 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         if (keys["arrowup"] && p2.y >= ground) p2.vy = jumpScale(away.stats.jump);
         if (keys["enter"]) p2.kick = 10;
       } else {
-        // IA: persigue la pelota libremente por toda la cancha (sin barrera invisible)
+        // ============ IA reescrita (decisiones sobre acciones) ============
         if (aiJumpCd > 0) aiJumpCd--;
+        // detectar aterrizaje: si vuelve al suelo, ya puede considerar saltar de nuevo
+        if (aiAirborne && p2.y >= ground) aiAirborne = false;
+
         const sp2 = speedScale(away.stats.speed) * aiCfg.speed;
+        // arco propio (derecha, W) vs arco rival (izquierda, 0)
+        const ownGoalX = W - 10;
+        const rivalGoalX = 10;
+        // Predicción con react más baja => IA "ve" antes en Hard/Expert
         const predictedX = ball.x + ball.vx * aiCfg.react;
-        const ballFar = Math.abs(ball.x - p2.x) > 220;
-        // Offset para encarar la pelota hacia el arco rival (izquierda)
-        const offset = ball.x < p2.x ? 18 : -18;
-        const targetX = Math.max(p2.r, Math.min(W - p2.r, predictedX + offset));
-        // Banda muerta para que no oscile encima de la pelota
-        const dead = 14;
-        if (Math.abs(p2.x - targetX) > dead) p2.vx = p2.x < targetX ? sp2 : -sp2;
+        const predictedY = ball.y + ball.vy * aiCfg.react;
+
+        // Decidir modo: DEFENDER si la pelota va a mi arco; ATACAR si va al rival
+        const ballGoingToOwnGoal = ball.vx > 0.5;
+        const ballBehindMe = ball.x > p2.x + 30; // pelota entre yo y mi arco
+        const mustDefend = ballGoingToOwnGoal || ballBehindMe;
+
+        // Posición objetivo:
+        // - Defender: pararse entre la pelota y el arco propio
+        // - Atacar: acercarse a la pelota por detrás para pegarle hacia el arco rival
+        let targetX: number;
+        if (mustDefend) {
+          const defendX = (predictedX + ownGoalX) / 2 - 20;
+          targetX = defendX;
+        } else {
+          // ubicarse a la derecha de la pelota para empujarla hacia la izquierda
+          const attackOffset = 22 + (1 - aiCfg.smart) * 15;
+          targetX = predictedX + attackOffset;
+        }
+        targetX = Math.max(p2.r, Math.min(W - p2.r, targetX));
+
+        // Movimiento con banda muerta para no oscilar
+        const dead = 12;
+        const dx = targetX - p2.x;
+        if (Math.abs(dx) > dead) p2.vx = dx > 0 ? sp2 : -sp2;
         else p2.vx *= 0.7;
 
-        // Salto: solo si la pelota está alta, cerca, descendiendo hacia el jugador, y con cooldown
-        const ballHigh = ball.y < ground - 90;
-        const ballNearX = Math.abs(ball.x - p2.x) < 70;
-        const ballDescending = ball.vy > 0;
-        if (
-          aiJumpCd === 0 && p2.y >= ground && ballHigh && ballNearX && ballDescending &&
-          Math.random() < aiCfg.jumpProb
-        ) {
+        // ===== Salto: sólo cuando es realmente útil =====
+        // Reglas:
+        //  1) Cooldown terminado (0.8s+ Hard, 0.9s Expert)
+        //  2) IA en el piso Y no está "en el aire" desde el salto anterior
+        //  3) Pelota alta, cercana, descendiendo y va a caer donde estoy
+        const ballHigh = ball.y < ground - 110;
+        const ballDescending = ball.vy > 0.3;
+        const landingClose = Math.abs(predictedX - p2.x) < 55;
+        const ballCloseX = Math.abs(ball.x - p2.x) < 65;
+        const usefulHeader = mustDefend
+          ? true                                   // defender de cabeza siempre útil
+          : predictedY < ground - 60 && ballHigh;  // atacar sólo si aún estará arriba
+        const wantsToJump =
+          aiJumpCd === 0 && !aiAirborne && p2.y >= ground &&
+          ballHigh && ballDescending && landingClose && ballCloseX && usefulHeader;
+        if (wantsToJump && Math.random() < aiCfg.jumpProb) {
           p2.vy = jumpScale(away.stats.jump);
           aiJumpCd = aiCfg.jumpCd;
+          aiAirborne = true;
         }
 
-        // Patear: solo si está realmente al alcance
-        if (
-          Math.abs(p2.x - ball.x) < 55 &&
-          Math.abs(p2.y - ball.y) < 55 &&
-          Math.random() < aiCfg.kickProb
-        ) p2.kick = 10;
+        // ===== Patear: al alcance y con dirección aprovechable =====
+        const inKickRange = Math.abs(p2.x - ball.x) < 55 && Math.abs(p2.y - ball.y) < 55;
+        // Sólo patear si puede darle hacia el arco rival (pelota a la izquierda del bicho o mismo x)
+        const canDriveForward = ball.x <= p2.x + 10;
+        const kickCd = frame - aiLastKickFrame > 8;
+        if (inKickRange && kickCd && (canDriveForward || mustDefend) && Math.random() < aiCfg.kickProb) {
+          p2.kick = 10;
+          aiLastKickFrame = frame;
+        }
 
-        // Pequeñas pausas naturales si está lejos
-        if (ballFar && Math.random() < 0.02) p2.vx *= 0.4;
+        // Micro-pausas naturales sólo en Easy/Normal si está lejos
+        if (aiCfg.smart < 0.8 && Math.abs(ball.x - p2.x) > 220 && Math.random() < 0.02) p2.vx *= 0.4;
       }
 
       // Posesión: cuenta el último que tocó

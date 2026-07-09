@@ -8,6 +8,18 @@ export type CoimasFlags = {
   forzar_ascensos?: boolean;
   forzar_descensos?: boolean;
   anular_goles?: boolean;
+  arbitro_amigo?: boolean;
+  penal_inventado?: boolean;
+  expulsar_rival?: boolean;
+  doping?: boolean;
+  hinchada_comprada?: boolean;
+  sponsor_fantasma?: boolean;
+  gol_fantasma?: boolean;
+  var_apagado?: boolean;
+  amarilla_rival?: boolean;
+  cambio_fixture?: boolean;
+  descontar_puntos_rival?: boolean;
+  bonus_presupuesto?: boolean;
 };
 
 export type GameSettings = {

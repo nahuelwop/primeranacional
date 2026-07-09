@@ -27,9 +27,15 @@ export function SeasonIntro({ season, teamId, objetivo, videoUrl, onDone }: Prop
   if (videoUrl && !videoFailed) {
     return (
       <div className="fixed inset-0 z-[60] bg-black flex items-center justify-center">
-        <video src={videoUrl} autoPlay muted playsInline
-          onEnded={onDone} onError={() => setVideoFailed(true)}
-          className="w-full h-full object-cover" />
+        <video
+          src={videoUrl}
+          autoPlay
+          playsInline
+          controls
+          onEnded={onDone}
+          onError={() => setVideoFailed(true)}
+          className="w-full h-full object-contain"
+        />
         <SkipButton onClick={onDone} />
       </div>
     );
