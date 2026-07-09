@@ -122,13 +122,18 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
     const ball = { x: W / 2, y: H / 2 - 30, vx: 1.8, vy: -2.8, r: 13, spin: 0, squash: 0, lastTouch: 0 as 0 | 1 | 2 };
 
 
+    // Configuración por dificultad
+    // jumpCd en frames (60fps): 48 = 0.8s, 72 = 1.2s
     const aiCfg = {
-      easy:   { speed: 0.55, jumpProb: 0.35, kickProb: 0.18, react: 40, jumpCd: 90 },
-      normal: { speed: 0.85, jumpProb: 0.60, kickProb: 0.45, react: 18, jumpCd: 55 },
-      hard:   { speed: 1.05, jumpProb: 0.85, kickProb: 0.75, react: 8,  jumpCd: 35 },
-    }[aiDifficulty];
+      easy:   { speed: 0.55, jumpProb: 0.35, kickProb: 0.20, react: 40, jumpCd: 90, smart: 0.35 },
+      normal: { speed: 0.85, jumpProb: 0.55, kickProb: 0.50, react: 20, jumpCd: 66, smart: 0.60 },
+      hard:   { speed: 1.00, jumpProb: 0.70, kickProb: 0.72, react: 10, jumpCd: 60, smart: 0.85 },
+      expert: { speed: 1.12, jumpProb: 0.80, kickProb: 0.85, react: 6,  jumpCd: 54, smart: 1.00 },
+    }[aiDifficulty] ?? { speed: 0.85, jumpProb: 0.55, kickProb: 0.50, react: 20, jumpCd: 66, smart: 0.6 };
     let frame = 0;
     let aiJumpCd = 0;
+    let aiAirborne = false; // true entre despegue y aterrizaje
+    let aiLastKickFrame = -999;
     let goalsCancelLeft = Number.isFinite(cancelOpponentGoals) ? Math.max(0, cancelOpponentGoals) : 999;
 
     // ===== Replay de gol: ring buffer de los últimos ~2.5s =====
