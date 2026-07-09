@@ -31,7 +31,6 @@ export function SeasonIntro({ season, teamId, objetivo, videoUrl, onDone }: Prop
           src={videoUrl}
           autoPlay
           playsInline
-          controls
           onEnded={onDone}
           onError={() => setVideoFailed(true)}
           className="w-full h-full object-contain"
