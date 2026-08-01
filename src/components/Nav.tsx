@@ -3,11 +3,9 @@ import { useAuth } from "@/lib/auth";
 
 const items = [
   { to: "/", label: "Inicio" },
-  { to: "/torneo", label: "Torneo" },
+  { to: "/carrera", label: "Carrera" },
   { to: "/reducido", label: "Reducido" },
   { to: "/amistoso", label: "Amistoso" },
-  { to: "/carrera", label: "Carrera" },
-  { to: "/resultados", label: "Resultados" },
   { to: "/equipos", label: "Equipos" },
   { to: "/estadisticas", label: "Stats" },
   { to: "/logros", label: "Logros" },
