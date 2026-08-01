@@ -214,3 +214,42 @@ export function budgetReward(myGoals: number, oppGoals: number): number {
 export function teamOf(id: string | undefined | null): Team | undefined {
   return id ? TEAMS_BY_ID[id] : undefined;
 }
+
+// ============ Indicadores del club (para el panel de Modo Carrera) ============
+export type ClubIndicator = { key: string; label: string; icon: string; value: number; hint: string };
+
+export function clubIndicators(state: CareerState, budget: number, userTeamId: string): ClubIndicator[] {
+  const table = sortStandings(state.standings);
+  const pos = Math.max(0, table.findIndex(r => r.teamId === userTeamId));
+  const total = Math.max(1, table.length - 1);
+  const posScore = Math.round(100 - (pos / total) * 100);
+  const upgrades = state.stadiumUpgrades ?? { capacity: false, pitch: false, vip: false, led: false };
+  const upgradeCount = Object.values(upgrades).filter(Boolean).length;
+  const infra = Math.round((upgradeCount / STADIUM_UPGRADE_CATALOG.length) * 100);
+  const eco = clamp01to100((budget / 3000) * 100);
+  const corr = state.activeCorruption && state.activeCorruption.matchesLeft > 0
+    ? clamp01to100(40 + state.activeCorruption.matchesLeft * 4) : 10;
+  const moral = clamp01to100(30 + state.streakUnbeaten * 10 + (posScore - 50) * 0.4);
+  const hinchada = clamp01to100(posScore * 0.7 + infra * 0.3);
+
+  return [
+    { key: "economia", label: "Economía", icon: "💰", value: eco, hint: `$${budget} en caja` },
+    { key: "influencia", label: "Influencia", icon: "🤝", value: corr, hint: state.activeCorruption?.matchesLeft ? "Arreglo activo" : "Sin arreglos" },
+    { key: "moral", label: "Moral del plantel", icon: "🔥", value: moral, hint: `${state.streakUnbeaten} fechas invicto` },
+    { key: "hinchada", label: "Hinchada", icon: "📣", value: hinchada, hint: `${pos + 1}° en la zona` },
+    { key: "infraestructura", label: "Infraestructura", icon: "🏟️", value: infra, hint: `${upgradeCount}/${STADIUM_UPGRADE_CATALOG.length} mejoras` },
+  ];
+}
+
+function clamp01to100(n: number) { return Math.max(0, Math.min(100, Math.round(n))); }
+
+// Fecha actual = la primera con partidos pendientes.
+export function currentRound(state: CareerState): number {
+  const pending = state.matches.filter(m => !m.played);
+  if (pending.length === 0) return Math.max(...state.matches.map(m => m.round), 1);
+  return Math.min(...pending.map(m => m.round));
+}
+
+export function totalRounds(state: CareerState): number {
+  return state.matches.reduce((max, m) => Math.max(max, m.round), 0);
+}

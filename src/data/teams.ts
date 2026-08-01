@@ -19,6 +19,7 @@ export type Team = {
   stats: Stats;
   rivals?: string[];
   logoUrl?: string | null;
+  flagUrls?: string[];
   goalAudios?: string[];
   hinchadas?: string[];
   narrators?: Narrator[];

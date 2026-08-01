@@ -87,6 +87,28 @@
 }
 
 @layer utilities {
+  .hud-shell {
+    background:
+      radial-gradient(120% 80% at 50% -10%, oklch(0.32 0.07 225 / 0.55) 0%, transparent 60%),
+      linear-gradient(180deg, oklch(0.16 0.04 235) 0%, oklch(0.12 0.035 240) 100%);
+  }
+  .hud-panel {
+    background: linear-gradient(160deg, oklch(0.26 0.05 235 / 0.92) 0%, oklch(0.2 0.045 240 / 0.92) 100%);
+    border: 1px solid oklch(0.42 0.05 235 / 0.55);
+    border-radius: 1.25rem;
+    box-shadow: 0 18px 40px -22px oklch(0 0 0 / 0.9);
+    backdrop-filter: blur(6px);
+  }
+  .hud-panel-accent {
+    background: linear-gradient(160deg, oklch(0.34 0.09 230 / 0.95) 0%, oklch(0.21 0.05 240 / 0.95) 100%);
+    border: 1px solid oklch(0.62 0.11 230 / 0.5);
+    border-radius: 1.25rem;
+    box-shadow: 0 22px 50px -24px oklch(0.5 0.14 230 / 0.8);
+  }
+  .hud-tab-active {
+    background: linear-gradient(180deg, oklch(0.82 0.13 230) 0%, oklch(0.68 0.13 235) 100%);
+    color: oklch(0.16 0.04 245);
+  }
   .stadium-bg {
     background-image:
       repeating-linear-gradient(90deg,

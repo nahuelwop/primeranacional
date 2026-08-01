@@ -260,6 +260,7 @@ function TeamEditor({ initial, onClose, onSaved }: {
     power: initial?.stats.power ?? 70,
     defense: initial?.stats.defense ?? 70,
     logo_url: initial?.logoUrl ?? "",
+    flag_urls: (initial?.flagUrls ?? []) as string[],
     goal_audio_urls: (initial?.goalAudios ?? []) as string[],
     hinchada_urls: (initial?.hinchadas ?? []) as string[],
     narrators: (initial?.narrators ?? []) as Narrator[],
@@ -284,6 +285,23 @@ function TeamEditor({ initial, onClose, onSaved }: {
       if (error) throw error;
       const { data } = supabase.storage.from("team-logos").getPublicUrl(path);
       setForm(f => ({ ...f, logo_url: data.publicUrl }));
+    } catch (e) { setErr((e as Error).message); }
+    finally { setBusy(false); }
+  }
+
+  async function uploadFlags(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    setBusy(true); setErr(null);
+    try {
+      const urls: string[] = [];
+      for (const file of Array.from(files)) {
+        const ext = file.name.split(".").pop() || "png";
+        const path = `banderas/${form.id || "new"}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
+        const { error } = await supabase.storage.from("team-logos").upload(path, file, { upsert: true });
+        if (error) throw error;
+        urls.push(supabase.storage.from("team-logos").getPublicUrl(path).data.publicUrl);
+      }
+      setForm(f => ({ ...f, flag_urls: [...f.flag_urls, ...urls] }));
     } catch (e) { setErr((e as Error).message); }
     finally { setBusy(false); }
   }
@@ -374,6 +392,7 @@ function TeamEditor({ initial, onClose, onSaved }: {
         goal_audio_urls: payload.goal_audio_urls,
         hinchada_urls: payload.hinchada_urls,
         narrators: payload.narrators ?? [],
+        flag_urls: payload.flag_urls ?? [],
       };
       const withoutOld = TEAMS.filter(t => t.id !== form.id).map((t, i): DbTeam => ({
         id: t.id,
@@ -394,6 +413,7 @@ function TeamEditor({ initial, onClose, onSaved }: {
         goal_audio_urls: t.goalAudios ?? [],
         hinchada_urls: t.hinchadas ?? [],
         narrators: t.narrators ?? [],
+        flag_urls: t.flagUrls ?? [],
         full_name: t.fullName ?? null,
         founded_year: t.foundedYear ?? null,
         province: t.province ?? null,
@@ -451,6 +471,25 @@ function TeamEditor({ initial, onClose, onSaved }: {
                   onChange={e => e.target.files?.[0] && uploadLogo(e.target.files[0])} />
               </label>
             </div>
+          </div>
+
+          <div className="sm:col-span-2 border-t border-border pt-3">
+            <label className="text-xs text-muted-foreground uppercase">Banderas de la hinchada (se muestran en "La previa" del Modo Carrera)</label>
+            <div className="flex flex-wrap gap-2 mt-2">
+              {form.flag_urls.length === 0 && <div className="text-xs text-muted-foreground">Sin banderas cargadas.</div>}
+              {form.flag_urls.map((url, i) => (
+                <div key={url + i} className="relative">
+                  <img src={url} alt="Bandera de hinchada" className="h-16 w-24 object-cover rounded border border-border" />
+                  <button onClick={() => setForm(f => ({ ...f, flag_urls: f.flag_urls.filter((_, j) => j !== i) }))}
+                    className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-destructive text-destructive-foreground text-xs leading-none">×</button>
+                </div>
+              ))}
+            </div>
+            <label className="text-xs text-celeste underline mt-2 inline-block cursor-pointer">
+              + subir banderas (podés seleccionar varias)
+              <input type="file" accept="image/*" hidden multiple
+                onChange={e => { uploadFlags(e.target.files); e.target.value = ""; }} />
+            </label>
           </div>
 
           <div>

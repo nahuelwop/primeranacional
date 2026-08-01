@@ -1,0 +1,1 @@
+ALTER TABLE public.teams ADD COLUMN IF NOT EXISTS flag_urls text[] NOT NULL DEFAULT '{}'::text[];

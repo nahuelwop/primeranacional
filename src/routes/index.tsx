@@ -44,8 +44,8 @@ function Home() {
               ganá tu zona y subí a Primera.
             </p>
             <div className="flex flex-wrap gap-3 mt-7">
-              <Link to="/torneo" className="px-6 py-3 rounded-xl bg-celeste text-primary-foreground font-display text-lg tracking-wider glow-celeste hover:scale-105 transition">
-                JUGAR TORNEO
+              <Link to="/carrera" className="px-6 py-3 rounded-xl bg-celeste text-primary-foreground font-display text-lg tracking-wider glow-celeste hover:scale-105 transition">
+                MODO CARRERA
               </Link>
               <Link to="/amistoso" className="px-6 py-3 rounded-xl bg-secondary border border-border font-display text-lg tracking-wider hover:bg-card transition">
                 AMISTOSO 1v1

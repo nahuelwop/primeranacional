@@ -243,6 +243,7 @@ export type Database = {
           city: string
           created_at: string
           defense: number
+          flag_urls: string[]
           founded_year: number | null
           full_name: string | null
           goal_audio_urls: string[]
@@ -273,6 +274,7 @@ export type Database = {
           city: string
           created_at?: string
           defense?: number
+          flag_urls?: string[]
           founded_year?: number | null
           full_name?: string | null
           goal_audio_urls?: string[]
@@ -303,6 +305,7 @@ export type Database = {
           city?: string
           created_at?: string
           defense?: number
+          flag_urls?: string[]
           founded_year?: number | null
           full_name?: string | null
           goal_audio_urls?: string[]
