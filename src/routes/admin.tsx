@@ -289,6 +289,23 @@ function TeamEditor({ initial, onClose, onSaved }: {
     finally { setBusy(false); }
   }
 
+  async function uploadFlags(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    setBusy(true); setErr(null);
+    try {
+      const urls: string[] = [];
+      for (const file of Array.from(files)) {
+        const ext = file.name.split(".").pop() || "png";
+        const path = `banderas/${form.id || "new"}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
+        const { error } = await supabase.storage.from("team-logos").upload(path, file, { upsert: true });
+        if (error) throw error;
+        urls.push(supabase.storage.from("team-logos").getPublicUrl(path).data.publicUrl);
+      }
+      setForm(f => ({ ...f, flag_urls: [...f.flag_urls, ...urls] }));
+    } catch (e) { setErr((e as Error).message); }
+    finally { setBusy(false); }
+  }
+
   async function uploadOne(file: File, sub: string): Promise<string> {
     const ext = file.name.split(".").pop() || "mp3";
     const path = `${form.id || "new"}/${sub}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
@@ -454,6 +471,25 @@ function TeamEditor({ initial, onClose, onSaved }: {
                   onChange={e => e.target.files?.[0] && uploadLogo(e.target.files[0])} />
               </label>
             </div>
+          </div>
+
+          <div className="sm:col-span-2 border-t border-border pt-3">
+            <label className="text-xs text-muted-foreground uppercase">Banderas de la hinchada (se muestran en "La previa" del Modo Carrera)</label>
+            <div className="flex flex-wrap gap-2 mt-2">
+              {form.flag_urls.length === 0 && <div className="text-xs text-muted-foreground">Sin banderas cargadas.</div>}
+              {form.flag_urls.map((url, i) => (
+                <div key={url + i} className="relative">
+                  <img src={url} alt="Bandera de hinchada" className="h-16 w-24 object-cover rounded border border-border" />
+                  <button onClick={() => setForm(f => ({ ...f, flag_urls: f.flag_urls.filter((_, j) => j !== i) }))}
+                    className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-destructive text-destructive-foreground text-xs leading-none">×</button>
+                </div>
+              ))}
+            </div>
+            <label className="text-xs text-celeste underline mt-2 inline-block cursor-pointer">
+              + subir banderas (podés seleccionar varias)
+              <input type="file" accept="image/*" hidden multiple
+                onChange={e => { uploadFlags(e.target.files); e.target.value = ""; }} />
+            </label>
           </div>
 
           <div>
