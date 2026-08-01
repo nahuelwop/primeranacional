@@ -19,6 +19,7 @@ export type DbTeam = {
   power: number;
   defense: number;
   logo_url: string | null;
+  flag_urls?: string[];
   rivals: string[];
   sort_order: number;
   goal_audio_urls?: string[];
@@ -50,6 +51,7 @@ function rowToTeam(row: DbTeam): Team {
     stats: { speed: row.speed, jump: row.jump, power: row.power, defense: row.defense },
     rivals: row.rivals ?? [],
     logoUrl: row.logo_url,
+    flagUrls: row.flag_urls ?? [],
     goalAudios: row.goal_audio_urls ?? [],
     hinchadas: row.hinchada_urls ?? [],
     narrators: (row.narrators as Narrator[] | undefined) ?? [],

@@ -260,6 +260,7 @@ function TeamEditor({ initial, onClose, onSaved }: {
     power: initial?.stats.power ?? 70,
     defense: initial?.stats.defense ?? 70,
     logo_url: initial?.logoUrl ?? "",
+    flag_urls: (initial?.flagUrls ?? []) as string[],
     goal_audio_urls: (initial?.goalAudios ?? []) as string[],
     hinchada_urls: (initial?.hinchadas ?? []) as string[],
     narrators: (initial?.narrators ?? []) as Narrator[],
@@ -374,6 +375,7 @@ function TeamEditor({ initial, onClose, onSaved }: {
         goal_audio_urls: payload.goal_audio_urls,
         hinchada_urls: payload.hinchada_urls,
         narrators: payload.narrators ?? [],
+        flag_urls: payload.flag_urls ?? [],
       };
       const withoutOld = TEAMS.filter(t => t.id !== form.id).map((t, i): DbTeam => ({
         id: t.id,
@@ -394,6 +396,7 @@ function TeamEditor({ initial, onClose, onSaved }: {
         goal_audio_urls: t.goalAudios ?? [],
         hinchada_urls: t.hinchadas ?? [],
         narrators: t.narrators ?? [],
+        flag_urls: t.flagUrls ?? [],
         full_name: t.fullName ?? null,
         founded_year: t.foundedYear ?? null,
         province: t.province ?? null,
