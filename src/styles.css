@@ -68,6 +68,7 @@
   --scorebug-ink: oklch(0.98 0.005 250);
   --scorebug-clock: oklch(0.72 0.16 230);
   --scorebug-score: oklch(0.88 0.21 116);
+  --hud-green: oklch(0.72 0.19 145);
 }
 
 .dark {
