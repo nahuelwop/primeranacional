@@ -39,14 +39,15 @@ export const Route = createFileRoute("/carrera")({
   component: CarreraPage,
 });
 
-type TopTab = "inicio" | "calendario" | "competicion" | "club" | "oficina";
+type TopTab = "inicio" | "calendario" | "competicion" | "club" | "oficina" | "personalizar";
 
-const TOP_TABS: { k: TopTab; label: string; icon: string }[] = [
-  { k: "inicio", label: "Inicio", icon: "🏠" },
-  { k: "calendario", label: "Calendario", icon: "🗓️" },
-  { k: "competicion", label: "Competición", icon: "🏆" },
-  { k: "club", label: "Club", icon: "🛡️" },
-  { k: "oficina", label: "Oficina", icon: "💼" },
+const TOP_TABS: { k: TopTab; label: string }[] = [
+  { k: "inicio", label: "Inicio" },
+  { k: "calendario", label: "Calendario" },
+  { k: "competicion", label: "Competición" },
+  { k: "club", label: "Club" },
+  { k: "oficina", label: "Oficina" },
+  { k: "personalizar", label: "Personalizar" },
 ];
 
 function CarreraPage() {
