@@ -270,42 +270,46 @@ function CarreraPage() {
   const round = currentRound(state);
   const rounds = totalRounds(state);
 
-  return (
-    <Shell>
-      {/* Barra superior del club */}
-      <div className="hud-panel-accent px-4 py-3 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 sm:flex sm:justify-between">
-        <div className="flex min-w-0 items-center gap-3">
-          {team && <div className="shrink-0"><Shield team={team} size={54} /></div>}
-          <div className="min-w-0">
-            <div className="font-display text-2xl truncate leading-none">{team?.name}</div>
-            <div className="text-[11px] text-muted-foreground uppercase tracking-wider mt-1">
-              Zona {state.zone} · Temporada {season} · Fecha {Math.min(round, rounds)}/{rounds} · {myPos}° puesto
-            </div>
-          </div>
-        </div>
-        <div className="flex items-center gap-4 shrink-0">
-          <div className="text-right">
-            <div className="text-[10px] uppercase text-muted-foreground tracking-wider">Presupuesto</div>
-            <div className="font-display text-2xl text-celeste leading-none">${budget}</div>
-          </div>
-          <div className="text-right hidden sm:block">
-            <div className="text-[10px] uppercase text-muted-foreground tracking-wider">Objetivo</div>
-            <div className="font-display text-sm leading-tight max-w-[150px]">{OBJETIVO_LABEL[state.objetivo ?? "ascenso_directo"]}</div>
-          </div>
-        </div>
-      </div>
+  const overall = Math.round(indicators.reduce((s, i) => s + i.value, 0) / Math.max(1, indicators.length));
 
-      {/* Tabs */}
-      <nav className="mt-3 flex gap-1 overflow-x-auto pb-1">
-        {TOP_TABS.map(t => (
-          <button key={t.k} onClick={() => setTab(t.k)}
-            className={`px-4 py-2 rounded-xl font-display text-sm tracking-widest whitespace-nowrap transition ${
-              tab === t.k ? "hud-tab-active" : "bg-card/50 border border-border text-muted-foreground hover:text-foreground"
-            }`}>
-            <span className="mr-1.5">{t.icon}</span>{t.label.toUpperCase()}
-          </button>
-        ))}
-      </nav>
+  return (
+    <Shell hideNav>
+      {/* Barra superior tipo consola */}
+      <header className="hud-in grid grid-cols-[auto_1fr_auto] items-center gap-4 border-b border-border/50 pb-0 mb-4">
+        <Link to="/" className="flex items-center gap-2.5 pb-3 min-w-0">
+          <span className="grid h-9 w-9 place-items-center rounded-lg border border-border bg-card font-display text-sm">PN</span>
+          <span className="hidden sm:block leading-none">
+            <span className="block font-display text-sm tracking-widest">PRIMERA</span>
+            <span className="block font-display text-sm tracking-widest text-muted-foreground">NACIONAL</span>
+          </span>
+        </Link>
+
+        <nav className="flex items-center justify-center gap-5 sm:gap-8 overflow-x-auto">
+          {TOP_TABS.map(t => (
+            <button key={t.k} onClick={() => setTab(t.k)} data-active={tab === t.k}
+              className="hud-navlink whitespace-nowrap text-sm">
+              {t.label}
+            </button>
+          ))}
+        </nav>
+
+        <div className="flex items-center gap-3 pb-3 shrink-0">
+          <div className="text-right hidden sm:block leading-tight">
+            <div className="font-display text-sm tracking-wide truncate max-w-[170px]">{team?.name?.toUpperCase()}</div>
+            <div className="text-[10px] text-muted-foreground uppercase tracking-wider">DT · Modo Carrera</div>
+          </div>
+          {team && <Shield team={team} size={38} />}
+          <span className="grid h-8 w-8 place-items-center rounded-full border border-hud-green/60 text-hud-green font-display text-sm">{overall}</span>
+        </div>
+      </header>
+
+      <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] uppercase tracking-wider text-muted-foreground">
+        <span>Zona {state.zone}</span>
+        <span>Temporada {season}</span>
+        <span>Fecha {Math.min(round, rounds)}/{rounds}</span>
+        <span>{myPos}° puesto</span>
+        <span className="text-hud-green">Objetivo: {OBJETIVO_LABEL[state.objetivo ?? "ascenso_directo"]}</span>
+      </div>
 
       {recentAch.length > 0 && (
         <div className="mt-3 rounded-xl bg-celeste/10 border border-celeste/40 p-3 animate-fade-in">
@@ -320,8 +324,9 @@ function CarreraPage() {
         {tab === "inicio" && (
           <InicioTab
             state={state} teamId={teamId} season={season} nextMatch={nextMatch}
-            indicators={indicators} standings={standings}
-            onPlay={() => setPlaying(true)} onAdvance={advanceSeason} onGo={setTab}
+            indicators={indicators} standings={standings} budget={budget}
+            onPlay={() => setPlaying(true)} onSimulate={onSimulateMatch}
+            onAdvance={advanceSeason} onGo={setTab}
           />
         )}
         {tab === "calendario" && <CalendarioTab state={state} teamId={teamId} />}
@@ -332,6 +337,7 @@ function CarreraPage() {
         {tab === "oficina" && (
           <OficinaTab state={state} budget={budget} onActivate={onActivateCorruption} onAbandon={abandon} />
         )}
+        {tab === "personalizar" && <PersonalizarTab teamId={teamId} />}
       </div>
     </Shell>
   );
