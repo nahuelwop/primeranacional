@@ -32,6 +32,7 @@
   --color-celeste: var(--celeste);
   --color-gold: var(--gold);
   --color-pitch: var(--pitch);
+  --color-hud-green: var(--hud-green);
   --font-display: var(--font-display);
   --font-body: var(--font-body);
 }
