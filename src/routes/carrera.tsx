@@ -817,11 +817,39 @@ function OficinaTab({ state, budget, onActivate, onAbandon }: {
 
 /* ============================ SHELL ============================ */
 
-function Shell({ children }: { children: React.ReactNode }) {
+function PersonalizarTab({ teamId }: { teamId: string }) {
+  const t = TEAMS_BY_ID[teamId];
+  if (!t) return null;
+  const kits = [
+    { name: "Titular", primary: t.primary, secondary: t.secondary ?? "#111" },
+    { name: "Alternativa", primary: t.secondary ?? "#111", secondary: t.primary },
+  ];
+  return (
+    <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+      {kits.map((k, i) => (
+        <div key={k.name} className="hud-rise hud-card p-5 text-center" style={{ animationDelay: `${i * 80}ms` }}>
+          <div className="text-[11px] uppercase tracking-[0.15em] text-muted-foreground mb-3">Camiseta {k.name}</div>
+          <div className="mx-auto h-28 w-24 rounded-lg border border-border"
+            style={{ background: `linear-gradient(90deg, ${k.primary} 0 33%, ${k.secondary} 33% 66%, ${k.primary} 66% 100%)` }} />
+          <div className="font-display text-lg mt-3">{t.short}</div>
+        </div>
+      ))}
+      <div className="hud-rise hud-card p-5" style={{ animationDelay: "160ms" }}>
+        <div className="text-[11px] uppercase tracking-[0.15em] text-muted-foreground mb-3">Escudo</div>
+        <div className="flex items-center gap-3"><Shield team={t} size={64} /><span className="font-display text-lg">{t.name}</span></div>
+        <Link to="/equipos/$id" params={{ id: teamId }} className="mt-4 inline-block text-sm text-hud-green">Ver ficha del club →</Link>
+      </div>
+    </div>
+  );
+}
+
+/* ============================ SHELL ============================ */
+
+function Shell({ children, hideNav }: { children: React.ReactNode; hideNav?: boolean }) {
   return (
     <div className="min-h-screen flex flex-col hud-shell">
-      <Nav />
-      <main className="flex-1 w-full max-w-6xl mx-auto px-3 sm:px-4 py-5">{children}</main>
+      {!hideNav && <Nav />}
+      <main className="flex-1 w-full max-w-[1400px] mx-auto px-3 sm:px-6 py-5">{children}</main>
     </div>
   );
 }
