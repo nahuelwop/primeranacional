@@ -13,7 +13,8 @@ import {
   buyUpgrade, activateCorruption, tickCorruption, currentCorruptionEffects, incomeMultiplier,
   OBJETIVO_LABEL, type Objetivo, clubIndicators, currentRound, totalRounds,
 } from "@/lib/career";
-import { sortStandings, type Match, type StandingRow } from "@/lib/tournament";
+import { sortStandings, simulateMatch, type Match, type StandingRow } from "@/lib/tournament";
+import stadiumBg from "@/assets/stadium-night.jpg";
 import { ACHIEVEMENTS } from "@/lib/achievements";
 import {
   fetchCareer, upsertCareer, deleteCareer,
