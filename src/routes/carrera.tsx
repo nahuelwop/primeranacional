@@ -13,7 +13,8 @@ import {
   buyUpgrade, activateCorruption, tickCorruption, currentCorruptionEffects, incomeMultiplier,
   OBJETIVO_LABEL, type Objetivo, clubIndicators, currentRound, totalRounds,
 } from "@/lib/career";
-import { sortStandings, type Match, type StandingRow } from "@/lib/tournament";
+import { sortStandings, simulateMatch, type Match, type StandingRow } from "@/lib/tournament";
+import stadiumBg from "@/assets/stadium-night.jpg";
 import { ACHIEVEMENTS } from "@/lib/achievements";
 import {
   fetchCareer, upsertCareer, deleteCareer,
@@ -38,14 +39,15 @@ export const Route = createFileRoute("/carrera")({
   component: CarreraPage,
 });
 
-type TopTab = "inicio" | "calendario" | "competicion" | "club" | "oficina";
+type TopTab = "inicio" | "calendario" | "competicion" | "club" | "oficina" | "personalizar";
 
-const TOP_TABS: { k: TopTab; label: string; icon: string }[] = [
-  { k: "inicio", label: "Inicio", icon: "🏠" },
-  { k: "calendario", label: "Calendario", icon: "🗓️" },
-  { k: "competicion", label: "Competición", icon: "🏆" },
-  { k: "club", label: "Club", icon: "🛡️" },
-  { k: "oficina", label: "Oficina", icon: "💼" },
+const TOP_TABS: { k: TopTab; label: string }[] = [
+  { k: "inicio", label: "Inicio" },
+  { k: "calendario", label: "Calendario" },
+  { k: "competicion", label: "Competición" },
+  { k: "club", label: "Club" },
+  { k: "oficina", label: "Oficina" },
+  { k: "personalizar", label: "Personalizar" },
 ];
 
 function CarreraPage() {
@@ -133,6 +135,12 @@ function CarreraPage() {
       if (champ === teamId) await tryUnlock(next.zone === "A" ? "campeon_zona_a" : "campeon_zona_b");
     }
     await persist(next, nextBudget, season);
+  }
+
+  async function onSimulateMatch() {
+    if (!state || !teamId || !nextMatch) return;
+    const { hg, ag } = simulateMatch(nextMatch.home, nextMatch.away);
+    await onMatchEnd(nextMatch.home === teamId ? hg : ag, nextMatch.home === teamId ? ag : hg, {} as MatchStats);
   }
 
   async function onBuyUpgrade(key: typeof STADIUM_UPGRADE_CATALOG[number]["key"]) {
@@ -262,42 +270,46 @@ function CarreraPage() {
   const round = currentRound(state);
   const rounds = totalRounds(state);
 
-  return (
-    <Shell>
-      {/* Barra superior del club */}
-      <div className="hud-panel-accent px-4 py-3 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 sm:flex sm:justify-between">
-        <div className="flex min-w-0 items-center gap-3">
-          {team && <div className="shrink-0"><Shield team={team} size={54} /></div>}
-          <div className="min-w-0">
-            <div className="font-display text-2xl truncate leading-none">{team?.name}</div>
-            <div className="text-[11px] text-muted-foreground uppercase tracking-wider mt-1">
-              Zona {state.zone} · Temporada {season} · Fecha {Math.min(round, rounds)}/{rounds} · {myPos}° puesto
-            </div>
-          </div>
-        </div>
-        <div className="flex items-center gap-4 shrink-0">
-          <div className="text-right">
-            <div className="text-[10px] uppercase text-muted-foreground tracking-wider">Presupuesto</div>
-            <div className="font-display text-2xl text-celeste leading-none">${budget}</div>
-          </div>
-          <div className="text-right hidden sm:block">
-            <div className="text-[10px] uppercase text-muted-foreground tracking-wider">Objetivo</div>
-            <div className="font-display text-sm leading-tight max-w-[150px]">{OBJETIVO_LABEL[state.objetivo ?? "ascenso_directo"]}</div>
-          </div>
-        </div>
-      </div>
+  const overall = Math.round(indicators.reduce((s, i) => s + i.value, 0) / Math.max(1, indicators.length));
 
-      {/* Tabs */}
-      <nav className="mt-3 flex gap-1 overflow-x-auto pb-1">
-        {TOP_TABS.map(t => (
-          <button key={t.k} onClick={() => setTab(t.k)}
-            className={`px-4 py-2 rounded-xl font-display text-sm tracking-widest whitespace-nowrap transition ${
-              tab === t.k ? "hud-tab-active" : "bg-card/50 border border-border text-muted-foreground hover:text-foreground"
-            }`}>
-            <span className="mr-1.5">{t.icon}</span>{t.label.toUpperCase()}
-          </button>
-        ))}
-      </nav>
+  return (
+    <Shell hideNav>
+      {/* Barra superior tipo consola */}
+      <header className="hud-in grid grid-cols-[auto_1fr_auto] items-center gap-4 border-b border-border/50 pb-0 mb-4">
+        <Link to="/" className="flex items-center gap-2.5 pb-3 min-w-0">
+          <span className="grid h-9 w-9 place-items-center rounded-lg border border-border bg-card font-display text-sm">PN</span>
+          <span className="hidden sm:block leading-none">
+            <span className="block font-display text-sm tracking-widest">PRIMERA</span>
+            <span className="block font-display text-sm tracking-widest text-muted-foreground">NACIONAL</span>
+          </span>
+        </Link>
+
+        <nav className="flex items-center justify-center gap-5 sm:gap-8 overflow-x-auto">
+          {TOP_TABS.map(t => (
+            <button key={t.k} onClick={() => setTab(t.k)} data-active={tab === t.k}
+              className="hud-navlink whitespace-nowrap text-sm">
+              {t.label}
+            </button>
+          ))}
+        </nav>
+
+        <div className="flex items-center gap-3 pb-3 shrink-0">
+          <div className="text-right hidden sm:block leading-tight">
+            <div className="font-display text-sm tracking-wide truncate max-w-[170px]">{team?.name?.toUpperCase()}</div>
+            <div className="text-[10px] text-muted-foreground uppercase tracking-wider">DT · Modo Carrera</div>
+          </div>
+          {team && <Shield team={team} size={38} />}
+          <span className="grid h-8 w-8 place-items-center rounded-full border border-hud-green/60 text-hud-green font-display text-sm">{overall}</span>
+        </div>
+      </header>
+
+      <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] uppercase tracking-wider text-muted-foreground">
+        <span>Zona {state.zone}</span>
+        <span>Temporada {season}</span>
+        <span>Fecha {Math.min(round, rounds)}/{rounds}</span>
+        <span>{myPos}° puesto</span>
+        <span className="text-hud-green">Objetivo: {OBJETIVO_LABEL[state.objetivo ?? "ascenso_directo"]}</span>
+      </div>
 
       {recentAch.length > 0 && (
         <div className="mt-3 rounded-xl bg-celeste/10 border border-celeste/40 p-3 animate-fade-in">
@@ -312,8 +324,9 @@ function CarreraPage() {
         {tab === "inicio" && (
           <InicioTab
             state={state} teamId={teamId} season={season} nextMatch={nextMatch}
-            indicators={indicators} standings={standings}
-            onPlay={() => setPlaying(true)} onAdvance={advanceSeason} onGo={setTab}
+            indicators={indicators} standings={standings} budget={budget}
+            onPlay={() => setPlaying(true)} onSimulate={onSimulateMatch}
+            onAdvance={advanceSeason} onGo={setTab}
           />
         )}
         {tab === "calendario" && <CalendarioTab state={state} teamId={teamId} />}
@@ -324,6 +337,7 @@ function CarreraPage() {
         {tab === "oficina" && (
           <OficinaTab state={state} budget={budget} onActivate={onActivateCorruption} onAbandon={abandon} />
         )}
+        {tab === "personalizar" && <PersonalizarTab teamId={teamId} />}
       </div>
     </Shell>
   );
@@ -331,138 +345,246 @@ function CarreraPage() {
 
 /* ============================ INICIO ============================ */
 
-function InicioTab({ state, teamId, season, nextMatch, indicators, standings, onPlay, onAdvance, onGo }: {
+function InicioTab({ state, teamId, season, nextMatch, indicators, standings, budget, onPlay, onSimulate, onAdvance, onGo }: {
   state: CareerState; teamId: string; season: number; nextMatch: Match | null;
-  indicators: ReturnType<typeof clubIndicators>; standings: StandingRow[];
-  onPlay: () => void; onAdvance: () => void; onGo: (t: TopTab) => void;
+  indicators: ReturnType<typeof clubIndicators>; standings: StandingRow[]; budget: number;
+  onPlay: () => void; onSimulate: () => void; onAdvance: () => void; onGo: (t: TopTab) => void;
 }) {
   const rival = nextMatch ? (nextMatch.home === teamId ? nextMatch.away : nextMatch.home) : null;
   const rivalTeam = rival ? TEAMS_BY_ID[rival] : undefined;
   const myTeam = TEAMS_BY_ID[teamId];
-  const flags = [...(myTeam?.flagUrls ?? []), ...(rivalTeam?.flagUrls ?? [])].slice(0, 6);
+  const isHome = nextMatch ? nextMatch.home === teamId : true;
+  const flags = [...(myTeam?.flagUrls ?? []), ...(rivalTeam?.flagUrls ?? [])];
+  const flag = flags[0];
   const lastResults = state.matches
     .filter(m => m.played && (m.home === teamId || m.away === teamId))
     .slice(-5).reverse();
+  const row = standings.find(r => r.teamId === teamId);
+  const pos = standings.findIndex(r => r.teamId === teamId) + 1;
+  const gf = row?.gf ?? 0, gc = row?.gc ?? 0;
+
+  const form = lastResults.map(m => {
+    const mine = m.home === teamId ? (m.homeGoals ?? 0) : (m.awayGoals ?? 0);
+    const opp = m.home === teamId ? (m.awayGoals ?? 0) : (m.homeGoals ?? 0);
+    return mine > opp ? "V" : mine === opp ? "E" : "D";
+  });
+
+  const side = [
+    { k: "calendario" as TopTab, icon: "🗓️", title: "Revisar calendario", sub: "Próximos partidos y eventos" },
+    { k: "competicion" as TopTab, icon: "📊", title: "Ver tabla", sub: "Posiciones y estadísticas" },
+    { k: "competicion" as TopTab, icon: "🛡️", title: "Próximos rivales", sub: "Analizar próximos partidos" },
+    { k: "club" as TopTab, icon: "👥", title: "Estado del club", sub: "Moral, economía y afición" },
+    { k: "oficina" as TopTab, icon: "🚩", title: "Objetivos", sub: "Metas de la temporada" },
+    { k: "calendario" as TopTab, icon: "📅", title: "Calendario completo", sub: "Ver todas las fechas" },
+    { k: "personalizar" as TopTab, icon: "📄", title: "Informes", sub: "Noticias y análisis" },
+  ];
+
+  const objetivos = [
+    { label: "Clasificar al Reducido", done: pos <= 8 },
+    { label: "Ganar 6 partidos de local", done: state.matches.filter(m => m.played && m.home === teamId && (m.homeGoals ?? 0) > (m.awayGoals ?? 0)).length >= 6 },
+    { label: "Mantener la valla invicta en 6 partidos", done: state.matches.filter(m => m.played && ((m.home === teamId && m.awayGoals === 0) || (m.away === teamId && m.homeGoals === 0))).length >= 6 },
+    { label: "Terminar entre los 4 primeros", done: pos > 0 && pos <= 4 },
+  ];
+
+  const estado = indicators.filter(i => ["moral", "hinchada", "economia"].includes(i.key));
 
   return (
-    <div className="grid lg:grid-cols-[200px_minmax(0,1fr)_300px] gap-3">
-      {/* Menú lateral simplificado */}
-      <aside className="hud-panel p-3 space-y-1.5 order-2 lg:order-1">
-        <div className="text-[10px] uppercase tracking-widest text-muted-foreground px-2 pb-1">Accesos</div>
-        {[
-          { k: "calendario" as TopTab, icon: "🗓️", label: "Calendario" },
-          { k: "competicion" as TopTab, icon: "🏆", label: "Tabla de zonas" },
-          { k: "club" as TopTab, icon: "🏟️", label: "Estadio y plantel" },
-          { k: "oficina" as TopTab, icon: "💼", label: "Oficina" },
-        ].map(i => (
-          <button key={i.k} onClick={() => onGo(i.k)}
-            className="w-full text-left px-3 py-2.5 rounded-lg bg-card/50 hover:bg-secondary border border-border/50 transition font-display text-sm tracking-wide">
-            <span className="mr-2">{i.icon}</span>{i.label}
+    <div className="grid lg:grid-cols-[250px_minmax(0,1fr)_340px] gap-3 items-start">
+      {/* Menú lateral */}
+      <aside className="space-y-2 order-2 lg:order-1 lg:row-span-2">
+        {side.map((i, idx) => (
+          <button key={i.title} onClick={() => onGo(i.k)}
+            style={{ animationDelay: `${idx * 45}ms` }}
+            className={`hud-rise w-full text-left px-4 py-3 flex items-center gap-3 hud-card ${idx === 0 ? "hud-card-active" : ""}`}>
+            <span className="text-xl shrink-0">{i.icon}</span>
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold truncate">{i.title}</span>
+              <span className="block text-[11px] text-muted-foreground truncate">{i.sub}</span>
+            </span>
           </button>
         ))}
-        <Link to="/equipos/$id" params={{ id: teamId }}
-          className="block px-3 py-2.5 rounded-lg bg-card/50 hover:bg-secondary border border-border/50 transition font-display text-sm tracking-wide">
-          <span className="mr-2">📋</span>Ficha del club
-        </Link>
-        <Link to="/logros"
-          className="block px-3 py-2.5 rounded-lg bg-card/50 hover:bg-secondary border border-border/50 transition font-display text-sm tracking-wide">
-          <span className="mr-2">🏅</span>Logros
-        </Link>
       </aside>
 
       {/* Panel central */}
-      <section className="space-y-3 order-1 lg:order-2">
-        <div className="hud-panel p-5">
-          {nextMatch ? (
-            <>
-              <div className="flex items-center justify-between">
-                <div className="text-[11px] uppercase tracking-widest text-celeste">Próximo partido</div>
-                <div className="text-[11px] uppercase tracking-widest text-muted-foreground">
-                  Fecha {nextMatch.round} · {nextMatch.home === teamId ? "Local" : "Visitante"}
-                  {nextMatch.isClasico && <span className="ml-2 text-accent">🔥 Clásico</span>}
+      <section className="order-1 lg:order-2 space-y-3">
+        <div className="hud-in relative overflow-hidden rounded-[0.9rem] border border-border/50">
+          <img src={stadiumBg} alt="Estadio de noche" width={1280} height={720}
+            className="absolute inset-0 h-full w-full object-cover opacity-60" />
+          <div className="absolute inset-0 bg-gradient-to-b from-background/85 via-background/45 to-background/90" />
+          <div className="relative p-5">
+            {nextMatch ? (
+              <>
+                <div className="text-[11px] uppercase tracking-[0.2em] text-hud-green font-semibold">Próximo partido</div>
+                <div className="text-center mt-3">
+                  <div className="font-display text-3xl tracking-wide">FECHA {nextMatch.round}</div>
+                  <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground mt-1">
+                    Primera Nacional · Zona {state.zone}
+                    {nextMatch.isClasico && <span className="ml-2 text-accent">🔥 Clásico</span>}
+                  </div>
                 </div>
-              </div>
-              <div className="mt-5 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-                <TeamBig team={TEAMS_BY_ID[nextMatch.home]} />
-                <div className="text-center">
-                  <div className="font-display text-4xl text-muted-foreground">VS</div>
-                  <div className="text-[10px] uppercase tracking-widest text-muted-foreground mt-1">Temporada {season}</div>
+                <div className="mt-5 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+                  <TeamBig team={TEAMS_BY_ID[nextMatch.home]} />
+                  <div className="font-display text-4xl">VS</div>
+                  <TeamBig team={TEAMS_BY_ID[nextMatch.away]} />
                 </div>
-                <TeamBig team={TEAMS_BY_ID[nextMatch.away]} />
-              </div>
-              <button onClick={onPlay}
-                className="mt-6 w-full py-4 rounded-xl bg-celeste text-primary-foreground font-display text-xl tracking-[0.3em] glow-celeste hover:scale-[1.01] transition">
-                JUGAR PARTIDO
-              </button>
-            </>
-          ) : (
-            <div className="text-center py-4">
-              <div className="text-[11px] uppercase tracking-widest text-celeste">Temporada terminada</div>
-              <div className="font-display text-3xl mt-2">
-                Campeón Zona {state.zone}: {TEAMS_BY_ID[seasonChampion(state) ?? ""]?.short ?? "—"}
-              </div>
-              <div className="text-sm text-muted-foreground mt-1">Terminaste {standings.findIndex(r => r.teamId === teamId) + 1}° en la tabla.</div>
-              <button onClick={onAdvance}
-                className="mt-5 px-8 py-3 rounded-xl bg-celeste text-primary-foreground font-display text-lg tracking-[0.2em]">
-                NUEVA TEMPORADA
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Indicadores del club */}
-        <div className="hud-panel p-4">
-          <div className="text-[11px] uppercase tracking-widest text-muted-foreground mb-3">Estado del club</div>
-          <div className="grid sm:grid-cols-2 gap-x-6 gap-y-3">
-            {indicators.map(ind => (
-              <div key={ind.key}>
-                <div className="flex items-center justify-between text-xs mb-1">
-                  <span className="font-display tracking-wide">{ind.icon} {ind.label}</span>
-                  <span className="text-muted-foreground tabular-nums">{ind.value}</span>
+                <div className="mt-5 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-foreground/90">
+                  <span>🗓️ Temporada {season}</span>
+                  <span>🕖 19:00 hs</span>
+                  <span className="truncate">🏟️ {(isHome ? myTeam : rivalTeam)?.city ?? "Estadio"}</span>
                 </div>
-                <div className="h-2 rounded-full bg-secondary overflow-hidden">
-                  <div className="h-full rounded-full bg-celeste transition-all" style={{ width: `${ind.value}%` }} />
+                <div className="mt-1 text-right text-[11px] text-muted-foreground">
+                  {isHome ? "🏠 LOCAL" : "✈️ VISITANTE"}
                 </div>
-                <div className="text-[10px] text-muted-foreground mt-0.5">{ind.hint}</div>
+                <div className="mt-4 grid sm:grid-cols-2 gap-3">
+                  <button onClick={onPlay}
+                    className="py-4 rounded-xl hud-btn-green font-display text-lg tracking-[0.2em]">
+                    ⚽ JUGAR PARTIDO
+                  </button>
+                  <button onClick={onSimulate}
+                    className="py-4 rounded-xl hud-btn-ghost font-display text-lg tracking-[0.2em]">
+                    SIMULAR
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="text-center py-6">
+                <div className="text-[11px] uppercase tracking-widest text-hud-green">Temporada terminada</div>
+                <div className="font-display text-3xl mt-2">
+                  Campeón Zona {state.zone}: {TEAMS_BY_ID[seasonChampion(state) ?? ""]?.short ?? "—"}
+                </div>
+                <div className="text-sm text-muted-foreground mt-1">Terminaste {pos}° en la tabla.</div>
+                <button onClick={onAdvance}
+                  className="mt-5 px-8 py-3 rounded-xl hud-btn-green font-display text-lg tracking-[0.2em]">
+                  NUEVA TEMPORADA
+                </button>
               </div>
-            ))}
+            )}
           </div>
         </div>
       </section>
 
       {/* La previa */}
-      <aside className="hud-panel p-4 order-3 space-y-3">
-        <div className="text-[11px] uppercase tracking-widest text-celeste">La previa</div>
-        {flags.length > 0 ? (
-          <div className="grid grid-cols-2 gap-2">
-            {flags.map((url, i) => (
-              <img key={url + i} src={url} alt="Bandera de la hinchada" loading="lazy"
-                className="h-20 w-full object-cover rounded-lg border border-border" />
+      <aside className="order-3 space-y-3">
+        <div className="hud-in hud-card relative overflow-hidden p-4">
+          {flag && (
+            <img src={flag} alt="Bandera de la hinchada" loading="lazy"
+              className="pointer-events-none absolute -right-6 top-0 h-full w-1/2 object-cover opacity-70 [mask-image:linear-gradient(to_left,black,transparent)]" />
+          )}
+          <div className="relative">
+            <div className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">La previa</div>
+            <div className="font-display text-3xl mt-1">FECHA {nextMatch?.round ?? "—"}</div>
+            <p className="text-sm text-foreground/85 mt-3 leading-relaxed max-w-[19ch]">
+              {rivalTeam
+                ? `${isHome ? myTeam?.name : rivalTeam.name} recibe a ${isHome ? rivalTeam.name : myTeam?.name}. Ambos buscan sumar de a tres para meterse en la pelea por los puestos de Reducido.`
+                : "Temporada finalizada. Preparate para el próximo desafío."}
+            </p>
+            <button onClick={() => onGo("competicion")}
+              className="mt-4 flex items-center gap-2 text-xs text-foreground/80 hover:text-hud-green transition">
+              <span className="grid h-6 w-6 place-items-center rounded-md bg-secondary">📰</span>
+              Ver informe completo <span className="ml-auto">›</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div className="hud-card p-4">
+            <div className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground">Posición en la tabla</div>
+            <div className="flex items-end gap-2 mt-2">
+              <div className="font-display text-4xl leading-none">{pos || "—"}°</div>
+              <div className="text-[11px] text-muted-foreground pb-1">{row?.pts ?? 0} PTS · {row?.pj ?? 0} PJ</div>
+            </div>
+            <div className="text-[11px] text-muted-foreground mt-2">{pos <= 8 ? "Zona de Reducido" : "Fuera del Reducido"}</div>
+          </div>
+          <div className="hud-card p-4">
+            <div className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground">Racha</div>
+            <div className="flex gap-1.5 mt-3">
+              {form.length === 0 && <span className="text-[11px] text-muted-foreground">Sin partidos</span>}
+              {form.map((f, i) => (
+                <span key={i} style={{ animationDelay: `${i * 60}ms` }}
+                  className={`hud-in grid h-6 w-6 place-items-center rounded-full text-[11px] font-display ${
+                    f === "V" ? "bg-hud-green text-background" : f === "E" ? "bg-muted text-foreground" : "bg-destructive text-destructive-foreground"
+                  }`}>{f}</span>
+              ))}
+            </div>
+            <div className="text-[11px] text-muted-foreground mt-3">Últimos 5 partidos</div>
+          </div>
+        </div>
+      </aside>
+
+      {/* Fila inferior */}
+      <div className="order-4 lg:col-span-2 lg:col-start-2 grid sm:grid-cols-2 xl:grid-cols-4 gap-3">
+        <div className="hud-rise hud-card p-4">
+          <div className="text-[11px] uppercase tracking-[0.15em] mb-3">Últimos resultados</div>
+          {lastResults.length === 0 && <div className="text-xs text-muted-foreground">Sin partidos jugados aún.</div>}
+          <div className="space-y-2">
+            {lastResults.map(m => {
+              const mine = m.home === teamId ? (m.homeGoals ?? 0) : (m.awayGoals ?? 0);
+              const opp = m.home === teamId ? (m.awayGoals ?? 0) : (m.homeGoals ?? 0);
+              const r = mine > opp ? "V" : mine === opp ? "E" : "D";
+              const other = TEAMS_BY_ID[m.home === teamId ? m.away : m.home];
+              return (
+                <div key={m.id} className="flex items-center gap-2 text-xs">
+                  <span className={`grid h-5 w-5 shrink-0 place-items-center rounded-full text-[10px] font-display ${
+                    r === "V" ? "bg-hud-green text-background" : r === "E" ? "bg-muted" : "bg-destructive text-destructive-foreground"
+                  }`}>{r}</span>
+                  <span className="font-display tabular-nums">{mine}-{opp}</span>
+                  <Shield team={other} size={18} />
+                  <span className="truncate text-muted-foreground">{other?.short}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="hud-rise hud-card p-4" style={{ animationDelay: "60ms" }}>
+          <div className="text-[11px] uppercase tracking-[0.15em] mb-3">Estadísticas del torneo</div>
+          <dl className="text-xs space-y-1.5">
+            {[
+              ["Partidos jugados", row?.pj ?? 0], ["Ganados", row?.pg ?? 0], ["Empatados", row?.pe ?? 0],
+              ["Perdidos", row?.pp ?? 0], ["Goles a favor", gf], ["Goles en contra", gc],
+              ["Diferencia de gol", (gf - gc > 0 ? "+" : "") + (gf - gc)],
+            ].map(([k, v]) => (
+              <div key={String(k)} className="flex justify-between border-b border-border/40 pb-1">
+                <dt className="text-muted-foreground">{k}</dt>
+                <dd className="tabular-nums">{v}</dd>
+              </div>
             ))}
-          </div>
-        ) : (
-          <div className="text-xs text-muted-foreground rounded-lg border border-dashed border-border p-3">
-            Todavía no hay banderas cargadas para estos clubes. El admin puede subirlas desde el panel de equipos.
-          </div>
-        )}
-        <div>
-          <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1.5">Últimos resultados</div>
-          <div className="space-y-1">
-            {lastResults.length === 0 && <div className="text-xs text-muted-foreground">Sin partidos jugados aún.</div>}
-            {lastResults.map(m => (
-              <div key={m.id} className="flex items-center justify-between text-xs bg-card/50 rounded-lg px-2 py-1.5 border border-border/50">
-                <span className="truncate">{TEAMS_BY_ID[m.home]?.short} vs {TEAMS_BY_ID[m.away]?.short}</span>
-                <span className="font-display tabular-nums">{m.homeGoals}-{m.awayGoals}</span>
+          </dl>
+        </div>
+
+        <div className="hud-rise hud-card p-4" style={{ animationDelay: "120ms" }}>
+          <div className="text-[11px] uppercase tracking-[0.15em] mb-3">Objetivos</div>
+          <div className="space-y-2.5 text-xs">
+            {objetivos.map(o => (
+              <div key={o.label} className="flex items-start gap-2">
+                <span className={`grid h-4 w-4 shrink-0 place-items-center rounded-full text-[9px] ${
+                  o.done ? "bg-hud-green text-background" : "border border-border"
+                }`}>{o.done ? "✓" : ""}</span>
+                <span className={o.done ? "" : "text-muted-foreground"}>{o.label}</span>
               </div>
             ))}
           </div>
         </div>
-        {rivalTeam && (
-          <div className="text-xs text-muted-foreground border-t border-border pt-2">
-            <span className="text-foreground font-display">{rivalTeam.name}</span> te espera en {rivalTeam.city}.
+
+        <div className="hud-rise hud-card p-4" style={{ animationDelay: "180ms" }}>
+          <div className="text-[11px] uppercase tracking-[0.15em] mb-3">Estado del club</div>
+          <div className="space-y-3">
+            {estado.map(ind => (
+              <div key={ind.key} className="flex items-center gap-2">
+                <span className="text-base shrink-0">{ind.icon}</span>
+                <span className="text-xs flex-1 min-w-0 truncate">{ind.label}</span>
+                <span className="flex gap-1 shrink-0">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <span key={i} style={{ animationDelay: `${i * 70}ms` }}
+                      className={`hud-bar-fill h-3 w-3 rounded-[3px] ${i < Math.round(ind.value / 20) ? "bg-hud-green" : "bg-secondary"}`} />
+                  ))}
+                </span>
+              </div>
+            ))}
           </div>
-        )}
-      </aside>
+          <div className="text-[11px] text-muted-foreground mt-3">Presupuesto: ${budget}</div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -695,11 +817,39 @@ function OficinaTab({ state, budget, onActivate, onAbandon }: {
 
 /* ============================ SHELL ============================ */
 
-function Shell({ children }: { children: React.ReactNode }) {
+function PersonalizarTab({ teamId }: { teamId: string }) {
+  const t = TEAMS_BY_ID[teamId];
+  if (!t) return null;
+  const kits = [
+    { name: "Titular", primary: t.primary, secondary: t.secondary ?? "#111" },
+    { name: "Alternativa", primary: t.secondary ?? "#111", secondary: t.primary },
+  ];
+  return (
+    <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+      {kits.map((k, i) => (
+        <div key={k.name} className="hud-rise hud-card p-5 text-center" style={{ animationDelay: `${i * 80}ms` }}>
+          <div className="text-[11px] uppercase tracking-[0.15em] text-muted-foreground mb-3">Camiseta {k.name}</div>
+          <div className="mx-auto h-28 w-24 rounded-lg border border-border"
+            style={{ background: `linear-gradient(90deg, ${k.primary} 0 33%, ${k.secondary} 33% 66%, ${k.primary} 66% 100%)` }} />
+          <div className="font-display text-lg mt-3">{t.short}</div>
+        </div>
+      ))}
+      <div className="hud-rise hud-card p-5" style={{ animationDelay: "160ms" }}>
+        <div className="text-[11px] uppercase tracking-[0.15em] text-muted-foreground mb-3">Escudo</div>
+        <div className="flex items-center gap-3"><Shield team={t} size={64} /><span className="font-display text-lg">{t.name}</span></div>
+        <Link to="/equipos/$id" params={{ id: teamId }} className="mt-4 inline-block text-sm text-hud-green">Ver ficha del club →</Link>
+      </div>
+    </div>
+  );
+}
+
+/* ============================ SHELL ============================ */
+
+function Shell({ children, hideNav }: { children: React.ReactNode; hideNav?: boolean }) {
   return (
     <div className="min-h-screen flex flex-col hud-shell">
-      <Nav />
-      <main className="flex-1 w-full max-w-6xl mx-auto px-3 sm:px-4 py-5">{children}</main>
+      {!hideNav && <Nav />}
+      <main className="flex-1 w-full max-w-[1400px] mx-auto px-3 sm:px-6 py-5">{children}</main>
     </div>
   );
 }

@@ -32,6 +32,7 @@
   --color-celeste: var(--celeste);
   --color-gold: var(--gold);
   --color-pitch: var(--pitch);
+  --color-hud-green: var(--hud-green);
   --font-display: var(--font-display);
   --font-body: var(--font-body);
 }
@@ -68,6 +69,7 @@
   --scorebug-ink: oklch(0.98 0.005 250);
   --scorebug-clock: oklch(0.72 0.16 230);
   --scorebug-score: oklch(0.88 0.21 116);
+  --hud-green: oklch(0.72 0.19 145);
 }
 
 .dark {
@@ -200,4 +202,65 @@
     .scorebug-half { font-size: 20px; }
     .score-color-bars { padding: 2px 0; gap: 2px; }
   }
+
+  /* ===== HUD Carrera (estilo consola) ===== */
+  .hud-card {
+    background: linear-gradient(160deg, oklch(0.22 0.03 220 / 0.9) 0%, oklch(0.17 0.025 230 / 0.92) 100%);
+    border: 1px solid oklch(0.42 0.03 220 / 0.4);
+    border-radius: 0.9rem;
+    transition: border-color .25s ease, transform .25s ease, box-shadow .25s ease;
+  }
+  .hud-card:hover {
+    border-color: var(--hud-green);
+    transform: translateY(-2px);
+    box-shadow: 0 14px 30px -18px oklch(0.72 0.19 145 / 0.7);
+  }
+  .hud-card-active {
+    background: linear-gradient(160deg, oklch(0.32 0.09 150 / 0.5) 0%, oklch(0.2 0.04 200 / 0.85) 100%);
+    border-color: oklch(0.72 0.19 145 / 0.7);
+  }
+  .hud-navlink {
+    position: relative;
+    padding-bottom: 0.55rem;
+    color: oklch(0.78 0.01 240);
+    transition: color .2s ease;
+  }
+  .hud-navlink:hover { color: oklch(0.98 0.005 250); }
+  .hud-navlink::after {
+    content: "";
+    position: absolute;
+    left: 0; right: 0; bottom: -1px;
+    height: 2px;
+    background: var(--hud-green);
+    transform: scaleX(0);
+    transform-origin: center;
+    transition: transform .3s cubic-bezier(.4,0,.2,1);
+  }
+  .hud-navlink:hover::after { transform: scaleX(0.5); }
+  .hud-navlink[data-active="true"] { color: oklch(0.99 0 0); }
+  .hud-navlink[data-active="true"]::after { transform: scaleX(1); }
+  .hud-btn-green {
+    background: linear-gradient(180deg, oklch(0.66 0.17 150) 0%, oklch(0.55 0.16 152) 100%);
+    color: oklch(0.99 0 0);
+    transition: transform .2s ease, box-shadow .2s ease, filter .2s ease;
+  }
+  .hud-btn-green:hover { filter: brightness(1.08); transform: translateY(-1px); box-shadow: 0 12px 26px -12px oklch(0.66 0.17 150 / 0.8); }
+  .hud-btn-ghost {
+    background: oklch(0.2 0.02 230 / 0.7);
+    border: 1px solid oklch(0.5 0.02 230 / 0.5);
+    transition: background .2s ease, border-color .2s ease, transform .2s ease;
+  }
+  .hud-btn-ghost:hover { background: oklch(0.28 0.03 230 / 0.9); border-color: var(--hud-green); transform: translateY(-1px); }
+  .hud-rise { animation: hud-rise .5s cubic-bezier(.2,.7,.3,1) both; }
+  @keyframes hud-rise {
+    from { opacity: 0; transform: translateY(14px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .hud-in { animation: hud-in .45s ease both; }
+  @keyframes hud-in {
+    from { opacity: 0; transform: scale(.97); }
+    to { opacity: 1; transform: scale(1); }
+  }
+  .hud-bar-fill { animation: hud-bar .8s cubic-bezier(.2,.7,.3,1) both; transform-origin: left; }
+  @keyframes hud-bar { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 }
