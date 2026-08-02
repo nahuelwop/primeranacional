@@ -137,6 +137,12 @@ function CarreraPage() {
     await persist(next, nextBudget, season);
   }
 
+  async function onSimulateMatch() {
+    if (!state || !teamId || !nextMatch) return;
+    const { hg, ag } = simulateMatch(nextMatch.home, nextMatch.away);
+    await onMatchEnd(nextMatch.home === teamId ? hg : ag, nextMatch.home === teamId ? ag : hg, {} as MatchStats);
+  }
+
   async function onBuyUpgrade(key: typeof STADIUM_UPGRADE_CATALOG[number]["key"]) {
     if (!state) return;
     const r = buyUpgrade(state, budget, key);
