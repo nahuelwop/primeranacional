@@ -104,7 +104,18 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
 
     const canvas = ref.current!;
     const ctx = canvas.getContext("2d")!;
-    const W = canvas.width, H = canvas.height;
+    // Espacio lógico de juego (todas las coordenadas de física/dibujo siguen usando estos valores)
+    const W = 1400, H = 520;
+    // Renderizar en la resolución real de pantalla (evita el borroneo en pantallas HiDPI/Retina,
+    // que pasaba porque el canvas se estiraba con CSS sin ajustar por devicePixelRatio)
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    const rect = canvas.getBoundingClientRect();
+    const displayW = rect.width || W;
+    const displayH = rect.height || H;
+    canvas.width = Math.round(displayW * dpr);
+    canvas.height = Math.round(displayH * dpr);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.scale((displayW / W) * dpr, (displayH / H) * dpr);
     const ground = H - 60;
     const goalW = 70, goalH = 150;
     const crossbarY = ground - goalH;
@@ -292,7 +303,7 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         confettiTimer--;
         for (let i = 0; i < 6; i++) {
           confetti.push({
-            x: Math.random() * (ref.current?.width ?? 1400),
+            x: Math.random() * W,
             y: -10,
             vx: (Math.random() - 0.5) * 2,
             vy: 1 + Math.random() * 2,
@@ -311,7 +322,7 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         c.x += c.vx + Math.sin(c.sway) * 0.8;
         c.y += c.vy;
         c.rot += c.vr;
-        if (c.y > (ref.current?.height ?? 520) + 20) confetti.splice(i, 1);
+        if (c.y > H + 20) confetti.splice(i, 1);
       }
 
 
@@ -699,6 +710,24 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
       ctx.fillStyle = "#0d1a36";
       ctx.fillRect(0, 122, W, 50);
 
+      // Pared perimetral del estadio (cierra el hueco vacío entre la tribuna y la cancha)
+      const wallTop = 172;
+      const wallBottom = ground - 22; // termina justo donde arranca la valla LED
+      const wallGrad = ctx.createLinearGradient(0, wallTop, 0, wallBottom);
+      wallGrad.addColorStop(0, "#0a1428");
+      wallGrad.addColorStop(1, "#152848");
+      ctx.fillStyle = wallGrad;
+      ctx.fillRect(0, wallTop, W, wallBottom - wallTop);
+
+      // Franja de "vidrios"/palcos a media altura de la pared, para que no quede lisa
+      ctx.fillStyle = "rgba(140,180,255,0.08)";
+      for (let x = 10; x < W; x += 46) {
+        ctx.fillRect(x, wallTop + 14, 28, wallBottom - wallTop - 28);
+      }
+      // Línea de sombra al ras del piso (contacto pared-cancha)
+      ctx.fillStyle = "rgba(0,0,0,0.35)";
+      ctx.fillRect(0, wallBottom - 10, W, 10);
+
       // Hinchada (puntitos por toda la tribuna)
       crowd.forEach(c => {
         const y = c.y + Math.sin(c.bob) * 1.5;
@@ -777,6 +806,24 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         ctx.fillStyle = (i / 50) % 2 === 0 ? "#3aa550" : "#2f8c43";
         ctx.fillRect(i, ground, 50, H - ground);
       }
+
+      // Reflector central sobre la cancha (le da protagonismo y contraste vs. el fondo oscuro)
+      const spot = ctx.createRadialGradient(W / 2, ground - 40, 40, W / 2, ground - 40, W * 0.55);
+      spot.addColorStop(0, "rgba(255,255,240,0.16)");
+      spot.addColorStop(1, "rgba(255,255,240,0)");
+      ctx.fillStyle = spot;
+      ctx.fillRect(0, 0, W, ground);
+
+      // Viñeta: oscurece un poco las esquinas para que el centro (donde se juega) resalte
+      const vig = ctx.createRadialGradient(W / 2, ground * 0.7, H * 0.25, W / 2, ground * 0.7, W * 0.65);
+      vig.addColorStop(0, "rgba(0,0,0,0)");
+      vig.addColorStop(1, "rgba(0,0,0,0.22)");
+      ctx.fillStyle = vig;
+      ctx.fillRect(0, 0, W, H);
+
+      // Sombra de contacto césped/pared para que no se vea "pegado" de golpe
+      ctx.fillStyle = "rgba(0,0,0,0.25)";
+      ctx.fillRect(0, ground, W, 6);
       // Líneas de cancha: mediocampo, círculo central, áreas
       ctx.strokeStyle = "rgba(255,255,255,0.7)";
       ctx.lineWidth = 2;
@@ -820,15 +867,36 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
       ctx.rotate(ball.spin);
       ctx.scale(1 + ball.squash, 1 - ball.squash * 0.65);
       ctx.beginPath(); ctx.arc(0, 0, ball.r, 0, Math.PI * 2);
-      ctx.fillStyle = "#fff"; ctx.fill();
-      ctx.lineWidth = 2; ctx.strokeStyle = "#1a1a1a"; ctx.stroke();
-      ctx.fillStyle = "#1a1a1a";
+      const ballGrad = ctx.createRadialGradient(-ball.r * 0.35, -ball.r * 0.35, 1, 0, 0, ball.r * 1.3);
+      ballGrad.addColorStop(0, "#ffffff");
+      ballGrad.addColorStop(0.55, "#f2f2f2");
+      ballGrad.addColorStop(1, "#c9c9c9");
+      ctx.fillStyle = ballGrad; ctx.fill();
+      ctx.lineWidth = 1.5; ctx.strokeStyle = "#2a2a2a"; ctx.stroke();
+      // Parches tipo pentágono en vez de puntos planos, dan sensación de pelota real
+      ctx.fillStyle = "#222";
       for (let i = 0; i < 5; i++) {
         const a = (i / 5) * Math.PI * 2;
+        const px = Math.cos(a) * ball.r * 0.52;
+        const py = Math.sin(a) * ball.r * 0.52;
+        ctx.save();
+        ctx.translate(px, py);
+        ctx.rotate(a + Math.PI / 2);
         ctx.beginPath();
-        ctx.arc(Math.cos(a) * 6, Math.sin(a) * 6, 2.5, 0, Math.PI * 2);
-        ctx.fill();
+        const pr = ball.r * 0.24;
+        for (let k = 0; k < 5; k++) {
+          const pa = (k / 5) * Math.PI * 2 - Math.PI / 2;
+          const vx = Math.cos(pa) * pr, vy = Math.sin(pa) * pr;
+          k === 0 ? ctx.moveTo(vx, vy) : ctx.lineTo(vx, vy);
+        }
+        ctx.closePath(); ctx.fill();
+        ctx.restore();
       }
+      // Brillo superior (da volumen esférico)
+      ctx.beginPath();
+      ctx.arc(-ball.r * 0.35, -ball.r * 0.4, ball.r * 0.28, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(255,255,255,0.55)";
+      ctx.fill();
       ctx.restore();
 
       particles.forEach(pt => {
