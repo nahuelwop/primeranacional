@@ -411,10 +411,13 @@ function InicioTab({ state, teamId, season, nextMatch, indicators, standings, bu
 
       {/* Panel central */}
       <section className="order-1 lg:order-2 space-y-3">
-        <div className="hud-in relative overflow-hidden rounded-[0.9rem] border border-border/50">
+        <div className="hud-in match-hero relative overflow-hidden rounded-[0.9rem] border border-border/50">
           <img src={stadiumBg} alt="Estadio de noche" width={1280} height={720}
-            className="absolute inset-0 h-full w-full object-cover opacity-60" />
+            className="match-hero-photo absolute inset-0 h-full w-full object-cover opacity-60" />
           <div className="absolute inset-0 bg-gradient-to-b from-background/85 via-background/45 to-background/90" />
+          <div className="match-hero-smoke" aria-hidden="true" />
+          <div className="match-hero-light" aria-hidden="true" />
+          <div className="match-hero-grass" aria-hidden="true" />
           <div className="relative p-5">
             {nextMatch ? (
               <>
