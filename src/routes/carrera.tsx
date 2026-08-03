@@ -303,7 +303,7 @@ function CarreraPage() {
             <div className="text-[10px] text-muted-foreground uppercase tracking-wider">DT · Modo Carrera</div>
           </div>
           {team && <Shield team={team} size={38} />}
-          <span className="grid h-8 w-8 place-items-center rounded-full border border-hud-green/60 text-hud-green font-display text-sm">{overall}</span>
+          <span className="grid h-8 w-8 place-items-center rounded-full border border-hud-green/60 text-hud-green font-display text-sm tabular-nums"><CountUp value={overall} /></span>
         </div>
       </header>
 
