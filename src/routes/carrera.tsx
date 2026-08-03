@@ -521,7 +521,7 @@ function InicioTab({ state, teamId, season, nextMatch, indicators, standings, bu
           <div className="text-[11px] uppercase tracking-[0.15em] mb-3">Últimos resultados</div>
           {lastResults.length === 0 && <div className="text-xs text-muted-foreground">Sin partidos jugados aún.</div>}
           <div className="space-y-2">
-            {lastResults.map(m => {
+            {lastResults.map((m, i) => {
               const mine = m.home === teamId ? (m.homeGoals ?? 0) : (m.awayGoals ?? 0);
               const opp = m.home === teamId ? (m.awayGoals ?? 0) : (m.homeGoals ?? 0);
               const r = mine > opp ? "V" : mine === opp ? "E" : "D";
