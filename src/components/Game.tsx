@@ -161,25 +161,42 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
 
     // ===== Recibimiento de clásico: bengalas + humo + banner, con el partido pausado =====
     const isClasico = crowdIntensity === "clasico";
-    let recibimientoTimer = isClasico ? 260 : 0; // ~4.3s @ 60fps
+    let recibimientoTimer = isClasico ? 320 : 0; // ~5.3s @ 60fps, más largo para que entre el caos
     if (isClasico) pauseClockRef.current = true;
     type Smoke = { x: number; y: number; vy: number; r: number; color: string; alpha: number };
     const smoke: Smoke[] = [];
+    type Spark = { x: number; y: number; vx: number; vy: number; color: string; life: number };
+    const sparks: Spark[] = [];
+    // Bengalas repartidas por TODA la tribuna (no solo 2 puntos), alternando colores de ambos equipos + blanco
+    const flareSources = Array.from({ length: 10 }, (_, i) => ({
+      x: (W / 11) * (i + 1),
+      color: i % 3 === 0 ? "#ffffff" : (i % 2 === 0 ? home.primary : away.primary),
+    }));
     const spawnSmoke = () => {
-      // Columnas de humo de bengalas en ambas tribunas laterales, con el color de cada equipo
-      [{ x: W * 0.12, color: home.primary }, { x: W * 0.88, color: away.primary }].forEach(src => {
-        for (let i = 0; i < 3; i++) {
+      flareSources.forEach(src => {
+        for (let i = 0; i < 4; i++) {
           smoke.push({
-            x: src.x + (Math.random() - 0.5) * 60,
-            y: 170 + Math.random() * 20,
-            vy: -0.6 - Math.random() * 0.5,
-            r: 18 + Math.random() * 14,
+            x: src.x + (Math.random() - 0.5) * 50,
+            y: 165 + Math.random() * 25,
+            vy: -0.7 - Math.random() * 0.7,
+            r: 16 + Math.random() * 16,
             color: src.color,
-            alpha: 0.5,
+            alpha: 0.55,
+          });
+        }
+        // Chispas saliendo de cada bengala
+        for (let i = 0; i < 3; i++) {
+          sparks.push({
+            x: src.x, y: 175,
+            vx: (Math.random() - 0.5) * 3,
+            vy: -Math.random() * 2 - 1,
+            color: src.color,
+            life: 30 + Math.random() * 20,
           });
         }
       });
     };
+
 
     // Relato: 1 cada 2 goles totales. Si llega otro, corta el anterior.
     let totalGoals = 0;
@@ -321,18 +338,31 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
       }
 
       // === Recibimiento de clásico: bengalas + humo, partido congelado ===
+      let shakeX = 0, shakeY = 0;
       if (recibimientoTimer > 0) {
         recibimientoTimer--;
-        if (recibimientoTimer % 12 === 0) spawnSmoke();
+        if (recibimientoTimer % 7 === 0) spawnSmoke();
         for (let i = smoke.length - 1; i >= 0; i--) {
           const s = smoke[i];
-          s.y += s.vy; s.r += 0.15; s.alpha -= 0.0035;
+          s.y += s.vy; s.r += 0.15; s.alpha -= 0.003;
           if (s.alpha <= 0) smoke.splice(i, 1);
         }
+        for (let i = sparks.length - 1; i >= 0; i--) {
+          const sp = sparks[i];
+          sp.vy += 0.05; sp.x += sp.vx; sp.y += sp.vy; sp.life--;
+          if (sp.life <= 0) sparks.splice(i, 1);
+        }
+        // Temblor de cámara: fuerte al principio, se calma hacia el final
+        const shakeIntensity = recibimientoTimer > 260 ? 5 : recibimientoTimer > 60 ? 2 : 0;
+        shakeX = (Math.random() - 0.5) * shakeIntensity;
+        shakeY = (Math.random() - 0.5) * shakeIntensity;
         if (recibimientoTimer === 0) {
           pauseClockRef.current = false;
         } else {
+          ctx.save();
+          ctx.translate(shakeX, shakeY);
           draw();
+          ctx.restore();
           return; // no avanza física ni IA mientras dura el recibimiento
         }
       }
@@ -999,6 +1029,14 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         g.addColorStop(1, "rgba(0,0,0,0)");
         ctx.fillStyle = g;
         ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2); ctx.fill();
+      });
+      ctx.globalAlpha = 1;
+
+      // Chispas de las bengalas
+      sparks.forEach(sp => {
+        ctx.globalAlpha = Math.max(0, sp.life / 50);
+        ctx.fillStyle = sp.color;
+        ctx.beginPath(); ctx.arc(sp.x, sp.y, 2, 0, Math.PI * 2); ctx.fill();
       });
       ctx.globalAlpha = 1;
 
