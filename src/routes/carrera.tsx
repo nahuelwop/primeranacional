@@ -24,6 +24,9 @@ import { SeasonIntro } from "@/components/SeasonIntro";
 import { DifficultyPicker } from "@/components/DifficultyPicker";
 import { useGameSettings } from "@/lib/game-settings";
 import { DIFFICULTY_INFO, toGameAi } from "@/lib/difficulty";
+import { AmbientStadium } from "@/components/career/AmbientStadium";
+import { useUiSfx } from "@/lib/ui-sound";
+import { CountUp } from "@/lib/use-count-up";
 
 export const Route = createFileRoute("/carrera")({
   head: () => ({
