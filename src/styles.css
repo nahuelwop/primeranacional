@@ -484,6 +484,70 @@
     animation: hud-bar 1s cubic-bezier(.2,.7,.3,1) both;
   }
 
+  /* ===== AAA: panel Próximo Partido ===== */
+  .match-hero {
+    box-shadow: 0 30px 70px -30px oklch(0 0 0 / 0.95), inset 0 1px 0 oklch(1 0 0 / 0.08);
+  }
+  .match-hero-photo {
+    transform: scale(1.06);
+    animation: hero-pan 40s ease-in-out infinite alternate;
+    will-change: transform;
+  }
+  @keyframes hero-pan {
+    from { transform: scale(1.06) translate3d(-1.5%, 0, 0); }
+    to { transform: scale(1.12) translate3d(1.5%, -1%, 0); }
+  }
+  .match-hero-smoke {
+    position: absolute;
+    inset: -30% -10% 20%;
+    background: radial-gradient(40% 50% at 30% 60%, oklch(0.85 0.03 220 / 0.13), transparent 70%),
+                radial-gradient(45% 40% at 72% 45%, oklch(0.9 0.04 150 / 0.1), transparent 72%);
+    animation: hero-smoke 28s ease-in-out infinite alternate;
+    pointer-events: none;
+    will-change: transform;
+  }
+  @keyframes hero-smoke {
+    from { transform: translate3d(-4%, 2%, 0) scale(1); opacity: .75; }
+    to { transform: translate3d(5%, -3%, 0) scale(1.15); opacity: 1; }
+  }
+  .match-hero-light {
+    position: absolute;
+    inset: -60% 0 auto 0;
+    height: 200%;
+    background: conic-gradient(from 200deg at 50% 0%, transparent 0deg, oklch(0.95 0.05 200 / 0.12) 24deg, transparent 48deg);
+    filter: blur(14px);
+    transform-origin: top center;
+    animation: hero-light 18s ease-in-out infinite alternate;
+    pointer-events: none;
+  }
+  @keyframes hero-light {
+    from { transform: rotate(-9deg); opacity: .5; }
+    to { transform: rotate(9deg); opacity: 1; }
+  }
+  .match-hero-grass {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 34%;
+    background: linear-gradient(to top, oklch(0.42 0.11 145 / 0.32), transparent 85%);
+    animation: hero-grass 9s ease-in-out infinite alternate;
+    pointer-events: none;
+  }
+  @keyframes hero-grass {
+    from { transform: translate3d(0, 2px, 0); opacity: .85; }
+    to { transform: translate3d(0, -3px, 0); opacity: 1; }
+  }
+  .shield-lit {
+    display: inline-grid;
+    place-items: center;
+    filter: drop-shadow(0 10px 18px oklch(0 0 0 / 0.6));
+    animation: shield-lit 6s ease-in-out infinite alternate;
+    will-change: filter;
+  }
+  @keyframes shield-lit {
+    from { filter: drop-shadow(0 10px 18px oklch(0 0 0 / 0.6)) brightness(0.95); }
+    to { filter: drop-shadow(0 14px 24px oklch(0 0 0 / 0.7)) brightness(1.12) saturate(1.1); }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .ambient-photo, .ambient-fog, .ambient-beam, .ambient-dust span,
     .hud-btn-play, .hud-btn-play::before { animation: none !important; }
