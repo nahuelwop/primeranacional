@@ -850,9 +850,12 @@ function PersonalizarTab({ teamId }: { teamId: string }) {
 
 function Shell({ children, hideNav }: { children: React.ReactNode; hideNav?: boolean }) {
   return (
-    <div className="min-h-screen flex flex-col hud-shell">
-      {!hideNav && <Nav />}
-      <main className="flex-1 w-full max-w-[1400px] mx-auto px-3 sm:px-6 py-5">{children}</main>
+    <div className="relative min-h-screen flex flex-col hud-shell" data-sfx-root>
+      <AmbientStadium />
+      <div className="relative z-10 flex flex-1 flex-col">
+        {!hideNav && <Nav />}
+        <main className="flex-1 w-full max-w-[1400px] mx-auto px-3 sm:px-6 py-5 hud-boot">{children}</main>
+      </div>
     </div>
   );
 }
