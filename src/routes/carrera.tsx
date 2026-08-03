@@ -323,7 +323,7 @@ function CarreraPage() {
         </div>
       )}
 
-      <div className="mt-3">
+      <div key={tab} className="mt-3 hud-tab-enter">
         {tab === "inicio" && (
           <InicioTab
             state={state} teamId={teamId} season={season} nextMatch={nextMatch}
