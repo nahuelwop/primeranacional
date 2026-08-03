@@ -494,7 +494,7 @@ function InicioTab({ state, teamId, season, nextMatch, indicators, standings, bu
           <div className="hud-card p-4">
             <div className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground">Posición en la tabla</div>
             <div className="flex items-end gap-2 mt-2">
-              <div className="font-display text-4xl leading-none">{pos || "—"}°</div>
+              <div key={pos} className="goal-pop font-display text-4xl leading-none tabular-nums">{pos || "—"}°</div>
               <div className="text-[11px] text-muted-foreground pb-1">{row?.pts ?? 0} PTS · {row?.pj ?? 0} PJ</div>
             </div>
             <div className="text-[11px] text-muted-foreground mt-2">{pos <= 8 ? "Zona de Reducido" : "Fuera del Reducido"}</div>
