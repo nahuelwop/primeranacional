@@ -601,7 +601,7 @@ function TeamBig({ team }: { team?: Team }) {
   if (!team) return <div />;
   return (
     <div className="flex flex-col items-center gap-2 min-w-0">
-      <Shield team={team} size={72} />
+      <span className="shield-lit"><Shield team={team} size={72} /></span>
       <div className="font-display text-lg text-center truncate w-full">{team.short}</div>
     </div>
   );
