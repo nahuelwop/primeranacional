@@ -440,8 +440,8 @@ function InicioTab({ state, teamId, season, nextMatch, indicators, standings, bu
                   {isHome ? "🏠 LOCAL" : "✈️ VISITANTE"}
                 </div>
                 <div className="mt-4 grid sm:grid-cols-2 gap-3">
-                  <button onClick={onPlay}
-                    className="py-4 rounded-xl hud-btn-green font-display text-lg tracking-[0.2em]">
+                  <button onClick={onPlay} data-sfx="accept"
+                    className="py-4 rounded-xl hud-btn-play font-display text-lg tracking-[0.2em]">
                     ⚽ JUGAR PARTIDO
                   </button>
                   <button onClick={onSimulate}
