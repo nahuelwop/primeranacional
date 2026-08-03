@@ -527,7 +527,8 @@ function InicioTab({ state, teamId, season, nextMatch, indicators, standings, bu
               const r = mine > opp ? "V" : mine === opp ? "E" : "D";
               const other = TEAMS_BY_ID[m.home === teamId ? m.away : m.home];
               return (
-                <div key={m.id} className="flex items-center gap-2 text-xs">
+                <div key={m.id} style={{ animationDelay: `${i * 70}ms` }}
+                  className="row-drop flex items-center gap-2 text-xs">
                   <span className={`grid h-5 w-5 shrink-0 place-items-center rounded-full text-[10px] font-display ${
                     r === "V" ? "bg-hud-green text-background" : r === "E" ? "bg-muted" : "bg-destructive text-destructive-foreground"
                   }`}>{r}</span>
