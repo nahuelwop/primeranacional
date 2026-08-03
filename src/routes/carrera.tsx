@@ -24,6 +24,9 @@ import { SeasonIntro } from "@/components/SeasonIntro";
 import { DifficultyPicker } from "@/components/DifficultyPicker";
 import { useGameSettings } from "@/lib/game-settings";
 import { DIFFICULTY_INFO, toGameAi } from "@/lib/difficulty";
+import { AmbientStadium } from "@/components/career/AmbientStadium";
+import { useUiSfx } from "@/lib/ui-sound";
+import { CountUp } from "@/lib/use-count-up";
 
 export const Route = createFileRoute("/carrera")({
   head: () => ({
@@ -63,6 +66,7 @@ function CarreraPage() {
   const [playing, setPlaying] = useState(false);
   const [recentAch, setRecentAch] = useState<string[]>([]);
   const [tab, setTab] = useState<TopTab>("inicio");
+  useUiSfx();
 
   useEffect(() => {
     if (loading) return;
@@ -299,7 +303,7 @@ function CarreraPage() {
             <div className="text-[10px] text-muted-foreground uppercase tracking-wider">DT · Modo Carrera</div>
           </div>
           {team && <Shield team={team} size={38} />}
-          <span className="grid h-8 w-8 place-items-center rounded-full border border-hud-green/60 text-hud-green font-display text-sm">{overall}</span>
+          <span className="grid h-8 w-8 place-items-center rounded-full border border-hud-green/60 text-hud-green font-display text-sm tabular-nums"><CountUp value={overall} /></span>
         </div>
       </header>
 
@@ -320,7 +324,7 @@ function CarreraPage() {
         </div>
       )}
 
-      <div className="mt-3">
+      <div key={tab} className="mt-3 hud-tab-enter">
         {tab === "inicio" && (
           <InicioTab
             state={state} teamId={teamId} season={season} nextMatch={nextMatch}
@@ -407,10 +411,13 @@ function InicioTab({ state, teamId, season, nextMatch, indicators, standings, bu
 
       {/* Panel central */}
       <section className="order-1 lg:order-2 space-y-3">
-        <div className="hud-in relative overflow-hidden rounded-[0.9rem] border border-border/50">
+        <div className="hud-in match-hero relative overflow-hidden rounded-[0.9rem] border border-border/50">
           <img src={stadiumBg} alt="Estadio de noche" width={1280} height={720}
-            className="absolute inset-0 h-full w-full object-cover opacity-60" />
+            className="match-hero-photo absolute inset-0 h-full w-full object-cover opacity-60" />
           <div className="absolute inset-0 bg-gradient-to-b from-background/85 via-background/45 to-background/90" />
+          <div className="match-hero-smoke" aria-hidden="true" />
+          <div className="match-hero-light" aria-hidden="true" />
+          <div className="match-hero-grass" aria-hidden="true" />
           <div className="relative p-5">
             {nextMatch ? (
               <>
@@ -436,8 +443,8 @@ function InicioTab({ state, teamId, season, nextMatch, indicators, standings, bu
                   {isHome ? "🏠 LOCAL" : "✈️ VISITANTE"}
                 </div>
                 <div className="mt-4 grid sm:grid-cols-2 gap-3">
-                  <button onClick={onPlay}
-                    className="py-4 rounded-xl hud-btn-green font-display text-lg tracking-[0.2em]">
+                  <button onClick={onPlay} data-sfx="accept"
+                    className="py-4 rounded-xl hud-btn-play font-display text-lg tracking-[0.2em]">
                     ⚽ JUGAR PARTIDO
                   </button>
                   <button onClick={onSimulate}
@@ -490,7 +497,7 @@ function InicioTab({ state, teamId, season, nextMatch, indicators, standings, bu
           <div className="hud-card p-4">
             <div className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground">Posición en la tabla</div>
             <div className="flex items-end gap-2 mt-2">
-              <div className="font-display text-4xl leading-none">{pos || "—"}°</div>
+              <div key={pos} className="goal-pop font-display text-4xl leading-none tabular-nums">{pos || "—"}°</div>
               <div className="text-[11px] text-muted-foreground pb-1">{row?.pts ?? 0} PTS · {row?.pj ?? 0} PJ</div>
             </div>
             <div className="text-[11px] text-muted-foreground mt-2">{pos <= 8 ? "Zona de Reducido" : "Fuera del Reducido"}</div>
@@ -517,13 +524,14 @@ function InicioTab({ state, teamId, season, nextMatch, indicators, standings, bu
           <div className="text-[11px] uppercase tracking-[0.15em] mb-3">Últimos resultados</div>
           {lastResults.length === 0 && <div className="text-xs text-muted-foreground">Sin partidos jugados aún.</div>}
           <div className="space-y-2">
-            {lastResults.map(m => {
+            {lastResults.map((m, i) => {
               const mine = m.home === teamId ? (m.homeGoals ?? 0) : (m.awayGoals ?? 0);
               const opp = m.home === teamId ? (m.awayGoals ?? 0) : (m.homeGoals ?? 0);
               const r = mine > opp ? "V" : mine === opp ? "E" : "D";
               const other = TEAMS_BY_ID[m.home === teamId ? m.away : m.home];
               return (
-                <div key={m.id} className="flex items-center gap-2 text-xs">
+                <div key={m.id} style={{ animationDelay: `${i * 70}ms` }}
+                  className="row-drop flex items-center gap-2 text-xs">
                   <span className={`grid h-5 w-5 shrink-0 place-items-center rounded-full text-[10px] font-display ${
                     r === "V" ? "bg-hud-green text-background" : r === "E" ? "bg-muted" : "bg-destructive text-destructive-foreground"
                   }`}>{r}</span>
@@ -555,11 +563,12 @@ function InicioTab({ state, teamId, season, nextMatch, indicators, standings, bu
         <div className="hud-rise hud-card p-4" style={{ animationDelay: "120ms" }}>
           <div className="text-[11px] uppercase tracking-[0.15em] mb-3">Objetivos</div>
           <div className="space-y-2.5 text-xs">
-            {objetivos.map(o => (
+            {objetivos.map((o, i) => (
               <div key={o.label} className="flex items-start gap-2">
-                <span className={`grid h-4 w-4 shrink-0 place-items-center rounded-full text-[9px] ${
-                  o.done ? "bg-hud-green text-background" : "border border-border"
-                }`}>{o.done ? "✓" : ""}</span>
+                <span style={{ animationDelay: `${i * 90}ms` }}
+                  className={`relative grid h-4 w-4 shrink-0 place-items-center rounded-full text-[9px] ${
+                    o.done ? "bg-hud-green text-background goal-pop goal-flash" : "border border-border"
+                  }`}>{o.done ? "✓" : ""}</span>
                 <span className={o.done ? "" : "text-muted-foreground"}>{o.label}</span>
               </div>
             ))}
@@ -569,20 +578,19 @@ function InicioTab({ state, teamId, season, nextMatch, indicators, standings, bu
         <div className="hud-rise hud-card p-4" style={{ animationDelay: "180ms" }}>
           <div className="text-[11px] uppercase tracking-[0.15em] mb-3">Estado del club</div>
           <div className="space-y-3">
-            {estado.map(ind => (
+            {estado.map((ind, i) => (
               <div key={ind.key} className="flex items-center gap-2">
                 <span className="text-base shrink-0">{ind.icon}</span>
                 <span className="text-xs flex-1 min-w-0 truncate">{ind.label}</span>
-                <span className="flex gap-1 shrink-0">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <span key={i} style={{ animationDelay: `${i * 70}ms` }}
-                      className={`hud-bar-fill h-3 w-3 rounded-[3px] ${i < Math.round(ind.value / 20) ? "bg-hud-green" : "bg-secondary"}`} />
-                  ))}
+                <span className="stat-bar w-24 shrink-0">
+                  <i style={{ transform: `scaleX(${Math.max(0.03, ind.value / 100)})`, animationDelay: `${i * 120}ms` }} />
                 </span>
               </div>
             ))}
           </div>
-          <div className="text-[11px] text-muted-foreground mt-3">Presupuesto: ${budget}</div>
+          <div className="text-[11px] text-muted-foreground mt-3 tabular-nums">
+            Presupuesto: $<CountUp value={budget} />
+          </div>
         </div>
       </div>
     </div>
@@ -593,7 +601,7 @@ function TeamBig({ team }: { team?: Team }) {
   if (!team) return <div />;
   return (
     <div className="flex flex-col items-center gap-2 min-w-0">
-      <Shield team={team} size={72} />
+      <span className="shield-lit"><Shield team={team} size={72} /></span>
       <div className="font-display text-lg text-center truncate w-full">{team.short}</div>
     </div>
   );
@@ -847,9 +855,12 @@ function PersonalizarTab({ teamId }: { teamId: string }) {
 
 function Shell({ children, hideNav }: { children: React.ReactNode; hideNav?: boolean }) {
   return (
-    <div className="min-h-screen flex flex-col hud-shell">
-      {!hideNav && <Nav />}
-      <main className="flex-1 w-full max-w-[1400px] mx-auto px-3 sm:px-6 py-5">{children}</main>
+    <div className="relative min-h-screen flex flex-col hud-shell" data-sfx-root>
+      <AmbientStadium />
+      <div className="relative z-10 flex flex-1 flex-col">
+        {!hideNav && <Nav />}
+        <main className="flex-1 w-full max-w-[1400px] mx-auto px-3 sm:px-6 py-5 hud-boot">{children}</main>
+      </div>
     </div>
   );
 }
