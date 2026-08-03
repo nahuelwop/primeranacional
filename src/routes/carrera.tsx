@@ -66,6 +66,7 @@ function CarreraPage() {
   const [playing, setPlaying] = useState(false);
   const [recentAch, setRecentAch] = useState<string[]>([]);
   const [tab, setTab] = useState<TopTab>("inicio");
+  useUiSfx();
 
   useEffect(() => {
     if (loading) return;
