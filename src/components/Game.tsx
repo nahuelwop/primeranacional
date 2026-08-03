@@ -159,6 +159,28 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
     const confettiColors = [home.primary, home.secondary, away.primary, away.secondary, "#ffffff", "#ffe066"];
     let confettiTimer = 180; // 3s @ 60fps
 
+    // ===== Recibimiento de clásico: bengalas + humo + banner, con el partido pausado =====
+    const isClasico = crowdIntensity === "clasico";
+    let recibimientoTimer = isClasico ? 260 : 0; // ~4.3s @ 60fps
+    if (isClasico) pauseClockRef.current = true;
+    type Smoke = { x: number; y: number; vy: number; r: number; color: string; alpha: number };
+    const smoke: Smoke[] = [];
+    const spawnSmoke = () => {
+      // Columnas de humo de bengalas en ambas tribunas laterales, con el color de cada equipo
+      [{ x: W * 0.12, color: home.primary }, { x: W * 0.88, color: away.primary }].forEach(src => {
+        for (let i = 0; i < 3; i++) {
+          smoke.push({
+            x: src.x + (Math.random() - 0.5) * 60,
+            y: 170 + Math.random() * 20,
+            vy: -0.6 - Math.random() * 0.5,
+            r: 18 + Math.random() * 14,
+            color: src.color,
+            alpha: 0.5,
+          });
+        }
+      });
+    };
+
     // Relato: 1 cada 2 goles totales. Si llega otro, corta el anterior.
     let totalGoals = 0;
     const pickAudio = (urls?: string[]) => {
@@ -296,6 +318,23 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
           resetBall(pendingResetDir);
         }
         return;
+      }
+
+      // === Recibimiento de clásico: bengalas + humo, partido congelado ===
+      if (recibimientoTimer > 0) {
+        recibimientoTimer--;
+        if (recibimientoTimer % 12 === 0) spawnSmoke();
+        for (let i = smoke.length - 1; i >= 0; i--) {
+          const s = smoke[i];
+          s.y += s.vy; s.r += 0.15; s.alpha -= 0.0035;
+          if (s.alpha <= 0) smoke.splice(i, 1);
+        }
+        if (recibimientoTimer === 0) {
+          pauseClockRef.current = false;
+        } else {
+          draw();
+          return; // no avanza física ni IA mientras dura el recibimiento
+        }
       }
 
       // === Papelitos al inicio ===
@@ -951,6 +990,38 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         ctx.fillRect(-c.w / 2, -c.h / 2, c.w, c.h);
         ctx.restore();
       });
+
+      // Humo de bengalas (recibimiento de clásico)
+      smoke.forEach(s => {
+        ctx.globalAlpha = Math.max(0, s.alpha);
+        const g = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, s.r);
+        g.addColorStop(0, s.color);
+        g.addColorStop(1, "rgba(0,0,0,0)");
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2); ctx.fill();
+      });
+      ctx.globalAlpha = 1;
+
+      // Banner "¡BIENVENIDOS AL CLÁSICO!" durante el recibimiento
+      if (recibimientoTimer > 0) {
+        ctx.fillStyle = "rgba(0,0,0,0.3)";
+        ctx.fillRect(0, 0, W, H);
+        const bannerAlpha = recibimientoTimer > 40 ? 1 : recibimientoTimer / 40;
+        ctx.globalAlpha = bannerAlpha;
+        ctx.textAlign = "center";
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold 42px system-ui";
+        ctx.fillText("¡BIENVENIDOS AL CLÁSICO!", W / 2, H / 2 - 10);
+        ctx.font = "bold 22px system-ui";
+        ctx.fillStyle = home.primary;
+        ctx.fillText(home.short, W / 2 - 90, H / 2 + 30);
+        ctx.fillStyle = "#ffffff";
+        ctx.fillText("VS", W / 2, H / 2 + 30);
+        ctx.fillStyle = away.primary;
+        ctx.fillText(away.short, W / 2 + 90, H / 2 + 30);
+        ctx.textAlign = "start";
+        ctx.globalAlpha = 1;
+      }
 
       // Overlay REPLAY
       if (replay) {
