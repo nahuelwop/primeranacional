@@ -533,7 +533,7 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
           setScore({ h: stateRef.current.h, a: stateRef.current.a });
           spawnGoal(ball.x, ball.y, away.primary);
           playGoalAudio(away, "away");
-          triggerReplay(1, away.primary, "away");
+          triggerReplay(-1, away.primary, "away");
         }
       } else if (ball.x - ball.r > rpx && ball.y > crossbarY + 2) {
         // Gol propio (home) — puede contar doble
@@ -544,7 +544,7 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         spawnGoal(ball.x, ball.y, home.primary);
         if (bonus === 2) { setVarMsg("¡GOL DOBLE! 🎩"); setTimeout(() => setVarMsg(null), 1800); }
         playGoalAudio(home, "home");
-        triggerReplay(-1, home.primary, "home");
+        triggerReplay(1, home.primary, "home");
       }
 
       // Particulas
