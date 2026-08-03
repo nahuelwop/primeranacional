@@ -239,6 +239,7 @@ function CarreraPage() {
         </div>
         <Game home={leftTeam} away={rightTeam} duration={60} mode="1vAI" sharedNarrator
           aiDifficulty={toGameAi(state.difficulty ?? "normal")}
+          crowdIntensity={(leftTeam?.rivals?.includes(rightTeam?.id ?? "") || rightTeam?.rivals?.includes(leftTeam?.id ?? "")) ? "clasico" : "normal"}
           startingScore={fx.startingScore}
           cancelOpponentGoals={fx.cancelOpponentGoals ?? 0}
           doubleGoalChance={fx.doubleGoalChance ?? 0}
