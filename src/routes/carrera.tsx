@@ -560,11 +560,12 @@ function InicioTab({ state, teamId, season, nextMatch, indicators, standings, bu
         <div className="hud-rise hud-card p-4" style={{ animationDelay: "120ms" }}>
           <div className="text-[11px] uppercase tracking-[0.15em] mb-3">Objetivos</div>
           <div className="space-y-2.5 text-xs">
-            {objetivos.map(o => (
+            {objetivos.map((o, i) => (
               <div key={o.label} className="flex items-start gap-2">
-                <span className={`grid h-4 w-4 shrink-0 place-items-center rounded-full text-[9px] ${
-                  o.done ? "bg-hud-green text-background" : "border border-border"
-                }`}>{o.done ? "✓" : ""}</span>
+                <span style={{ animationDelay: `${i * 90}ms` }}
+                  className={`relative grid h-4 w-4 shrink-0 place-items-center rounded-full text-[9px] ${
+                    o.done ? "bg-hud-green text-background goal-pop goal-flash" : "border border-border"
+                  }`}>{o.done ? "✓" : ""}</span>
                 <span className={o.done ? "" : "text-muted-foreground"}>{o.label}</span>
               </div>
             ))}
@@ -574,20 +575,19 @@ function InicioTab({ state, teamId, season, nextMatch, indicators, standings, bu
         <div className="hud-rise hud-card p-4" style={{ animationDelay: "180ms" }}>
           <div className="text-[11px] uppercase tracking-[0.15em] mb-3">Estado del club</div>
           <div className="space-y-3">
-            {estado.map(ind => (
+            {estado.map((ind, i) => (
               <div key={ind.key} className="flex items-center gap-2">
                 <span className="text-base shrink-0">{ind.icon}</span>
                 <span className="text-xs flex-1 min-w-0 truncate">{ind.label}</span>
-                <span className="flex gap-1 shrink-0">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <span key={i} style={{ animationDelay: `${i * 70}ms` }}
-                      className={`hud-bar-fill h-3 w-3 rounded-[3px] ${i < Math.round(ind.value / 20) ? "bg-hud-green" : "bg-secondary"}`} />
-                  ))}
+                <span className="stat-bar w-24 shrink-0">
+                  <i style={{ transform: `scaleX(${Math.max(0.03, ind.value / 100)})`, animationDelay: `${i * 120}ms` }} />
                 </span>
               </div>
             ))}
           </div>
-          <div className="text-[11px] text-muted-foreground mt-3">Presupuesto: ${budget}</div>
+          <div className="text-[11px] text-muted-foreground mt-3 tabular-nums">
+            Presupuesto: $<CountUp value={budget} />
+          </div>
         </div>
       </div>
     </div>
