@@ -278,7 +278,7 @@
     inset: -4%;
     background-size: cover;
     background-position: center;
-    filter: blur(18px) saturate(1.15) brightness(0.5);
+    filter: blur(26px) saturate(1.1) brightness(0.34);
     transform: translate3d(var(--px, 0px), var(--py, 0px), 0) scale(1.12);
     animation: ambient-zoom 32s ease-in-out infinite alternate;
     will-change: transform;
