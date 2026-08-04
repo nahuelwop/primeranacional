@@ -17,7 +17,7 @@ export const Route = createFileRoute("/admin")({
   component: AdminPage,
 });
 
-type Tab = "equipos" | "ajustes";
+type Tab = "equipos" | "ajustes" | "relatores";
 
 function AdminPage() {
   const { isAdmin, loading, user } = useAuth();
@@ -48,6 +48,7 @@ function AdminPage() {
         <div className="flex gap-2 border-b border-border mb-6">
           {([
             { k: "equipos", label: "⚽ EQUIPOS" },
+            { k: "relatores", label: "🎙️ RELATORES" },
             { k: "ajustes", label: "⚙️ AJUSTES DEL JUEGO" },
           ] as { k: Tab; label: string }[]).map(t => (
             <button key={t.k} onClick={() => setTab(t.k)}
@@ -60,8 +61,147 @@ function AdminPage() {
         </div>
 
         {tab === "equipos" && <EquiposTab />}
+        {tab === "relatores" && <RelatoresTab />}
         {tab === "ajustes" && <AjustesTab />}
       </main>
+    </div>
+  );
+}
+
+type GlobalNarrator = { id: string; name: string; urls: string[]; sort_order: number };
+
+function RelatoresTab() {
+  const [narrators, setNarrators] = useState<GlobalNarrator[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function load() {
+    setLoading(true);
+    const { data, error } = await (supabase.from("global_narrators" as any) as any).select("*").order("sort_order", { ascending: true });
+    if (error) setErr(error.message);
+    else setNarrators((data ?? []) as GlobalNarrator[]);
+    setLoading(false);
+  }
+
+  useEffect(() => { load(); }, []);
+
+  async function addNarrator() {
+    setErr(null);
+    const { data, error } = await (supabase
+      .from("global_narrators" as any) as any)
+      .insert({ name: "Nuevo relator", urls: [], sort_order: narrators.length })
+      .select()
+      .single();
+    if (error) { setErr(error.message); return; }
+    setNarrators(n => [...n, data as GlobalNarrator]);
+  }
+
+  async function renameNarrator(id: string, name: string) {
+    setNarrators(n => n.map(x => x.id === id ? { ...x, name } : x));
+    await (supabase.from("global_narrators" as any) as any).update({ name }).eq("id", id);
+  }
+
+  async function deleteNarrator(id: string) {
+    if (!confirm("¿Eliminar este relator y todos sus audios de la lista?")) return;
+    setErr(null);
+    const { error } = await (supabase.from("global_narrators" as any) as any).delete().eq("id", id);
+    if (error) { setErr(error.message); return; }
+    setNarrators(n => n.filter(x => x.id !== id));
+  }
+
+  async function uploadAudios(id: string, files: FileList | null) {
+    if (!files || files.length === 0) return;
+    setBusyId(id); setErr(null);
+    try {
+      const urls: string[] = [];
+      for (const file of Array.from(files)) {
+        const ext = file.name.split(".").pop() || "mp3";
+        const path = `global-relatores/${id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+        const { error } = await supabase.storage.from("team-audios").upload(path, file, { upsert: false, contentType: file.type });
+        if (error) throw error;
+        const { data, error: sErr } = await supabase.storage.from("team-audios").createSignedUrl(path, 60 * 60 * 24 * 365 * 10);
+        if (sErr || !data) throw sErr ?? new Error("No se pudo firmar el audio");
+        urls.push(data.signedUrl);
+      }
+      const target = narrators.find(n => n.id === id);
+      const newUrls = [...(target?.urls ?? []), ...urls];
+      const { error } = await (supabase.from("global_narrators" as any) as any).update({ urls: newUrls }).eq("id", id);
+      if (error) throw error;
+      setNarrators(n => n.map(x => x.id === id ? { ...x, urls: newUrls } : x));
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function removeAudio(id: string, idx: number) {
+    const target = narrators.find(n => n.id === id);
+    if (!target) return;
+    const newUrls = target.urls.filter((_, i) => i !== idx);
+    setNarrators(n => n.map(x => x.id === id ? { ...x, urls: newUrls } : x));
+    await (supabase.from("global_narrators" as any) as any).update({ urls: newUrls }).eq("id", id);
+  }
+
+  if (loading) return <div className="text-sm text-muted-foreground">Cargando relatores...</div>;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground max-w-xl">
+          Relatores globales: se ofrecen en <b>cualquier partido</b>, sin importar qué equipos jueguen.
+          No hace falta cargarlos equipo por equipo.
+        </p>
+        <Button onClick={addNarrator}>+ Nuevo relator</Button>
+      </div>
+
+      {err && <div className="text-xs text-destructive">{err}</div>}
+
+      {narrators.length === 0 && (
+        <div className="text-sm text-muted-foreground border border-dashed border-border rounded-lg p-6 text-center">
+          Todavía no hay relatores globales. Creá uno y subile sus audios de gol.
+        </div>
+      )}
+
+      <div className="grid gap-3">
+        {narrators.map(n => (
+          <div key={n.id} className="border border-border rounded-lg p-4 space-y-2">
+            <div className="flex items-center gap-2">
+              <Input
+                value={n.name}
+                onChange={e => renameNarrator(n.id, e.target.value)}
+                placeholder="Nombre del relator (ej: Relator Bricco)"
+                className="flex-1"
+              />
+              <button onClick={() => deleteNarrator(n.id)} className="text-destructive text-xs hover:underline whitespace-nowrap">
+                Eliminar relator
+              </button>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {n.urls.map((u, i) => (
+                <div key={i} className="flex items-center gap-1 bg-muted rounded px-2 py-1 text-xs">
+                  <audio src={u} controls className="h-6" />
+                  <button onClick={() => removeAudio(n.id, i)} className="text-destructive hover:underline">Quitar</button>
+                </div>
+              ))}
+            </div>
+
+            <label className="text-xs text-celeste underline cursor-pointer">
+              {busyId === n.id ? "Subiendo..." : "+ Subir audios de gol"}
+              <input
+                type="file"
+                accept="audio/*"
+                multiple
+                className="hidden"
+                disabled={busyId === n.id}
+                onChange={e => { uploadAudios(n.id, e.target.files); e.target.value = ""; }}
+              />
+            </label>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
