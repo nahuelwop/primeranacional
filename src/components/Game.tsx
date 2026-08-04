@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Shield } from "@/components/Shield";
 import { Team, type Narrator } from "@/data/teams";
+import { supabase } from "@/integrations/supabase/client";
 
 export type Weather = "clear" | "rain" | "wind" | "thunder" | "fog";
 export type Difficulty = "easy" | "normal" | "hard" | "expert";
@@ -58,19 +59,29 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
   useEffect(() => { narratorVolRef.current = narratorVol; if (narratorRef.current) narratorRef.current.volume = narratorVol; }, [narratorVol]);
   useEffect(() => { crowdVolRef.current = crowdVol; if (crowdRef.current) crowdRef.current.volume = crowdVol; }, [crowdVol]);
 
+  // Relatores globales (Admin → Relatores): se ofrecen en cualquier partido, sin depender del equipo.
+  const [globalNarrators, setGlobalNarrators] = useState<Narrator[]>([]);
+  useEffect(() => {
+    let active = true;
+    (supabase.from("global_narrators" as any) as any).select("*").order("sort_order", { ascending: true }).then(({ data }: { data: any }) => {
+      if (active && data) setGlobalNarrators(data.map((n: any) => ({ id: n.id, name: n.name, urls: n.urls ?? [] })));
+    });
+    return () => { active = false; };
+  }, []);
+
   // Relator seleccionado por equipo (id del narrador). null = elegir al azar de todos.
   const homeNarrators = useMemo<Narrator[]>(() => {
-    const list = home.narrators ?? [];
+    const list = [...(home.narrators ?? []), ...globalNarrators];
     if (list.length > 0) return list;
     if ((home.goalAudios ?? []).length > 0) return [{ id: "__legacy", name: "Default", urls: home.goalAudios! }];
     return [];
-  }, [home]);
+  }, [home, globalNarrators]);
   const awayNarrators = useMemo<Narrator[]>(() => {
-    const list = away.narrators ?? [];
+    const list = [...(away.narrators ?? []), ...globalNarrators];
     if (list.length > 0) return list;
     if ((away.goalAudios ?? []).length > 0) return [{ id: "__legacy", name: "Default", urls: away.goalAudios! }];
     return [];
-  }, [away]);
+  }, [away, globalNarrators]);
   const [homeNarratorId, setHomeNarratorId] = useState<string>(() => homeNarrators[0]?.id ?? "");
   const [awayNarratorId, setAwayNarratorId] = useState<string>(() => awayNarrators[0]?.id ?? "");
   useEffect(() => { setHomeNarratorId(homeNarrators[0]?.id ?? ""); }, [homeNarrators]);
