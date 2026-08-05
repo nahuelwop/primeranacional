@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Shield } from "@/components/Shield";
 import { supabase } from "@/integrations/supabase/client";
+import { SponsorsAdmin } from "@/components/admin/SponsorsAdmin";
 import { useAuth } from "@/lib/auth";
 import { TEAMS, type Team, type Narrator } from "@/data/teams";
 import { useTeamsSync, reloadTeams, syncTeamsFromDbRows, type DbTeam } from "@/lib/teams-sync";
@@ -17,7 +18,7 @@ export const Route = createFileRoute("/admin")({
   component: AdminPage,
 });
 
-type Tab = "equipos" | "ajustes" | "relatores";
+type Tab = "equipos" | "ajustes" | "relatores" | "patrocinadores";
 
 function AdminPage() {
   const { isAdmin, loading, user } = useAuth();
@@ -49,6 +50,7 @@ function AdminPage() {
           {([
             { k: "equipos", label: "⚽ EQUIPOS" },
             { k: "relatores", label: "🎙️ RELATORES" },
+            { k: "patrocinadores", label: "🤝 PATROCINADORES" },
             { k: "ajustes", label: "⚙️ AJUSTES DEL JUEGO" },
           ] as { k: Tab; label: string }[]).map(t => (
             <button key={t.k} onClick={() => setTab(t.k)}
@@ -62,6 +64,7 @@ function AdminPage() {
 
         {tab === "equipos" && <EquiposTab />}
         {tab === "relatores" && <RelatoresTab />}
+        {tab === "patrocinadores" && <SponsorsAdmin />}
         {tab === "ajustes" && <AjustesTab />}
       </main>
     </div>
