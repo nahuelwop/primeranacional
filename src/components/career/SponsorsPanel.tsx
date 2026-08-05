@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useSponsors, money, type Sponsor, type SponsorDeal } from "@/lib/sponsors";
 
 function Stars({ value }: { value: number }) {
@@ -94,8 +95,9 @@ export function SponsorsPanel({ budget, deal, season, onSign, onCancel }: {
   onCancel: () => void;
 }) {
   const { sponsors, loading } = useSponsors(true);
-  const [featured, ...rest] = [...sponsors].sort((a, b) => Number(b.featured) - Number(a.featured));
-  const hidden = new Set<string>();
+  const [rejected, setRejected] = useState<string[]>([]);
+  const visible = sponsors.filter(s => !rejected.includes(s.id));
+  const [featured, ...rest] = [...visible].sort((a, b) => Number(b.featured) - Number(a.featured));
 
   function sign(s: Sponsor, mult: number) {
     onSign({
@@ -119,7 +121,7 @@ export function SponsorsPanel({ budget, deal, season, onSign, onCancel }: {
     }
   }
 
-  function reject(s: Sponsor) { hidden.add(s.id); alert(`Rechazaste la propuesta de ${s.name}.`); }
+  function reject(s: Sponsor) { setRejected(r => [...r, s.id]); }
 
   return (
     <section className="space-y-3">
@@ -150,7 +152,7 @@ export function SponsorsPanel({ budget, deal, season, onSign, onCancel }: {
       )}
 
       {loading && <div className="hud-card p-8 text-center text-muted-foreground font-display tracking-widest">CARGANDO OFERTAS…</div>}
-      {!loading && sponsors.length === 0 && (
+      {!loading && visible.length === 0 && (
         <div className="hud-card p-8 text-center text-sm text-muted-foreground">
           Todavía no hay patrocinadores cargados. El administrador puede crearlos desde el panel de administración.
         </div>

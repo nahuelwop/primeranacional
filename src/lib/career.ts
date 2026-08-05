@@ -65,6 +65,10 @@ export type CareerState = {
   incomePenalty?: IncomePenalty;
   difficulty?: "easy" | "normal" | "hard" | "expert";
   objetivo?: Objetivo;
+  sponsor?: {
+    sponsorId: string; name: string; initial: number; weekly: number; bonus: number;
+    seasons: number; since: number; color: string; logo_url?: string | null;
+  } | null;
   introVista?: boolean;
   lastRoundSummarized?: number;
 };
