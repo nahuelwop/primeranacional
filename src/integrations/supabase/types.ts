@@ -98,6 +98,30 @@ export type Database = {
         }
         Relationships: []
       }
+      global_narrators: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          sort_order: number
+          urls: string[]
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          sort_order?: number
+          urls?: string[]
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          sort_order?: number
+          urls?: string[]
+        }
+        Relationships: []
+      }
       match_history: {
         Row: {
           away_goals: number
