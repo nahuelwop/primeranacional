@@ -173,6 +173,66 @@ export type Database = {
         }
         Relationships: []
       }
+      sponsors: {
+        Row: {
+          active: boolean
+          bonus_payment: number
+          color: string
+          conditions: string
+          created_at: string
+          duration_seasons: number
+          featured: boolean
+          id: string
+          initial_payment: number
+          logo_url: string | null
+          name: string
+          objectives: string[]
+          prestige: number
+          slogan: string
+          sort_order: number
+          updated_at: string
+          weekly_payment: number
+        }
+        Insert: {
+          active?: boolean
+          bonus_payment?: number
+          color?: string
+          conditions?: string
+          created_at?: string
+          duration_seasons?: number
+          featured?: boolean
+          id?: string
+          initial_payment?: number
+          logo_url?: string | null
+          name: string
+          objectives?: string[]
+          prestige?: number
+          slogan?: string
+          sort_order?: number
+          updated_at?: string
+          weekly_payment?: number
+        }
+        Update: {
+          active?: boolean
+          bonus_payment?: number
+          color?: string
+          conditions?: string
+          created_at?: string
+          duration_seasons?: number
+          featured?: boolean
+          id?: string
+          initial_payment?: number
+          logo_url?: string | null
+          name?: string
+          objectives?: string[]
+          prestige?: number
+          slogan?: string
+          sort_order?: number
+          updated_at?: string
+          weekly_payment?: number
+        }
+        Relationships: []
+      }
       team_players: {
         Row: {
           birth_date: string | null

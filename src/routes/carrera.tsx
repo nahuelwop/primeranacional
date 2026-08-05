@@ -27,6 +27,9 @@ import { DIFFICULTY_INFO, toGameAi } from "@/lib/difficulty";
 import { AmbientStadium } from "@/components/career/AmbientStadium";
 import { useUiSfx } from "@/lib/ui-sound";
 import { CountUp } from "@/lib/use-count-up";
+import { SponsorsPanel } from "@/components/career/SponsorsPanel";
+import { buildCareerNews, nextRivals } from "@/lib/career-news";
+import type { SponsorDeal } from "@/lib/sponsors";
 
 export const Route = createFileRoute("/carrera")({
   head: () => ({
@@ -163,6 +166,22 @@ function CarreraPage() {
     if (!r.ok) { alert(r.error); return; }
     setState(r.state); setBudget(r.budget);
     await persist(r.state, r.budget, season);
+  }
+
+  async function onSignSponsor(deal: SponsorDeal) {
+    if (!state) return;
+    const next = { ...state, sponsor: deal };
+    const nextBudget = budget + deal.initial;
+    setState(next); setBudget(nextBudget);
+    await persist(next, nextBudget, season);
+  }
+
+  async function onCancelSponsor() {
+    if (!state) return;
+    if (!confirm("¿Rescindir el contrato con el patrocinador actual?")) return;
+    const next = { ...state, sponsor: null };
+    setState(next);
+    await persist(next, budget, season);
   }
 
   async function advanceSeason() {
@@ -340,7 +359,7 @@ function CarreraPage() {
           <ClubTab state={state} teamId={teamId} budget={budget} unlocked={unlocked.size} onBuy={onBuyUpgrade} />
         )}
         {tab === "oficina" && (
-          <OficinaTab state={state} budget={budget} onActivate={onActivateCorruption} onAbandon={abandon} />
+          <OficinaTab state={state} budget={budget} season={season} onActivate={onActivateCorruption} onAbandon={abandon} onSignSponsor={onSignSponsor} onCancelSponsor={onCancelSponsor} />
         )}
         {tab === "personalizar" && <PersonalizarTab teamId={teamId} />}
       </div>
@@ -515,6 +534,39 @@ function InicioTab({ state, teamId, season, nextMatch, indicators, standings, bu
               ))}
             </div>
             <div className="text-[11px] text-muted-foreground mt-3">Últimos 5 partidos</div>
+          </div>
+        </div>
+
+        <div className="hud-card float-soft p-4">
+          <div className="text-[11px] uppercase tracking-[0.2em] text-hud-green font-semibold mb-1">Noticias</div>
+          <div>
+            {buildCareerNews(state, teamId, budget, season).map((n, i) => (
+              <article key={n.id} className="news-item hud-in" style={{ animationDelay: `${i * 70}ms` }}>
+                <span className="news-ico text-lg">{n.icon}</span>
+                <div className="min-w-0">
+                  <h4 className="font-display text-sm tracking-wide">{n.title}</h4>
+                  <p className="text-[11px] text-muted-foreground leading-snug">{n.body}</p>
+                  <span className="text-[10px] text-muted-foreground/70">{n.time}</span>
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
+
+        <div className="hud-card p-4">
+          <div className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground mb-2">Próximos rivales</div>
+          <div className="space-y-1.5">
+            {nextRivals(state, teamId, 4).map(m => {
+              const other = TEAMS_BY_ID[m.home === teamId ? m.away : m.home];
+              return (
+                <div key={m.id} className="flex items-center gap-2 text-xs">
+                  <span className="text-muted-foreground tabular-nums w-10">F{m.round}</span>
+                  <Shield team={other} size={18} />
+                  <span className="truncate">{other?.short}</span>
+                  <span className="ml-auto text-[10px] text-muted-foreground">{m.home === teamId ? "Local" : "Visita"}</span>
+                </div>
+              );
+            })}
           </div>
         </div>
       </aside>
@@ -772,13 +824,18 @@ function Stat({ label, value }: { label: string; value: number | string }) {
 
 /* ============================ OFICINA ============================ */
 
-function OficinaTab({ state, budget, onActivate, onAbandon }: {
-  state: CareerState; budget: number;
+function OficinaTab({ state, budget, season, onActivate, onAbandon, onSignSponsor, onCancelSponsor }: {
+  state: CareerState; budget: number; season: number;
   onActivate: (k: typeof CORRUPTION_CATALOG[number]["kind"]) => void;
   onAbandon: () => void;
+  onSignSponsor: (d: SponsorDeal) => void;
+  onCancelSponsor: () => void;
 }) {
   const active = state.activeCorruption && state.activeCorruption.matchesLeft > 0 ? state.activeCorruption : null;
   return (
+    <div className="space-y-4">
+    <SponsorsPanel budget={budget} season={season} deal={state.sponsor ?? null}
+      onSign={onSignSponsor} onCancel={onCancelSponsor} />
     <div className="grid lg:grid-cols-[minmax(0,1fr)_280px] gap-3">
       <div className="hud-panel p-4">
         <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
@@ -820,6 +877,7 @@ function OficinaTab({ state, budget, onActivate, onAbandon }: {
           Abandonar carrera
         </button>
       </div>
+    </div>
     </div>
   );
 }
