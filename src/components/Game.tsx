@@ -90,6 +90,10 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
   const awayNarratorRef = useRef(awayNarratorId);
   useEffect(() => { homeNarratorRef.current = homeNarratorId; }, [homeNarratorId]);
   useEffect(() => { awayNarratorRef.current = awayNarratorId; }, [awayNarratorId]);
+  const homeNarratorsRef = useRef<Narrator[]>(homeNarrators);
+  const awayNarratorsRef = useRef<Narrator[]>(awayNarrators);
+  useEffect(() => { homeNarratorsRef.current = homeNarrators; }, [homeNarrators]);
+  useEffect(() => { awayNarratorsRef.current = awayNarrators; }, [awayNarrators]);
 
   // Relator compartido (amistoso 1v1): un solo relator narra ambos equipos.
   // Opciones = nombres únicos presentes en alguno de los dos equipos.
@@ -209,29 +213,25 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
     };
 
 
-    // Relato: 1 cada 2 goles totales. Si llega otro, corta el anterior.
-    let totalGoals = 0;
+    // Relato: en cada gol. Si llega otro, corta el anterior.
     const pickAudio = (urls?: string[]) => {
       if (!urls || urls.length === 0) return null;
       return urls[Math.floor(Math.random() * urls.length)];
     };
     const playGoalAudio = (team: Team, side: "home" | "away") => {
-      totalGoals++;
-      if (totalGoals % 2 !== 0) return; // solo cada 2 goles
+      const homeList = homeNarratorsRef.current;
+      const awayList = awayNarratorsRef.current;
       let urls: string[] | undefined;
       if (sharedNarrator) {
         const name = sharedNameRef.current;
-        const fromScorer = (team.narrators ?? []).find(n => n.name === name);
-        const other = side === "home" ? away : home;
-        const fromOther = (other.narrators ?? []).find(n => n.name === name);
-        urls = [...(fromScorer?.urls ?? []), ...(fromOther?.urls ?? [])];
+        urls = [...homeList, ...awayList].filter(n => n.name === name).flatMap(n => n.urls ?? []);
+        if (urls.length === 0) urls = [...homeList, ...awayList].flatMap(n => n.urls ?? []);
       } else {
-        const list = (team.narrators && team.narrators.length > 0)
-          ? team.narrators
-          : ((team.goalAudios ?? []).length > 0 ? [{ id: "__legacy", name: "Default", urls: team.goalAudios! }] : []);
+        const list = side === "home" ? homeList : awayList;
         const selId = side === "home" ? homeNarratorRef.current : awayNarratorRef.current;
-        const chosen = list.find(n => n.id === selId) ?? list[0];
-        urls = chosen?.urls;
+        const chosen = list.find(n => n.id === selId && (n.urls ?? []).length > 0)
+          ?? list.find(n => (n.urls ?? []).length > 0);
+        urls = chosen?.urls ?? list.flatMap(n => n.urls ?? []);
       }
       const url = pickAudio(urls);
       if (!url) return;
