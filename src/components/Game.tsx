@@ -209,15 +209,12 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
     };
 
 
-    // Relato: 1 cada 2 goles totales. Si llega otro, corta el anterior.
-    let totalGoals = 0;
+    // Relato: en cada gol. Si llega otro, corta el anterior.
     const pickAudio = (urls?: string[]) => {
       if (!urls || urls.length === 0) return null;
       return urls[Math.floor(Math.random() * urls.length)];
     };
     const playGoalAudio = (team: Team, side: "home" | "away") => {
-      totalGoals++;
-      if (totalGoals % 2 !== 0) return; // solo cada 2 goles
       let urls: string[] | undefined;
       if (sharedNarrator) {
         const name = sharedNameRef.current;
