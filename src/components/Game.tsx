@@ -90,6 +90,10 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
   const awayNarratorRef = useRef(awayNarratorId);
   useEffect(() => { homeNarratorRef.current = homeNarratorId; }, [homeNarratorId]);
   useEffect(() => { awayNarratorRef.current = awayNarratorId; }, [awayNarratorId]);
+  const homeNarratorsRef = useRef<Narrator[]>(homeNarrators);
+  const awayNarratorsRef = useRef<Narrator[]>(awayNarrators);
+  useEffect(() => { homeNarratorsRef.current = homeNarrators; }, [homeNarrators]);
+  useEffect(() => { awayNarratorsRef.current = awayNarrators; }, [awayNarrators]);
 
   // Relator compartido (amistoso 1v1): un solo relator narra ambos equipos.
   // Opciones = nombres únicos presentes en alguno de los dos equipos.
