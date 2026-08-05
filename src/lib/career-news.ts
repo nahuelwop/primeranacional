@@ -32,7 +32,7 @@ export function buildCareerNews(state: CareerState, teamId: string, budget: numb
 
   if (next) {
     push("🎟️",
-      isHome ? `${(me?.stadium ?? me?.short ?? "El estadio").toUpperCase()} AGOTÓ ENTRADAS` : "OPERATIVO DE VIAJE EN MARCHA",
+      isHome ? `${(me?.short ?? "El estadio").toUpperCase()} AGOTÓ ENTRADAS` : "OPERATIVO DE VIAJE EN MARCHA",
       isHome
         ? `Gran expectativa para recibir a ${rival?.name ?? "el rival"} en la fecha ${next.round}.`
         : `El plantel viaja a ${rival?.city ?? "el interior"} para enfrentar a ${rival?.name ?? "el rival"}.`,
