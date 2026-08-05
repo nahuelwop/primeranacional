@@ -31,10 +31,6 @@ export type SponsorDeal = {
   logo_url?: string | null;
 };
 
-const table = () => supabase.from("sponsors" as never) as never as {
-  select: (q: string) => never;
-};
-
 export async function fetchSponsors(onlyActive = true): Promise<Sponsor[]> {
   let q = (supabase.from("sponsors" as never) as never as any)
     .select("*")
@@ -90,5 +86,3 @@ export async function deleteSponsor(id: string) {
 export function money(n: number): string {
   return "$ " + Math.round(n).toLocaleString("es-AR");
 }
-
-void table;
