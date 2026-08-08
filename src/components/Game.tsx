@@ -168,6 +168,11 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
     const HISTORY_MAX = 150;
     let replay: { frames: Snap[]; idx: number; color: string; scorer: "home"|"away" } | null = null;
     let pendingResetDir = 0;
+    // ===== Red que se agita al recibir un gol =====
+    // side: qué arco tiembla · age: frames desde el impacto (crece en draw(), no en update(),
+    // para que la animación siga aunque el replay esté congelando la física del resto de la escena)
+    let netWave: { side: "L" | "R"; age: number; entryPos: number } | null = null;
+    const NET_WAVE_FRAMES = 75; // ~1.25s @ 60fps
 
     // ===== Papelitos al inicio (primeros 3 segundos) =====
     const confetti: { x:number; y:number; vx:number; vy:number; w:number; h:number; color:string; rot:number; vr:number; sway:number }[] = [];
@@ -337,6 +342,13 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
           ball.x = snap.bx; ball.y = snap.by; ball.spin = snap.bs;
           p1.x = snap.p1x; p1.y = snap.p1y; p1.kick = snap.p1k; p1.vx = snap.p1v;
           p2.x = snap.p2x; p2.y = snap.p2y; p2.kick = snap.p2k; p2.vx = snap.p2v;
+        }
+        // Seguimos animando el festejo (partículas del gol) aunque la física esté
+        // pausada; si no, quedaban congeladas como un bloque sólido pegado en el arco.
+        for (let i = particles.length - 1; i >= 0; i--) {
+          const pt = particles[i];
+          pt.vy += 0.2; pt.x += pt.vx; pt.y += pt.vy; pt.life--;
+          if (pt.life <= 0) particles.splice(i, 1);
         }
         replay.idx++;
         if (replay.idx >= replay.frames.length) {
@@ -599,6 +611,7 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         pendingResetDir = dir;
         pauseClockRef.current = true;
         setReplayActive(true);
+        netWave = { side: dir === 1 ? "R" : "L", age: 0, entryPos: ball.y };
       };
       if (ball.x + ball.r < lpx && ball.y > crossbarY + 2) {
         // Gol del rival (away) — puede anularse por corrupción
@@ -913,24 +926,43 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
       ctx.strokeRect(goalW, ground + 6, 90, H - ground - 12);
       ctx.strokeRect(W - goalW - 90, ground + 6, 90, H - ground - 12);
 
-      const drawGoal = (x: number) => {
-        // Red
+      // Desplazamiento de la red por el impacto del gol: ripple que decae con el tiempo
+      // y se atenúa con la distancia al punto donde entró la pelota.
+      const netDisplacement = (side: "L" | "R", pos: number) => {
+        if (!netWave || netWave.side !== side) return 0;
+        const t = netWave.age;
+        const envelope = Math.max(0, 1 - t / NET_WAVE_FRAMES);
+        if (envelope <= 0) return 0;
+        const dist = Math.abs(pos - netWave.entryPos);
+        const wave = Math.sin(t * 0.9 - dist * 0.06) * envelope * 11;
+        return (side === "L" ? -1 : 1) * Math.max(0, wave);
+      };
+      const drawGoal = (x: number, side: "L" | "R") => {
+        // Red (con ripple si acaba de entrar un gol por este arco)
         ctx.strokeStyle = "rgba(255,255,255,0.45)"; ctx.lineWidth = 1;
         for (let y = ground - goalH; y < ground; y += 8) {
-          ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + goalW, y); ctx.stroke();
+          const off = netDisplacement(side, y);
+          ctx.beginPath(); ctx.moveTo(x + off, y); ctx.lineTo(x + goalW + off, y); ctx.stroke();
         }
         for (let xx = x; xx < x + goalW; xx += 8) {
-          ctx.beginPath(); ctx.moveTo(xx, ground - goalH); ctx.lineTo(xx, ground); ctx.stroke();
+          const off = netDisplacement(side, xx);
+          ctx.beginPath(); ctx.moveTo(xx + off, ground - goalH); ctx.lineTo(xx + off, ground); ctx.stroke();
         }
-        // Marco grueso (postes y travesaño)
+        // Marco grueso (postes y travesaño) — fijo, no se deforma
         ctx.strokeStyle = "#fff"; ctx.lineWidth = 5;
         ctx.beginPath();
         ctx.moveTo(x, ground); ctx.lineTo(x, ground - goalH);
         ctx.lineTo(x + goalW, ground - goalH); ctx.lineTo(x + goalW, ground);
         ctx.stroke();
       };
-      drawGoal(0);
-      drawGoal(W - goalW);
+      drawGoal(0, "L");
+      drawGoal(W - goalW, "R");
+      // El ripple avanza acá (no en update()) para que la animación no se corte
+      // durante el replay, que pausa el resto de la física.
+      if (netWave) {
+        netWave.age++;
+        if (netWave.age > NET_WAVE_FRAMES) netWave = null;
+      }
 
 
       drawHead(p1);
