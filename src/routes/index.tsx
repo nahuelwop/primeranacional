@@ -198,48 +198,51 @@ function FloatingParticles() {
 }
 
 function ShieldCollage() {
-  // Selección curada para que se vean equipos reconocibles y con buen contraste de colores entre sí
-  const featured = ALL_TEAMS.filter(t =>
-    ["allboys", "nuevachicago", "chacarita", "gimnasiatiro", "sanmartint", "atlanta", "colon"].includes(t.id)
-  );
-  const picks = (featured.length >= 5 ? featured : ALL_TEAMS).slice(0, 6);
+  const N = ALL_TEAMS.length; // 36
+  const container = 400; // px, cuadrado
+  const center = container / 2;
+  const maxRadius = center - 30;
+  const goldenAngle = 137.508 * (Math.PI / 180);
 
-  const layout = [
-    { size: 190, top: "6%", left: "18%", rot: -10, z: 3, glow: "celeste", delay: 0 },
-    { size: 130, top: "0%", left: "62%", rot: 8, z: 2, glow: "accent", delay: 0.4 },
-    { size: 150, top: "38%", left: "0%", rot: 6, z: 2, glow: "celeste", delay: 0.9 },
-    { size: 220, top: "30%", left: "38%", rot: -4, z: 4, glow: "accent", delay: 0.2 },
-    { size: 120, top: "58%", left: "70%", rot: -12, z: 1, glow: "celeste", delay: 1.2 },
-    { size: 100, top: "68%", left: "12%", rot: 14, z: 1, glow: "accent", delay: 0.7 },
-  ];
+  const layout = ALL_TEAMS.map((t, i) => {
+    const angle = i * goldenAngle;
+    const radius = maxRadius * Math.sqrt(i / (N - 1));
+    const x = center + radius * Math.cos(angle);
+    const y = center + radius * Math.sin(angle);
+    // Más grandes cerca del centro (foco de póster), más chicos hacia afuera
+    const t01 = i / (N - 1);
+    const size = 92 - t01 * 56 + (i % 3) * 4;
+    const rot = ((i * 53) % 40) - 20;
+    const glow = i % 2 === 0 ? "rgba(56,189,248,0.4)" : "rgba(250,204,21,0.3)";
+    const z = Math.round(40 - t01 * 30);
+    const delay = (i % 9) * 0.35;
+    return { t, x, y, size, rot, glow, z, delay };
+  });
 
   return (
-    <div className="relative w-full h-[420px]">
+    <div className="relative" style={{ width: container, height: container }}>
       <div className="absolute inset-0 bg-celeste/10 blur-[100px] rounded-full" />
-      {picks.map((t, i) => {
-        const L = layout[i];
-        const glowColor = L.glow === "celeste" ? "rgba(56,189,248,0.45)" : "rgba(250,204,21,0.35)";
-        return (
-          <div
-            key={t.id}
-            className="absolute rounded-2xl bg-card/70 border border-white/10 backdrop-blur-sm p-3 grid place-items-center animate-[collageFloat_7s_ease-in-out_infinite]"
-            style={{
-              width: L.size, height: L.size,
-              top: L.top, left: L.left,
-              zIndex: L.z,
-              transform: `rotate(${L.rot}deg)`,
-              boxShadow: `0 0 40px ${glowColor}, 0 12px 30px rgba(0,0,0,0.5)`,
-              animationDelay: `${L.delay}s`,
-            }}
-          >
-            <Shield team={t} size={L.size * 0.62} eager />
-          </div>
-        );
-      })}
+      {layout.map(({ t, x, y, size, rot, glow, z, delay }) => (
+        <div
+          key={t.id}
+          className="absolute rounded-xl bg-card/70 border border-white/10 backdrop-blur-sm grid place-items-center animate-[collageFloat_7s_ease-in-out_infinite]"
+          style={{
+            width: size, height: size,
+            left: x - size / 2, top: y - size / 2,
+            zIndex: z,
+            padding: Math.max(4, size * 0.14),
+            transform: `rotate(${rot}deg)`,
+            boxShadow: `0 0 ${size * 0.35}px ${glow}, 0 8px 18px rgba(0,0,0,0.5)`,
+            animationDelay: `${delay}s`,
+          }}
+        >
+          <Shield team={t} size={size * 0.68} eager={size > 60} />
+        </div>
+      ))}
       <style>{`
         @keyframes collageFloat {
-          0%, 100% { transform: translateY(0) rotate(var(--r, 0deg)); }
-          50% { transform: translateY(-14px); }
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-10px); }
         }
       `}</style>
     </div>
