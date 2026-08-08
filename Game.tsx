@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Shield } from "@/components/Shield";
 import { Team, type Narrator } from "@/data/teams";
+import { supabase } from "@/integrations/supabase/client";
 
 export type Weather = "clear" | "rain" | "wind" | "thunder" | "fog";
 export type Difficulty = "easy" | "normal" | "hard" | "expert";
@@ -58,19 +59,29 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
   useEffect(() => { narratorVolRef.current = narratorVol; if (narratorRef.current) narratorRef.current.volume = narratorVol; }, [narratorVol]);
   useEffect(() => { crowdVolRef.current = crowdVol; if (crowdRef.current) crowdRef.current.volume = crowdVol; }, [crowdVol]);
 
+  // Relatores globales (Admin → Relatores): se ofrecen en cualquier partido, sin depender del equipo.
+  const [globalNarrators, setGlobalNarrators] = useState<Narrator[]>([]);
+  useEffect(() => {
+    let active = true;
+    (supabase.from("global_narrators" as any) as any).select("*").order("sort_order", { ascending: true }).then(({ data }: { data: any }) => {
+      if (active && data) setGlobalNarrators(data.map((n: any) => ({ id: n.id, name: n.name, urls: n.urls ?? [] })));
+    });
+    return () => { active = false; };
+  }, []);
+
   // Relator seleccionado por equipo (id del narrador). null = elegir al azar de todos.
   const homeNarrators = useMemo<Narrator[]>(() => {
-    const list = home.narrators ?? [];
+    const list = [...(home.narrators ?? []), ...globalNarrators];
     if (list.length > 0) return list;
     if ((home.goalAudios ?? []).length > 0) return [{ id: "__legacy", name: "Default", urls: home.goalAudios! }];
     return [];
-  }, [home]);
+  }, [home, globalNarrators]);
   const awayNarrators = useMemo<Narrator[]>(() => {
-    const list = away.narrators ?? [];
+    const list = [...(away.narrators ?? []), ...globalNarrators];
     if (list.length > 0) return list;
     if ((away.goalAudios ?? []).length > 0) return [{ id: "__legacy", name: "Default", urls: away.goalAudios! }];
     return [];
-  }, [away]);
+  }, [away, globalNarrators]);
   const [homeNarratorId, setHomeNarratorId] = useState<string>(() => homeNarrators[0]?.id ?? "");
   const [awayNarratorId, setAwayNarratorId] = useState<string>(() => awayNarrators[0]?.id ?? "");
   useEffect(() => { setHomeNarratorId(homeNarrators[0]?.id ?? ""); }, [homeNarrators]);
@@ -79,6 +90,10 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
   const awayNarratorRef = useRef(awayNarratorId);
   useEffect(() => { homeNarratorRef.current = homeNarratorId; }, [homeNarratorId]);
   useEffect(() => { awayNarratorRef.current = awayNarratorId; }, [awayNarratorId]);
+  const homeNarratorsRef = useRef<Narrator[]>(homeNarrators);
+  const awayNarratorsRef = useRef<Narrator[]>(awayNarrators);
+  useEffect(() => { homeNarratorsRef.current = homeNarrators; }, [homeNarrators]);
+  useEffect(() => { awayNarratorsRef.current = awayNarrators; }, [awayNarrators]);
 
   // Relator compartido (amistoso 1v1): un solo relator narra ambos equipos.
   // Opciones = nombres únicos presentes en alguno de los dos equipos.
@@ -159,29 +174,64 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
     const confettiColors = [home.primary, home.secondary, away.primary, away.secondary, "#ffffff", "#ffe066"];
     let confettiTimer = 180; // 3s @ 60fps
 
-    // Relato: 1 cada 2 goles totales. Si llega otro, corta el anterior.
-    let totalGoals = 0;
+    // ===== Recibimiento de clásico: bengalas + humo + banner, con el partido pausado =====
+    const isClasico = crowdIntensity === "clasico";
+    let recibimientoTimer = isClasico ? 320 : 0; // ~5.3s @ 60fps, más largo para que entre el caos
+    if (isClasico) pauseClockRef.current = true;
+    type Smoke = { x: number; y: number; vy: number; r: number; color: string; alpha: number };
+    const smoke: Smoke[] = [];
+    type Spark = { x: number; y: number; vx: number; vy: number; color: string; life: number };
+    const sparks: Spark[] = [];
+    // Bengalas repartidas por TODA la tribuna (no solo 2 puntos), alternando colores de ambos equipos + blanco
+    const flareSources = Array.from({ length: 10 }, (_, i) => ({
+      x: (W / 11) * (i + 1),
+      color: i % 3 === 0 ? "#ffffff" : (i % 2 === 0 ? home.primary : away.primary),
+    }));
+    const spawnSmoke = () => {
+      flareSources.forEach(src => {
+        for (let i = 0; i < 4; i++) {
+          smoke.push({
+            x: src.x + (Math.random() - 0.5) * 50,
+            y: 165 + Math.random() * 25,
+            vy: -0.7 - Math.random() * 0.7,
+            r: 16 + Math.random() * 16,
+            color: src.color,
+            alpha: 0.55,
+          });
+        }
+        // Chispas saliendo de cada bengala
+        for (let i = 0; i < 3; i++) {
+          sparks.push({
+            x: src.x, y: 175,
+            vx: (Math.random() - 0.5) * 3,
+            vy: -Math.random() * 2 - 1,
+            color: src.color,
+            life: 30 + Math.random() * 20,
+          });
+        }
+      });
+    };
+
+
+    // Relato: en cada gol. Si llega otro, corta el anterior.
     const pickAudio = (urls?: string[]) => {
       if (!urls || urls.length === 0) return null;
       return urls[Math.floor(Math.random() * urls.length)];
     };
     const playGoalAudio = (team: Team, side: "home" | "away") => {
-      totalGoals++;
-      if (totalGoals % 2 !== 0) return; // solo cada 2 goles
+      const homeList = homeNarratorsRef.current;
+      const awayList = awayNarratorsRef.current;
       let urls: string[] | undefined;
       if (sharedNarrator) {
         const name = sharedNameRef.current;
-        const fromScorer = (team.narrators ?? []).find(n => n.name === name);
-        const other = side === "home" ? away : home;
-        const fromOther = (other.narrators ?? []).find(n => n.name === name);
-        urls = [...(fromScorer?.urls ?? []), ...(fromOther?.urls ?? [])];
+        urls = [...homeList, ...awayList].filter(n => n.name === name).flatMap(n => n.urls ?? []);
+        if (urls.length === 0) urls = [...homeList, ...awayList].flatMap(n => n.urls ?? []);
       } else {
-        const list = (team.narrators && team.narrators.length > 0)
-          ? team.narrators
-          : ((team.goalAudios ?? []).length > 0 ? [{ id: "__legacy", name: "Default", urls: team.goalAudios! }] : []);
+        const list = side === "home" ? homeList : awayList;
         const selId = side === "home" ? homeNarratorRef.current : awayNarratorRef.current;
-        const chosen = list.find(n => n.id === selId) ?? list[0];
-        urls = chosen?.urls;
+        const chosen = list.find(n => n.id === selId && (n.urls ?? []).length > 0)
+          ?? list.find(n => (n.urls ?? []).length > 0);
+        urls = chosen?.urls ?? list.flatMap(n => n.urls ?? []);
       }
       const url = pickAudio(urls);
       if (!url) return;
@@ -296,6 +346,36 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
           resetBall(pendingResetDir);
         }
         return;
+      }
+
+      // === Recibimiento de clásico: bengalas + humo, partido congelado ===
+      let shakeX = 0, shakeY = 0;
+      if (recibimientoTimer > 0) {
+        recibimientoTimer--;
+        if (recibimientoTimer % 7 === 0) spawnSmoke();
+        for (let i = smoke.length - 1; i >= 0; i--) {
+          const s = smoke[i];
+          s.y += s.vy; s.r += 0.15; s.alpha -= 0.003;
+          if (s.alpha <= 0) smoke.splice(i, 1);
+        }
+        for (let i = sparks.length - 1; i >= 0; i--) {
+          const sp = sparks[i];
+          sp.vy += 0.05; sp.x += sp.vx; sp.y += sp.vy; sp.life--;
+          if (sp.life <= 0) sparks.splice(i, 1);
+        }
+        // Temblor de cámara: fuerte al principio, se calma hacia el final
+        const shakeIntensity = recibimientoTimer > 260 ? 5 : recibimientoTimer > 60 ? 2 : 0;
+        shakeX = (Math.random() - 0.5) * shakeIntensity;
+        shakeY = (Math.random() - 0.5) * shakeIntensity;
+        if (recibimientoTimer === 0) {
+          pauseClockRef.current = false;
+        } else {
+          ctx.save();
+          ctx.translate(shakeX, shakeY);
+          draw();
+          ctx.restore();
+          return; // no avanza física ni IA mientras dura el recibimiento
+        }
       }
 
       // === Papelitos al inicio ===
@@ -533,7 +613,7 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
           setScore({ h: stateRef.current.h, a: stateRef.current.a });
           spawnGoal(ball.x, ball.y, away.primary);
           playGoalAudio(away, "away");
-          triggerReplay(1, away.primary, "away");
+          triggerReplay(-1, away.primary, "away");
         }
       } else if (ball.x - ball.r > rpx && ball.y > crossbarY + 2) {
         // Gol propio (home) — puede contar doble
@@ -544,7 +624,7 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         spawnGoal(ball.x, ball.y, home.primary);
         if (bonus === 2) { setVarMsg("¡GOL DOBLE! 🎩"); setTimeout(() => setVarMsg(null), 1800); }
         playGoalAudio(home, "home");
-        triggerReplay(-1, home.primary, "home");
+        triggerReplay(1, home.primary, "home");
       }
 
       // Particulas
@@ -952,6 +1032,46 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         ctx.restore();
       });
 
+      // Humo de bengalas (recibimiento de clásico)
+      smoke.forEach(s => {
+        ctx.globalAlpha = Math.max(0, s.alpha);
+        const g = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, s.r);
+        g.addColorStop(0, s.color);
+        g.addColorStop(1, "rgba(0,0,0,0)");
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2); ctx.fill();
+      });
+      ctx.globalAlpha = 1;
+
+      // Chispas de las bengalas
+      sparks.forEach(sp => {
+        ctx.globalAlpha = Math.max(0, sp.life / 50);
+        ctx.fillStyle = sp.color;
+        ctx.beginPath(); ctx.arc(sp.x, sp.y, 2, 0, Math.PI * 2); ctx.fill();
+      });
+      ctx.globalAlpha = 1;
+
+      // Banner "¡BIENVENIDOS AL CLÁSICO!" durante el recibimiento
+      if (recibimientoTimer > 0) {
+        ctx.fillStyle = "rgba(0,0,0,0.3)";
+        ctx.fillRect(0, 0, W, H);
+        const bannerAlpha = recibimientoTimer > 40 ? 1 : recibimientoTimer / 40;
+        ctx.globalAlpha = bannerAlpha;
+        ctx.textAlign = "center";
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold 42px system-ui";
+        ctx.fillText("¡BIENVENIDOS AL CLÁSICO!", W / 2, H / 2 - 10);
+        ctx.font = "bold 22px system-ui";
+        ctx.fillStyle = home.primary;
+        ctx.fillText(home.short, W / 2 - 90, H / 2 + 30);
+        ctx.fillStyle = "#ffffff";
+        ctx.fillText("VS", W / 2, H / 2 + 30);
+        ctx.fillStyle = away.primary;
+        ctx.fillText(away.short, W / 2 + 90, H / 2 + 30);
+        ctx.textAlign = "start";
+        ctx.globalAlpha = 1;
+      }
+
       // Overlay REPLAY
       if (replay) {
         ctx.fillStyle = "rgba(0,0,0,0.35)";
@@ -1163,5 +1283,55 @@ function StatRow({ label, h, a, barH, barA }: { label: string; h: number | strin
       </div>
       <div className="text-left tabular-nums">{a}</div>
     </>
+  );
+}
+
+// Reemplaza al <select> nativo (que renderiza fondo blanco del sistema al desplegar):
+// un botón + lista propia, siempre oscura y legible, con la opción actual bien resaltada.
+function DarkSelect({ value, options, onChange, className = "" }: {
+  value: string;
+  options: { value: string; label: string }[];
+  onChange: (v: string) => void;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const current = options.find(o => o.value === value);
+
+  useEffect(() => {
+    const onDocClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, []);
+
+  return (
+    <div ref={ref} className={`relative flex-1 ${className}`}>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="w-full h-9 rounded-md border border-border bg-[#12161f] text-foreground px-3 flex items-center justify-between text-sm hover:border-celeste/60 transition-colors"
+      >
+        <span className="truncate">{current?.label ?? "Elegir..."}</span>
+        <span className={`ml-2 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`}>▾</span>
+      </button>
+      {open && (
+        <div className="absolute z-50 mt-1 left-0 right-0 max-h-56 overflow-y-auto rounded-md border border-border bg-[#12161f] shadow-xl">
+          {options.map(o => (
+            <button
+              key={o.value}
+              type="button"
+              onClick={() => { onChange(o.value); setOpen(false); }}
+              className={`w-full text-left px-3 py-2 text-sm truncate hover:bg-celeste/15 ${
+                o.value === value ? "bg-celeste/20 text-celeste font-semibold" : "text-foreground"
+              }`}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
