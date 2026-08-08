@@ -1253,28 +1253,31 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         {sharedNarrator && sharedOptions.length > 0 && (
           <label className="flex items-center gap-2 sm:col-span-2">
             <span className="w-20 uppercase tracking-wider text-muted-foreground">Relator</span>
-            <select className="flex-1 h-8 rounded-md border border-input bg-transparent px-2"
-              value={sharedName} onChange={e => setSharedName(e.target.value)}>
-              {sharedOptions.map(n => <option key={n.name} value={n.name}>{n.name}</option>)}
-            </select>
+            <DarkSelect
+              value={sharedName}
+              onChange={setSharedName}
+              options={sharedOptions.map(n => ({ value: n.name, label: n.name }))}
+            />
           </label>
         )}
         {!sharedNarrator && homeNarrators.length > 0 && (
           <label className="flex items-center gap-2">
             <span className="w-20 uppercase tracking-wider text-muted-foreground">Relator {home.short}</span>
-            <select className="flex-1 h-8 rounded-md border border-input bg-transparent px-2"
-              value={homeNarratorId} onChange={e => setHomeNarratorId(e.target.value)}>
-              {homeNarrators.map(n => <option key={n.id} value={n.id}>{n.name}</option>)}
-            </select>
+            <DarkSelect
+              value={homeNarratorId}
+              onChange={setHomeNarratorId}
+              options={homeNarrators.map(n => ({ value: n.id, label: n.name }))}
+            />
           </label>
         )}
         {!sharedNarrator && awayNarrators.length > 0 && (
           <label className="flex items-center gap-2">
             <span className="w-20 uppercase tracking-wider text-muted-foreground">Relator {away.short}</span>
-            <select className="flex-1 h-8 rounded-md border border-input bg-transparent px-2"
-              value={awayNarratorId} onChange={e => setAwayNarratorId(e.target.value)}>
-              {awayNarrators.map(n => <option key={n.id} value={n.id}>{n.name}</option>)}
-            </select>
+            <DarkSelect
+              value={awayNarratorId}
+              onChange={setAwayNarratorId}
+              options={awayNarrators.map(n => ({ value: n.id, label: n.name }))}
+            />
           </label>
         )}
       </div>
@@ -1315,5 +1318,56 @@ function StatRow({ label, h, a, barH, barA }: { label: string; h: number | strin
       </div>
       <div className="text-left tabular-nums">{a}</div>
     </>
+  );
+}
+
+// Reemplaza al <select> nativo (que renderiza fondo blanco del sistema al desplegar,
+// haciendo ilegibles los nombres de relatores): un botón + lista propia, siempre
+// oscura y legible, con la opción actual bien resaltada.
+function DarkSelect({ value, options, onChange, className = "" }: {
+  value: string;
+  options: { value: string; label: string }[];
+  onChange: (v: string) => void;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const current = options.find(o => o.value === value);
+
+  useEffect(() => {
+    const onDocClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, []);
+
+  return (
+    <div ref={ref} className={`relative flex-1 ${className}`}>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="w-full h-9 rounded-md border border-border bg-[#12161f] text-foreground px-3 flex items-center justify-between text-sm hover:border-celeste/60 transition-colors"
+      >
+        <span className="truncate">{current?.label ?? "Elegir..."}</span>
+        <span className={`ml-2 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`}>▾</span>
+      </button>
+      {open && (
+        <div className="absolute z-50 mt-1 left-0 right-0 max-h-56 overflow-y-auto rounded-md border border-border bg-[#12161f] shadow-xl">
+          {options.map(o => (
+            <button
+              key={o.value}
+              type="button"
+              onClick={() => { onChange(o.value); setOpen(false); }}
+              className={`w-full text-left px-3 py-2 text-sm truncate hover:bg-celeste/15 ${
+                o.value === value ? "bg-celeste/20 text-celeste font-semibold" : "text-foreground"
+              }`}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
