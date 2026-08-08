@@ -327,12 +327,40 @@ function CarreraPage() {
         </div>
       </header>
 
-      <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] uppercase tracking-wider text-muted-foreground">
-        <span>Zona {state.zone}</span>
-        <span>Temporada {season}</span>
-        <span>Fecha {Math.min(round, rounds)}/{rounds}</span>
-        <span>{myPos}° puesto</span>
-        <span className="text-hud-green">Objetivo: {OBJETIVO_LABEL[state.objetivo ?? "ascenso_directo"]}</span>
+      <div className="mb-3 flex flex-wrap items-center gap-2.5">
+        <span className="hud-card px-3 py-1.5 flex items-center gap-1.5 text-xs">
+          <span className="text-muted-foreground">🗓️</span>
+          <span className="font-display tracking-wide">TEMPORADA {season}</span>
+        </span>
+        <span className="hud-card px-3 py-1.5 flex items-center gap-1.5 text-xs">
+          <span className="text-muted-foreground">📅</span>
+          <span className="font-display tracking-wide">FECHA {Math.min(round, rounds)}/{rounds}</span>
+        </span>
+        <span className="hud-card px-3 py-1.5 flex items-center gap-1.5 text-xs">
+          <span className="text-hud-green">🏆</span>
+          <span className="font-display tracking-wide">{myPos}° PUESTO</span>
+        </span>
+        <span className="hud-card px-3 py-1.5 flex items-center gap-1.5 text-xs">
+          <span className="text-accent">💰</span>
+          <span className="font-display tracking-wide tabular-nums">$<CountUp value={budget} /></span>
+          <span className="text-muted-foreground hidden sm:inline">Presupuesto</span>
+        </span>
+        {indicators.find(i => i.key === "moral") && (() => {
+          const m = indicators.find(i => i.key === "moral")!;
+          const moodLabel = m.value >= 80 ? "MUY ALTA" : m.value >= 60 ? "ALTA" : m.value >= 40 ? "REGULAR" : m.value >= 20 ? "BAJA" : "MUY BAJA";
+          const moodEmoji = m.value >= 60 ? "😄" : m.value >= 40 ? "🙂" : m.value >= 20 ? "😐" : "😟";
+          const moodColor = m.value >= 60 ? "text-hud-green" : m.value >= 30 ? "text-accent" : "text-destructive";
+          return (
+            <span className="hud-card px-3 py-1.5 flex items-center gap-1.5 text-xs">
+              <span className={moodColor}>{moodEmoji}</span>
+              <span className="font-display tracking-wide">MORAL {moodLabel}</span>
+            </span>
+          );
+        })()}
+        <span className="hud-card px-3 py-1.5 flex items-center gap-1.5 text-xs text-hud-green">
+          <span>🎯</span>
+          <span className="font-display tracking-wide">{OBJETIVO_LABEL[state.objetivo ?? "ascenso_directo"]}</span>
+        </span>
       </div>
 
       {recentAch.length > 0 && (
