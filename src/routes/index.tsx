@@ -153,9 +153,9 @@ function StadiumHero({ user, username }: { user: unknown; username: string | nul
           </div>
         </div>
 
-        {/* Gráfico decorativo: pelota gigante con glow, para no dejar el lado derecho vacío */}
+        {/* Gráfico decorativo: colage de escudos superpuestos, para no dejar el lado derecho vacío */}
         <div className="relative hidden lg:flex items-center justify-center h-full">
-          <HeroBallGraphic />
+          <ShieldCollage />
         </div>
       </div>
     </section>
@@ -197,33 +197,51 @@ function FloatingParticles() {
   );
 }
 
-function HeroBallGraphic() {
+function ShieldCollage() {
+  // Selección curada para que se vean equipos reconocibles y con buen contraste de colores entre sí
+  const featured = ALL_TEAMS.filter(t =>
+    ["allboys", "nuevachicago", "chacarita", "gimnasiatiro", "sanmartint", "atlanta", "colon"].includes(t.id)
+  );
+  const picks = (featured.length >= 5 ? featured : ALL_TEAMS).slice(0, 6);
+
+  const layout = [
+    { size: 190, top: "6%", left: "18%", rot: -10, z: 3, glow: "celeste", delay: 0 },
+    { size: 130, top: "0%", left: "62%", rot: 8, z: 2, glow: "accent", delay: 0.4 },
+    { size: 150, top: "38%", left: "0%", rot: 6, z: 2, glow: "celeste", delay: 0.9 },
+    { size: 220, top: "30%", left: "38%", rot: -4, z: 4, glow: "accent", delay: 0.2 },
+    { size: 120, top: "58%", left: "70%", rot: -12, z: 1, glow: "celeste", delay: 1.2 },
+    { size: 100, top: "68%", left: "12%", rot: 14, z: 1, glow: "accent", delay: 0.7 },
+  ];
+
   return (
-    <div className="relative">
-      <div className="absolute inset-0 bg-celeste/25 blur-[80px] rounded-full scale-125" />
-      <div className="absolute -inset-6 bg-accent/10 blur-[60px] rounded-full" />
-      <svg width="280" height="280" viewBox="0 0 200 200" className="relative drop-shadow-[0_0_40px_rgba(56,189,248,0.4)] animate-[spin_18s_linear_infinite]">
-        <defs>
-          <radialGradient id="ballShade" cx="35%" cy="30%" r="75%">
-            <stop offset="0%" stopColor="#ffffff" />
-            <stop offset="60%" stopColor="#e5e7eb" />
-            <stop offset="100%" stopColor="#9ca3af" />
-          </radialGradient>
-        </defs>
-        <circle cx="100" cy="100" r="92" fill="url(#ballShade)" stroke="#1f2937" strokeWidth="3" />
-        {[0, 72, 144, 216, 288].map((a, i) => {
-          const rad = (a * Math.PI) / 180;
-          const cx = 100 + Math.cos(rad) * 48;
-          const cy = 100 + Math.sin(rad) * 48;
-          return <circle key={i} cx={cx} cy={cy} r="20" fill="#111827" />;
-        })}
-        <circle cx="100" cy="100" r="20" fill="#111827" />
-      </svg>
-      {/* Anillo orbitando, para que se sienta "juego arcade" */}
-      <div className="absolute inset-0 -m-8 rounded-full border border-celeste/30 animate-[spin_26s_linear_infinite_reverse]" />
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 -m-8 w-[calc(100%+64px)] h-[calc(100%+64px)]">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-accent shadow-[0_0_14px_4px_rgba(250,204,21,0.7)]" />
-      </div>
+    <div className="relative w-full h-[420px]">
+      <div className="absolute inset-0 bg-celeste/10 blur-[100px] rounded-full" />
+      {picks.map((t, i) => {
+        const L = layout[i];
+        const glowColor = L.glow === "celeste" ? "rgba(56,189,248,0.45)" : "rgba(250,204,21,0.35)";
+        return (
+          <div
+            key={t.id}
+            className="absolute rounded-2xl bg-card/70 border border-white/10 backdrop-blur-sm p-3 grid place-items-center animate-[collageFloat_7s_ease-in-out_infinite]"
+            style={{
+              width: L.size, height: L.size,
+              top: L.top, left: L.left,
+              zIndex: L.z,
+              transform: `rotate(${L.rot}deg)`,
+              boxShadow: `0 0 40px ${glowColor}, 0 12px 30px rgba(0,0,0,0.5)`,
+              animationDelay: `${L.delay}s`,
+            }}
+          >
+            <Shield team={t} size={L.size * 0.62} eager />
+          </div>
+        );
+      })}
+      <style>{`
+        @keyframes collageFloat {
+          0%, 100% { transform: translateY(0) rotate(var(--r, 0deg)); }
+          50% { transform: translateY(-14px); }
+        }
+      `}</style>
     </div>
   );
 }
