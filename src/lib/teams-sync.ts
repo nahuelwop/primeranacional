@@ -134,12 +134,15 @@ async function loadAll() {
 }
 
 export function syncTeamsFromDbRows(rows: DbTeam[]) {
+  // Si la base no devuelve equipos, mantenemos los 36 locales como fallback.
+  if (!Array.isArray(rows) || rows.length === 0) return;
   replaceTeams(rows.map(rowToTeam));
   saveCache();
   useStore.setState(s => ({ version: s.version + 1, loaded: true }));
 }
 
 export function hydrateTeamsFromDbRows(rows: DbTeam[]) {
+  if (!Array.isArray(rows) || rows.length === 0) return;
   replaceTeams(rows.map(rowToTeam));
 }
 

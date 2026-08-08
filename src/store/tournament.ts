@@ -43,8 +43,10 @@ type Actions = {
   newSeason: () => void;
 };
 
-const aIds = ZONE_A.map(t => t.id);
-const bIds = ZONE_B.map(t => t.id);
+// Se leen al momento de usarse: teams-sync puede reemplazar las zonas con
+// los datos de Supabase después de que este módulo se evalúa.
+const aIds = () => ZONE_A.map(t => t.id);
+const bIds = () => ZONE_B.map(t => t.id);
 const buildFix = () => buildOfficialFixture();
 
 // Aplica el resultado a las dos zonas. applyMatchToStandings ignora equipos
@@ -68,15 +70,15 @@ export const useTournament = create<State & Actions>()(persist((set, get) => ({
     if (get().fixture.length) return;
     set({
       fixture: buildFix(),
-      standA: emptyStandings(aIds),
-      standB: emptyStandings(bIds),
+      standA: emptyStandings(aIds()),
+      standB: emptyStandings(bIds()),
       currentRound: 1,
     });
   },
   reset: () => set({
     fixture: buildFix(),
-    standA: emptyStandings(aIds),
-    standB: emptyStandings(bIds),
+    standA: emptyStandings(aIds()),
+    standB: emptyStandings(bIds()),
     currentRound: 1,
     userTeamId: undefined,
     finalDirecta: undefined, bracket: undefined,
@@ -91,8 +93,8 @@ export const useTournament = create<State & Actions>()(persist((set, get) => ({
   setLastRoundSummarized: (r) => set({ lastRoundSummarized: r }),
   newSeason: () => set(state => ({
     fixture: buildFix(),
-    standA: emptyStandings(aIds),
-    standB: emptyStandings(bIds),
+    standA: emptyStandings(aIds()),
+    standB: emptyStandings(bIds()),
     currentRound: 1,
     season: state.season + 1,
     introVista: false,

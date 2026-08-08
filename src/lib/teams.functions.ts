@@ -1,12 +1,18 @@
 import { createServerFn } from "@tanstack/react-start";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 export const getTeamsForBoot = createServerFn({ method: "GET" }).handler(async () => {
-  const { data, error } = await supabaseAdmin
-    .from("teams")
-    .select("id,name,short,city,zone,primary_color,secondary_color,stripe,speed,jump,power,defense,logo_url,rivals,sort_order,goal_audio_urls,hinchada_urls,narrators")
-    .order("sort_order", { ascending: true });
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data, error } = await supabaseAdmin
+      .from("teams")
+      .select("*")
+      .order("sort_order", { ascending: true });
 
-  if (error) throw new Error(error.message);
-  return data ?? [];
+    // Si falla la consulta o no hay equipos cargados, devolvemos vacío y el
+    // cliente usa los 36 equipos locales como fallback.
+    if (error || !data) return [];
+    return data;
+  } catch {
+    return [];
+  }
 });

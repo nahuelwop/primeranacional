@@ -1,5 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { Nav } from "@/components/Nav";
 import { Shield } from "@/components/Shield";
 import { TEAMS_BY_ID } from "@/data/teams";
@@ -28,6 +28,9 @@ function Reducido() {
   useTeamsSync();
   const s = useTournament();
   const [play, setPlay] = useState<PlayCtx | null>(null);
+  // El fixture se arma una sola vez; sin esto el estado quedaba vacío
+  // y la fase final nunca se habilitaba.
+  useEffect(() => { s.init(); }, []);
   const allPlayed = s.fixture.length > 0 && s.fixture.every(m => m.played);
 
   if (!allPlayed) {
@@ -37,7 +40,8 @@ function Reducido() {
         <main className="flex-1 grid place-items-center px-4">
           <div className="text-center max-w-md">
             <h1 className="font-display text-4xl">Falta terminar la fase regular</h1>
-            <p className="text-muted-foreground mt-2">Volvé al Torneo y disputá todas las fechas para habilitar la fase final.</p>
+            <p className="text-muted-foreground mt-2">Disputá todas las fechas de la temporada en Modo Carrera para habilitar la fase final.</p>
+            <Link to="/carrera" className="mt-5 inline-block px-6 py-3 rounded-xl bg-celeste text-primary-foreground font-display tracking-wider">IR A MODO CARRERA</Link>
           </div>
         </main>
       </div>

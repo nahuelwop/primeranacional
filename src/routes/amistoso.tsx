@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Nav } from "@/components/Nav";
 import { Shield, Jersey } from "@/components/Shield";
 import { TEAMS, Team } from "@/data/teams";
@@ -32,7 +32,7 @@ function applyKit(team: Team, kit: Kit): Team {
 }
 
 function AmistosoPage() {
-  useTeamsSync();
+  const teamsVersion = useTeamsSync();
   const [home, setHome] = useState<Team | null>(TEAMS[0]);
   const [away, setAway] = useState<Team | null>(TEAMS.find(t => t.id === "nuevachicago") ?? TEAMS[18]);
   const [homeKit, setHomeKit] = useState<Kit>("titular");
@@ -45,6 +45,13 @@ function AmistosoPage() {
   const [result, setResult] = useState<{ h: number; a: number; stats: MatchStats } | null>(null);
   const [showPenales, setShowPenales] = useState(false);
   const [penalesResult, setPenalesResult] = useState<{ winner: "H" | "A"; h: number; a: number } | null>(null);
+
+  // Cuando llegan los equipos de Supabase, TEAMS se reemplaza: refrescamos las
+  // referencias seleccionadas por id para no quedarnos con datos viejos.
+  useEffect(() => {
+    setHome(h => (h ? TEAMS.find(t => t.id === h.id) ?? h : h));
+    setAway(a => (a ? TEAMS.find(t => t.id === a.id) ?? a : a));
+  }, [teamsVersion]);
 
   const homeKitted = useMemo(() => home ? applyKit(home, homeKit) : null, [home, homeKit]);
   const awayKitted = useMemo(() => away ? applyKit(away, awayKit) : null, [away, awayKit]);
@@ -70,7 +77,7 @@ function AmistosoPage() {
       <Nav />
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 py-8">
         <h1 className="font-display text-5xl">AMISTOSO</h1>
-        <p className="text-muted-foreground text-sm mt-1">Elegí los equipos y el modo. Partido de 90 segundos.</p>
+        <p className="text-muted-foreground text-sm mt-1">Elegí los equipos y el modo. Partido de 60 segundos.</p>
 
         {result && (
           <div className="mt-4 p-4 rounded-xl bg-card border border-border">

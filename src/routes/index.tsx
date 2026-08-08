@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Shield } from "@/components/Shield";
 import { Nav } from "@/components/Nav";
 import { ZONE_A, ZONE_B, type Team } from "@/data/teams";
@@ -10,7 +10,7 @@ import { useAuth } from "@/lib/auth";
 export const Route = createFileRoute("/")({
   loader: async () => {
     const teams = await getTeamsForBoot();
-    hydrateTeamsFromDbRows(teams as DbTeam[]);
+    hydrateTeamsFromDbRows(teams as unknown as DbTeam[]);
     return { teams };
   },
   head: () => ({
@@ -24,11 +24,16 @@ export const Route = createFileRoute("/")({
   component: Home,
 });
 
-const ALL_TEAMS: Team[] = [...ZONE_A, ...ZONE_B];
+// Los equipos se leen siempre desde ZONE_A/ZONE_B, que teams-sync reemplaza
+// con los datos de Supabase (o mantiene locales si la base está vacía).
+function useAllTeams(): Team[] {
+  const version = useTeamsSync();
+  return useMemo(() => [...ZONE_A, ...ZONE_B], [version]);
+}
 
 function Home() {
   const { teams } = Route.useLoaderData();
-  useState(() => hydrateTeamsFromDbRows(teams as DbTeam[]));
+  useState(() => hydrateTeamsFromDbRows(teams as unknown as DbTeam[]));
   useTeamsSync();
   const { user, username } = useAuth();
 
@@ -200,8 +205,9 @@ function FloatingParticles() {
 }
 
 function ShieldCollage() {
+  const ALL_TEAMS = useAllTeams();
   const [hoveredId, setHoveredId] = useState<string | null>(null);
-  const N = ALL_TEAMS.length; // 36
+  const N = ALL_TEAMS.length;
   const container = 520; // px, cuadrado
   const center = container / 2;
   const minRadius = 55; // evita que los primeros queden todos amontonados justo en el centro
@@ -270,6 +276,7 @@ function ShieldCollage() {
 // ===================== CARRUSEL DE EQUIPOS =====================
 
 function TeamCarousel() {
+  const ALL_TEAMS = useAllTeams();
   const trackRef = useRef<HTMLDivElement>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const drag = useRef({ active: false, startX: 0, startScroll: 0, moved: false });
