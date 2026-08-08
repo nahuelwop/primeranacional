@@ -154,8 +154,8 @@ function StadiumHero({ user, username }: { user: unknown; username: string | nul
         </div>
 
         {/* Gráfico decorativo: colage de escudos superpuestos, para no dejar el lado derecho vacío */}
-        <div className="relative hidden lg:flex items-center justify-center h-full overflow-hidden">
-          <div className="scale-[0.78] xl:scale-100 origin-center transition-transform">
+        <div className="relative hidden lg:flex items-center justify-center h-full">
+          <div className="scale-[0.72] xl:scale-[0.94] origin-center transition-transform">
             <ShieldCollage />
           </div>
         </div>
@@ -200,6 +200,7 @@ function FloatingParticles() {
 }
 
 function ShieldCollage() {
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
   const N = ALL_TEAMS.length; // 36
   const container = 520; // px, cuadrado
   const center = container / 2;
@@ -225,23 +226,37 @@ function ShieldCollage() {
   return (
     <div className="relative" style={{ width: container, height: container }}>
       <div className="absolute inset-0 bg-celeste/10 blur-[100px] rounded-full" />
-      {layout.map(({ t, x, y, size, rot, glow, z, delay }) => (
-        <div
-          key={t.id}
-          className="absolute rounded-xl bg-card/70 border border-white/10 backdrop-blur-sm grid place-items-center animate-[collageFloat_7s_ease-in-out_infinite]"
-          style={{
-            width: size, height: size,
-            left: x - size / 2, top: y - size / 2,
-            zIndex: z,
-            padding: Math.max(3, size * 0.14),
-            transform: `rotate(${rot}deg)`,
-            boxShadow: `0 0 ${size * 0.4}px ${glow}, 0 6px 14px rgba(0,0,0,0.5)`,
-            animationDelay: `${delay}s`,
-          }}
-        >
-          <Shield team={t} size={size * 0.68} eager={size > 45} />
-        </div>
-      ))}
+      {layout.map(({ t, x, y, size, rot, glow, z, delay }) => {
+        const isHovered = hoveredId === t.id;
+        return (
+          <div
+            key={t.id}
+            onMouseEnter={() => setHoveredId(t.id)}
+            onMouseLeave={() => setHoveredId(null)}
+            className={`absolute rounded-xl bg-card/70 border grid place-items-center backdrop-blur-sm cursor-pointer transition-[transform,box-shadow,border-color] duration-200 ${
+              isHovered ? "border-celeste" : "border-white/10 animate-[collageFloat_7s_ease-in-out_infinite]"
+            }`}
+            style={{
+              width: size, height: size,
+              left: x - size / 2, top: y - size / 2,
+              zIndex: isHovered ? 99 : z,
+              padding: Math.max(3, size * 0.14),
+              transform: isHovered ? `rotate(0deg) scale(1.65)` : `rotate(${rot}deg)`,
+              boxShadow: isHovered
+                ? `0 0 32px rgba(56,189,248,0.75), 0 10px 24px rgba(0,0,0,0.6)`
+                : `0 0 ${size * 0.4}px ${glow}, 0 6px 14px rgba(0,0,0,0.5)`,
+              animationDelay: `${delay}s`,
+            }}
+          >
+            <Shield team={t} size={size * 0.68} eager={size > 45} />
+            {isHovered && (
+              <span className="absolute -bottom-7 left-1/2 -translate-x-1/2 whitespace-nowrap text-[11px] font-semibold bg-background/95 border border-celeste/40 text-celeste px-2 py-0.5 rounded-md shadow-lg">
+                {t.name}
+              </span>
+            )}
+          </div>
+        );
+      })}
       <style>{`
         @keyframes collageFloat {
           0%, 100% { transform: translateY(0); }
