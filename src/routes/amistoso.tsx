@@ -70,7 +70,7 @@ function AmistosoPage() {
       <Nav />
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 py-8">
         <h1 className="font-display text-5xl">AMISTOSO</h1>
-        <p className="text-muted-foreground text-sm mt-1">Elegí los equipos y el modo. Partido de 90 segundos.</p>
+        <p className="text-muted-foreground text-sm mt-1">Elegí los equipos y el modo. Partido de 60 segundos.</p>
 
         {result && (
           <div className="mt-4 p-4 rounded-xl bg-card border border-border">

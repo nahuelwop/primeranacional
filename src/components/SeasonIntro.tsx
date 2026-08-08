@@ -72,7 +72,7 @@ export function SeasonIntro({ season, teamId, objetivo, videoUrl, onDone }: Prop
         )}
         {step === 3 && (
           <div className="text-center">
-            <div className="text-xs text-celeste tracking-[0.4em] font-display mb-6">32 CLUBES · 1 SUEÑO</div>
+            <div className="text-xs text-celeste tracking-[0.4em] font-display mb-6">36 CLUBES · 1 SUEÑO</div>
             <div className="grid grid-cols-8 gap-3 max-w-4xl">
               {TEAMS.map((t, i) => (
                 <div key={t.id} className="animate-scale-in" style={{ animationDelay: `${i * 40}ms` }}>
