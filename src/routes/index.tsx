@@ -92,7 +92,7 @@ function StadiumHero({ user, username }: { user: unknown; username: string | nul
         <div className="absolute inset-0 shadow-[inset_0_0_180px_60px_rgba(0,0,0,0.55)]" />
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 pt-10 pb-20 grid lg:grid-cols-[1.15fr_0.85fr] gap-8 items-center">
+      <div className="max-w-6xl mx-auto px-4 pt-10 pb-20 grid lg:grid-cols-[1fr_1fr] gap-8 items-center">
         <div>
           {/* Panel de sesión */}
           <div className="flex flex-wrap items-center gap-3 mb-8">
@@ -154,8 +154,10 @@ function StadiumHero({ user, username }: { user: unknown; username: string | nul
         </div>
 
         {/* Gráfico decorativo: colage de escudos superpuestos, para no dejar el lado derecho vacío */}
-        <div className="relative hidden lg:flex items-center justify-center h-full">
-          <ShieldCollage />
+        <div className="relative hidden lg:flex items-center justify-center h-full overflow-hidden">
+          <div className="scale-[0.78] xl:scale-100 origin-center transition-transform">
+            <ShieldCollage />
+          </div>
         </div>
       </div>
     </section>
@@ -199,19 +201,20 @@ function FloatingParticles() {
 
 function ShieldCollage() {
   const N = ALL_TEAMS.length; // 36
-  const container = 400; // px, cuadrado
+  const container = 520; // px, cuadrado
   const center = container / 2;
-  const maxRadius = center - 30;
+  const minRadius = 55; // evita que los primeros queden todos amontonados justo en el centro
+  const maxRadius = center - 10;
   const goldenAngle = 137.508 * (Math.PI / 180);
 
   const layout = ALL_TEAMS.map((t, i) => {
     const angle = i * goldenAngle;
-    const radius = maxRadius * Math.sqrt(i / (N - 1));
+    const t01 = i / (N - 1);
+    const radius = minRadius + (maxRadius - minRadius) * Math.sqrt(t01);
     const x = center + radius * Math.cos(angle);
     const y = center + radius * Math.sin(angle);
     // Más grandes cerca del centro (foco de póster), más chicos hacia afuera
-    const t01 = i / (N - 1);
-    const size = 92 - t01 * 56 + (i % 3) * 4;
+    const size = 58 - t01 * 26 + (i % 3) * 3;
     const rot = ((i * 53) % 40) - 20;
     const glow = i % 2 === 0 ? "rgba(56,189,248,0.4)" : "rgba(250,204,21,0.3)";
     const z = Math.round(40 - t01 * 30);
@@ -230,13 +233,13 @@ function ShieldCollage() {
             width: size, height: size,
             left: x - size / 2, top: y - size / 2,
             zIndex: z,
-            padding: Math.max(4, size * 0.14),
+            padding: Math.max(3, size * 0.14),
             transform: `rotate(${rot}deg)`,
-            boxShadow: `0 0 ${size * 0.35}px ${glow}, 0 8px 18px rgba(0,0,0,0.5)`,
+            boxShadow: `0 0 ${size * 0.4}px ${glow}, 0 6px 14px rgba(0,0,0,0.5)`,
             animationDelay: `${delay}s`,
           }}
         >
-          <Shield team={t} size={size * 0.68} eager={size > 60} />
+          <Shield team={t} size={size * 0.68} eager={size > 45} />
         </div>
       ))}
       <style>{`
