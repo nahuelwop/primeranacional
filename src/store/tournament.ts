@@ -41,6 +41,7 @@ type Actions = {
   setObjetivo: (o: "ascenso_directo" | "reducido" | "mantener") => void;
   setLastRoundSummarized: (r: number) => void;
   newSeason: () => void;
+  seedFromCareer: (args: { standA: StandingRow[]; standB: StandingRow[]; userTeamId: string; season: number; difficulty: TDifficulty }) => void;
 };
 
 // Se leen al momento de usarse: teams-sync puede reemplazar las zonas con
@@ -87,6 +88,16 @@ export const useTournament = create<State & Actions>()(persist((set, get) => ({
     lastRoundSummarized: 0,
   }),
   setUserTeam: (id) => set({ userTeamId: id }),
+  seedFromCareer: ({ standA, standB, userTeamId, season, difficulty }) => set({
+    standA, standB, userTeamId, season, difficulty,
+    // Fixture "dummy" ya jugado: el Reducido solo usa standA/standB para armar el cuadro,
+    // esto únicamente habilita la fase final sin tener que rejugar una temporada aparte.
+    fixture: [{ id: "career-import", round: 1, home: userTeamId, away: userTeamId, played: true, homeGoals: 0, awayGoals: 0 } as Match],
+    currentRound: 1,
+    finalDirecta: undefined, bracket: undefined,
+    champion: undefined, reducidoChampion: undefined,
+    introVista: false, lastRoundSummarized: 0,
+  }),
   setIntroVista: (v) => set({ introVista: v }),
   setDifficulty: (d) => set({ difficulty: d }),
   setObjetivo: (o) => set({ objetivo: o }),
