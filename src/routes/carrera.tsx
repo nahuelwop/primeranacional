@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { Nav } from "@/components/Nav";
 import { Shield } from "@/components/Shield";
@@ -29,6 +29,7 @@ import { useUiSfx } from "@/lib/ui-sound";
 import { CountUp } from "@/lib/use-count-up";
 import { SponsorsPanel } from "@/components/career/SponsorsPanel";
 import { buildCareerNews, nextRivals } from "@/lib/career-news";
+import { useTournament } from "@/store/tournament";
 import type { SponsorDeal } from "@/lib/sponsors";
 
 export const Route = createFileRoute("/carrera")({
@@ -58,6 +59,8 @@ const TOP_TABS: { k: TopTab; label: string }[] = [
 
 function CarreraPage() {
   useTeamsSync();
+  const navigate = useNavigate();
+  const seedReducidoFromCareer = useTournament(s => s.seedFromCareer);
   const { user, loading } = useAuth();
   const { settings } = useGameSettings();
   const [teamId, setTeamId] = useState<string | null>(null);
@@ -182,6 +185,18 @@ function CarreraPage() {
     const next = { ...state, sponsor: null };
     setState(next);
     await persist(next, budget, season);
+  }
+
+  async function goToReducido() {
+    if (!state || !teamId) return;
+    seedReducidoFromCareer({
+      standA: state.zone === "A" ? state.standings : (state.otherStandings ?? []),
+      standB: state.zone === "B" ? state.standings : (state.otherStandings ?? []),
+      userTeamId: teamId,
+      season,
+      difficulty: (state.difficulty ?? "normal") as any,
+    });
+    navigate({ to: "/reducido" });
   }
 
   async function advanceSeason() {
@@ -378,7 +393,7 @@ function CarreraPage() {
             state={state} teamId={teamId} season={season} nextMatch={nextMatch}
             indicators={indicators} standings={standings} budget={budget}
             onPlay={() => setPlaying(true)} onSimulate={onSimulateMatch}
-            onAdvance={advanceSeason} onGo={setTab}
+            onAdvance={advanceSeason} onGo={setTab} onGoReducido={goToReducido}
           />
         )}
         {tab === "calendario" && <CalendarioTab state={state} teamId={teamId} />}
@@ -397,10 +412,10 @@ function CarreraPage() {
 
 /* ============================ INICIO ============================ */
 
-function InicioTab({ state, teamId, season, nextMatch, indicators, standings, budget, onPlay, onSimulate, onAdvance, onGo }: {
+function InicioTab({ state, teamId, season, nextMatch, indicators, standings, budget, onPlay, onSimulate, onAdvance, onGo, onGoReducido }: {
   state: CareerState; teamId: string; season: number; nextMatch: Match | null;
   indicators: ReturnType<typeof clubIndicators>; standings: StandingRow[]; budget: number;
-  onPlay: () => void; onSimulate: () => void; onAdvance: () => void; onGo: (t: TopTab) => void;
+  onPlay: () => void; onSimulate: () => void; onAdvance: () => void; onGo: (t: TopTab) => void; onGoReducido: () => void;
 }) {
   const rival = nextMatch ? (nextMatch.home === teamId ? nextMatch.away : nextMatch.home) : null;
   const rivalTeam = rival ? TEAMS_BY_ID[rival] : undefined;
@@ -508,10 +523,23 @@ function InicioTab({ state, teamId, season, nextMatch, indicators, standings, bu
                   Campeón Zona {state.zone}: {TEAMS_BY_ID[seasonChampion(state) ?? ""]?.short ?? "—"}
                 </div>
                 <div className="text-sm text-muted-foreground mt-1">Terminaste {pos}° en la tabla.</div>
-                <button onClick={onAdvance}
-                  className="mt-5 px-8 py-3 rounded-xl hud-btn-green font-display text-lg tracking-[0.2em]">
-                  NUEVA TEMPORADA
-                </button>
+                <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+                  {pos <= 8 && (
+                    <button onClick={onGoReducido}
+                      className="px-8 py-3 rounded-xl hud-btn-play font-display text-lg tracking-[0.2em]">
+                      🏆 IR AL REDUCIDO
+                    </button>
+                  )}
+                  <button onClick={onAdvance}
+                    className="px-8 py-3 rounded-xl hud-btn-ghost font-display text-lg tracking-[0.2em]">
+                    NUEVA TEMPORADA
+                  </button>
+                </div>
+                {pos <= 8 && (
+                  <div className="text-[11px] text-muted-foreground mt-3 max-w-xs mx-auto">
+                    Clasificaste al Reducido con tu tabla real de esta temporada. Podés jugarlo antes de arrancar una temporada nueva.
+                  </div>
+                )}
               </div>
             )}
           </div>
