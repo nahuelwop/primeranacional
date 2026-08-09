@@ -187,27 +187,28 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
     const smoke: Smoke[] = [];
     type Spark = { x: number; y: number; vx: number; vy: number; color: string; life: number };
     const sparks: Spark[] = [];
-    // Bengalas repartidas por TODA la tribuna (no solo 2 puntos), alternando colores de ambos equipos + blanco
+    // Bengalas repartidas por TODA la tribuna, sostenidas por la gente (dentro del público)
     const flareSources = Array.from({ length: 10 }, (_, i) => ({
       x: (W / 11) * (i + 1),
+      y: i % 2 === 0 ? 300 : 210,
       color: i % 3 === 0 ? "#ffffff" : (i % 2 === 0 ? home.primary : away.primary),
     }));
     const spawnSmoke = () => {
       flareSources.forEach(src => {
         for (let i = 0; i < 4; i++) {
           smoke.push({
-            x: src.x + (Math.random() - 0.5) * 50,
-            y: 165 + Math.random() * 25,
+            x: src.x + (Math.random() - 0.5) * 26,
+            y: src.y - 4 + Math.random() * 10,
             vy: -0.7 - Math.random() * 0.7,
-            r: 16 + Math.random() * 16,
+            r: 14 + Math.random() * 14,
             color: src.color,
-            alpha: 0.55,
+            alpha: 0.5,
           });
         }
         // Chispas saliendo de cada bengala
         for (let i = 0; i < 3; i++) {
           sparks.push({
-            x: src.x, y: 175,
+            x: src.x, y: src.y,
             vx: (Math.random() - 0.5) * 3,
             vy: -Math.random() * 2 - 1,
             color: src.color,
@@ -216,6 +217,7 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         }
       });
     };
+
 
 
     // Relato: en cada gol. Si llega otro, corta el anterior.
