@@ -388,7 +388,7 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
       c.textAlign = "start";
 
       // Bandeja baja (popular, más cerca del campo → gente más grande)
-      deck(BANNER_Y + 30, FENCE_TOP, "#0c1729", "#122murky".slice(0, 7) === "#122mur" ? "#122a4a" : "#122a4a", 18, 9);
+      deck(BANNER_Y + 30, FENCE_TOP, "#0c1729", "#122a4a", 18, 9);
 
       // Valla / borde de tribuna que separa público y campo
       const fg = c.createLinearGradient(0, FENCE_TOP, 0, STAND_BOTTOM);
