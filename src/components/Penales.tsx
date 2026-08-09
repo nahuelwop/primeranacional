@@ -124,11 +124,9 @@ export function Penales({ home, away, onEnd }: { home: Team; away: Team; onEnd: 
     powerRef.current = 0; setPower(0);
 
     setTimeout(() => {
-      setShots(prev => {
-        const next = [...prev, shot];
-        evaluateEnd(next);
-        return next;
-      });
+      const next = [...shots, shot];
+      setShots(next);
+      evaluateEnd(next);
       setLastResult(shot);
       setPhase("result");
     }, 620);
