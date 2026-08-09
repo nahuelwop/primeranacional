@@ -529,6 +529,13 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
 
       // Pelota — físicas tipo Football Heads (liviana, alegre)
       ball.vy += 0.22;
+      // Gravedad extra cuando está muy alta (por encima del travesaño): sin esto,
+      // con la gravedad base la pelota tarda una eternidad en bajar de esa altura
+      // y además rebota sobre el caño en vez de caer. Cuanto más alta, más tira.
+      if (ball.y < crossbarY - 6) {
+        const overshoot = Math.min(1, (crossbarY - 6 - ball.y) / 140);
+        ball.vy += 0.30 * overshoot;
+      }
       ball.vx += wind;
       ball.x += ball.vx;
       ball.y += ball.vy;
@@ -551,11 +558,12 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
       // El balón puede entrar libremente al arco; solo rebota en la barra superior.
       const hitCrossbar = (xMin: number, xMax: number) => {
         if (ball.x + ball.r > xMin && ball.x - ball.r < xMax) {
-          // desde arriba
+          // desde arriba: rebote débil y con empuje lateral, para que la pelota
+          // se corra del caño en vez de quedar picando en el mismo punto
           if (ball.y + ball.r > crossbarY && ball.y < crossbarY) {
             ball.y = crossbarY - ball.r;
-            ball.vy = -Math.abs(ball.vy) * 0.4 - 0.1;
-            ball.vx *= 0.95;
+            ball.vy = -Math.abs(ball.vy) * 0.25;
+            ball.vx = ball.vx * 0.9 + (ball.vx >= 0 ? 0.6 : -0.6);
           }
           // desde abajo
           else if (ball.y - ball.r < crossbarY && ball.y > crossbarY && ball.vy < 0) {
@@ -579,7 +587,12 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         if (d < minD) {
           const ang = Math.atan2(dy, dx);
           const power = (i === 0 ? home.stats.power : away.stats.power) / 18;
-          const kickBoost = p.kick > 0 ? 4 + power : 1.2;
+          // Antes un cabezazo "pasivo" (sin apretar patear) casi no impulsaba la
+          // pelota (kickBoost fijo en 1.2) y se sentía al azar. Ahora tiene fuerza
+          // decente siempre, y más si venís saltando/corriendo hacia la pelota.
+          const jumping = p.vy < -1;
+          const passiveBoost = 2.6 + power * 0.6 + (jumping ? 1.4 : 0) + Math.min(1.5, Math.abs(p.vx) * 0.3);
+          const kickBoost = p.kick > 0 ? 4 + power : passiveBoost;
           ball.vx = Math.cos(ang) * (2.2 + kickBoost) + p.vx * 0.45;
           ball.vy = Math.sin(ang) * (2.2 + kickBoost) - 1.8;
           ball.x = p.x + Math.cos(ang) * minD;
