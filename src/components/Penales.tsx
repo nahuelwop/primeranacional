@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Shield } from "@/components/Shield";
 import { Team } from "@/data/teams";
+import { supabase } from "@/integrations/supabase/client";
 
 // ===== Penales — mini-juego interactivo (potencia + apunte) =====
 // El arco, el arquero y el pateador se dibujan en canvas (mismo lenguaje
