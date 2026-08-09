@@ -187,27 +187,28 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
     const smoke: Smoke[] = [];
     type Spark = { x: number; y: number; vx: number; vy: number; color: string; life: number };
     const sparks: Spark[] = [];
-    // Bengalas repartidas por TODA la tribuna (no solo 2 puntos), alternando colores de ambos equipos + blanco
+    // Bengalas repartidas por TODA la tribuna, sostenidas por la gente (dentro del público)
     const flareSources = Array.from({ length: 10 }, (_, i) => ({
       x: (W / 11) * (i + 1),
+      y: i % 2 === 0 ? 300 : 210,
       color: i % 3 === 0 ? "#ffffff" : (i % 2 === 0 ? home.primary : away.primary),
     }));
     const spawnSmoke = () => {
       flareSources.forEach(src => {
         for (let i = 0; i < 4; i++) {
           smoke.push({
-            x: src.x + (Math.random() - 0.5) * 50,
-            y: 165 + Math.random() * 25,
+            x: src.x + (Math.random() - 0.5) * 26,
+            y: src.y - 4 + Math.random() * 10,
             vy: -0.7 - Math.random() * 0.7,
-            r: 16 + Math.random() * 16,
+            r: 14 + Math.random() * 14,
             color: src.color,
-            alpha: 0.55,
+            alpha: 0.5,
           });
         }
         // Chispas saliendo de cada bengala
         for (let i = 0; i < 3; i++) {
           sparks.push({
-            x: src.x, y: 175,
+            x: src.x, y: src.y,
             vx: (Math.random() - 0.5) * 3,
             vy: -Math.random() * 2 - 1,
             color: src.color,
@@ -216,6 +217,7 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         }
       });
     };
+
 
 
     // Relato: en cada gol. Si llega otro, corta el anterior.
@@ -304,20 +306,103 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
       }
     }
 
-    const crowd: { x: number; y: number; c: string; bob: number }[] = [];
-    const palette = ["#7ec8ff", "#ffffff", "#ffe066", "#ff6b6b", "#9bd1ff", "#f0f0f0", home.primary, away.primary];
-    const rows = crowdIntensity === "ascenso" ? 6 : crowdIntensity === "clasico" ? 5 : 4;
-    const spacing = crowdIntensity === "normal" ? 14 : 10;
-    for (let row = 0; row < rows; row++) {
-      for (let i = 0; i < W / spacing; i++) {
-        crowd.push({
-          x: i * spacing + (row % 2) * (spacing / 2),
-          y: 30 + row * 15,
-          c: palette[Math.floor(Math.random() * palette.length)],
-          bob: Math.random() * Math.PI * 2,
-        });
-      }
-    }
+    // ===== Tribuna prerenderizada: llena, continua y pegada al campo =====
+    const STAND_TOP = 42;
+    const STAND_BOTTOM = ground - 22;   // justo donde arranca la valla LED
+    const BANNER_Y = 232;               // franja de trapos entre bandeja alta y baja
+    const FENCE_TOP = STAND_BOTTOM - 30;
+    const crowdLayer = document.createElement("canvas");
+    crowdLayer.width = W;
+    crowdLayer.height = STAND_BOTTOM;
+    const buildCrowd = () => {
+      const c = crowdLayer.getContext("2d");
+      if (!c) return;
+      c.clearRect(0, 0, W, STAND_BOTTOM);
+      const skins = ["#f0c39a", "#d9a172", "#a9714a", "#f7d9b6"];
+      const neutral = ["#e9e9e9", "#c9d2dd", "#2b3242", "#8a93a3"];
+      const density = crowdIntensity === "normal" ? 1 : 1.15;
+
+      const deck = (top: number, bottom: number, bg1: string, bg2: string, step: number, size: number) => {
+        const g = c.createLinearGradient(0, top, 0, bottom);
+        g.addColorStop(0, bg1); g.addColorStop(1, bg2);
+        c.fillStyle = g; c.fillRect(0, top, W, bottom - top);
+        // escalones
+        c.fillStyle = "rgba(0,0,0,0.18)";
+        for (let y = top; y < bottom; y += step) c.fillRect(0, y + step - 2, W, 2);
+        // pasillos
+        c.fillStyle = "rgba(0,0,0,0.28)";
+        for (let x = W * 0.2; x < W; x += W * 0.2) c.fillRect(x - 5, top, 10, bottom - top);
+
+        const gap = Math.max(7, (size * 2.1) / density);
+        for (let y = top + step; y < bottom - 2; y += step) {
+          const depth = (y - top) / Math.max(1, bottom - top);
+          const s = size * (0.78 + depth * 0.35);
+          for (let x = 4; x < W; x += gap) {
+            const px = x + ((Math.round(y / step) % 2) * gap) / 2 + (Math.random() - 0.5) * 2;
+            if (px % (W * 0.2) < 12) continue; // pasillo libre
+            const homeSide = px < W / 2;
+            const base = homeSide ? [home.primary, home.secondary, home.primary] : [away.primary, away.secondary, away.primary];
+            const shirt = Math.random() < 0.78
+              ? base[Math.floor(Math.random() * base.length)]
+              : neutral[Math.floor(Math.random() * neutral.length)];
+            // torso
+            c.fillStyle = shirt;
+            c.fillRect(px - s * 0.5, y - s * 0.4, s, s * 1.15);
+            // cabeza
+            c.fillStyle = skins[Math.floor(Math.random() * skins.length)];
+            c.beginPath(); c.arc(px, y - s * 0.75, s * 0.42, 0, Math.PI * 2); c.fill();
+            // brazos en alto (algunos)
+            if (Math.random() < 0.22) {
+              c.strokeStyle = shirt; c.lineWidth = Math.max(1, s * 0.22);
+              c.beginPath();
+              c.moveTo(px - s * 0.5, y - s * 0.2); c.lineTo(px - s * 0.85, y - s * 1.05);
+              c.moveTo(px + s * 0.5, y - s * 0.2); c.lineTo(px + s * 0.85, y - s * 1.05);
+              c.stroke();
+            }
+          }
+        }
+        // sombra ambiente
+        const sh = c.createLinearGradient(0, top, 0, bottom);
+        sh.addColorStop(0, "rgba(0,0,0,0.35)");
+        sh.addColorStop(0.35, "rgba(0,0,0,0)");
+        c.fillStyle = sh; c.fillRect(0, top, W, bottom - top);
+      };
+
+      // Bandeja alta
+      deck(STAND_TOP, BANNER_Y, "#101c33", "#16243f", 15, 7);
+
+      // Franja de trapos/banderas colgadas entre bandejas
+      const banners = ["VAMOS " + home.short, "SIEMPRE A TU LADO", "LA BANDA DEL SUR", "ALENTAMOS DE CORAZÓN", "AGUANTE " + away.short];
+      c.fillStyle = "#060d1a"; c.fillRect(0, BANNER_Y, W, 30);
+      banners.forEach((txt, i) => {
+        const bw = 210, bx = 40 + i * ((W - 120) / banners.length);
+        const homeSide = bx + bw / 2 < W / 2;
+        c.fillStyle = "#f2f0e6";
+        c.fillRect(bx, BANNER_Y + 3, bw, 24);
+        c.strokeStyle = homeSide ? home.primary : away.primary; c.lineWidth = 3;
+        c.strokeRect(bx, BANNER_Y + 3, bw, 24);
+        c.fillStyle = "#12161f";
+
+        c.font = "bold 13px system-ui"; c.textAlign = "center";
+        c.fillText(txt.toUpperCase(), bx + bw / 2, BANNER_Y + 20);
+      });
+      c.textAlign = "start";
+
+      // Bandeja baja (popular, más cerca del campo → gente más grande)
+      deck(BANNER_Y + 30, FENCE_TOP, "#0c1729", "#122a4a", 18, 9);
+
+      // Valla / borde de tribuna que separa público y campo
+      const fg = c.createLinearGradient(0, FENCE_TOP, 0, STAND_BOTTOM);
+      fg.addColorStop(0, "#1a2740"); fg.addColorStop(1, "#0a1120");
+      c.fillStyle = fg; c.fillRect(0, FENCE_TOP, W, STAND_BOTTOM - FENCE_TOP);
+      c.strokeStyle = "rgba(180,205,255,0.25)"; c.lineWidth = 1;
+      for (let x = 0; x < W; x += 9) { c.beginPath(); c.moveTo(x, FENCE_TOP + 4); c.lineTo(x, STAND_BOTTOM - 4); c.stroke(); }
+      c.strokeStyle = "rgba(200,220,255,0.4)"; c.lineWidth = 2;
+      [FENCE_TOP + 4, STAND_BOTTOM - 6].forEach(y => { c.beginPath(); c.moveTo(0, y); c.lineTo(W, y); c.stroke(); });
+      c.fillStyle = "rgba(0,0,0,0.35)"; c.fillRect(0, STAND_BOTTOM - 4, W, 4);
+    };
+    buildCrowd();
+
 
     const keys: Record<string, boolean> = {};
     const onKey = (e: KeyboardEvent, down: boolean) => {
@@ -668,7 +753,7 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         if (w.x > W + 10) w.x = -10;
       });
 
-      crowd.forEach(c => c.bob += 0.05);
+      
 
       // Guardar snapshot al ring buffer
       history.push({
@@ -801,66 +886,48 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
       }
       ctx.lineTo(0, 40); ctx.closePath(); ctx.fill();
 
-      // Tribunas: 2 niveles separados por una platea VIP
-      // Nivel alto
-      ctx.fillStyle = "#0b1730";
-      ctx.fillRect(0, 40, W, 70);
-      // Platea VIP (cabinas)
-      ctx.fillStyle = "#1a253f";
-      ctx.fillRect(0, 108, W, 14);
-      for (let x = 0; x < W; x += 28) {
-        ctx.fillStyle = "rgba(255,220,120,0.4)";
-        ctx.fillRect(x + 4, 112, 18, 7);
-      }
-      // Nivel bajo
-      ctx.fillStyle = "#0d1a36";
-      ctx.fillRect(0, 122, W, 50);
+      // Tribuna completa (prerenderizada): bandeja alta → trapos → popular → valla
+      ctx.drawImage(crowdLayer, 0, 0);
 
-      // Pared perimetral del estadio (cierra el hueco vacío entre la tribuna y la cancha)
-      const wallTop = 172;
-      const wallBottom = ground - 22; // termina justo donde arranca la valla LED
-      const wallGrad = ctx.createLinearGradient(0, wallTop, 0, wallBottom);
-      wallGrad.addColorStop(0, "#0a1428");
-      wallGrad.addColorStop(1, "#152848");
-      ctx.fillStyle = wallGrad;
-      ctx.fillRect(0, wallTop, W, wallBottom - wallTop);
-
-      // Franja de "vidrios"/palcos a media altura de la pared, para que no quede lisa
-      ctx.fillStyle = "rgba(140,180,255,0.08)";
-      for (let x = 10; x < W; x += 46) {
-        ctx.fillRect(x, wallTop + 14, 28, wallBottom - wallTop - 28);
-      }
-      // Línea de sombra al ras del piso (contacto pared-cancha)
-      ctx.fillStyle = "rgba(0,0,0,0.35)";
-      ctx.fillRect(0, wallBottom - 10, W, 10);
-
-      // Hinchada (puntitos por toda la tribuna)
-      crowd.forEach(c => {
-        const y = c.y + Math.sin(c.bob) * 1.5;
-        ctx.fillStyle = c.c;
-        ctx.beginPath(); ctx.arc(c.x, y, 4.5, 0, Math.PI * 2); ctx.fill();
-      });
-
-      // Banderas de los hinchas (más cantidad y ondulación según intensidad)
+      // Banderas agitándose entre los hinchas (animadas sobre la tribuna)
       const flagCount = crowdIntensity === "ascenso" ? 26 : crowdIntensity === "clasico" ? 20 : 14;
       for (let i = 0; i < flagCount; i++) {
-        const fx = (i * W / flagCount) + (Date.now() / 200 % 30);
-        const sway = Math.sin(Date.now() / 350 + i * 0.7) * 6;
-        const fy = 70 + (i % 3) * 8 + sway;
-        const useHome = i % 2 === 0;
+        const fx = (i * W / flagCount) + 20;
+        const sway = Math.sin(Date.now() / 350 + i * 0.7) * 5;
+        const fy = (i % 3 === 0 ? 90 : i % 3 === 1 ? 160 : 300) + sway;
+        const useHome = fx < W / 2;
+        ctx.save();
+        ctx.translate(fx, fy);
+        ctx.rotate(Math.sin(Date.now() / 500 + i) * 0.08);
+        ctx.fillStyle = "#12161f";
+        ctx.fillRect(-1, -6, 2, 34);
         ctx.fillStyle = useHome ? home.primary : away.primary;
-        ctx.fillRect(fx, fy, 24, 15);
+        ctx.fillRect(0, -6, 26, 16);
         ctx.fillStyle = useHome ? home.secondary : away.secondary;
-        ctx.fillRect(fx, fy + 5, 24, 5);
-        ctx.fillStyle = "#1a1a1a";
-        ctx.fillRect(fx - 1, fy, 2, 34);
+        ctx.fillRect(0, -1, 26, 5);
+        ctx.restore();
       }
-      // Papelitos/humo en partidos calientes (clásicos y ascensos)
+
+      // Bengalas encendidas dentro del público + humo permanente en partidos calientes
       if (crowdIntensity !== "normal") {
+        flareSources.forEach((f, i) => {
+          const flick = 0.75 + Math.sin(Date.now() / 90 + i) * 0.25;
+          const g = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, 42 * flick);
+          g.addColorStop(0, f.color);
+          g.addColorStop(0.25, "rgba(255,220,150,0.35)");
+          g.addColorStop(1, "rgba(0,0,0,0)");
+          ctx.globalAlpha = 0.75;
+          ctx.fillStyle = g;
+          ctx.beginPath(); ctx.arc(f.x, f.y, 42 * flick, 0, Math.PI * 2); ctx.fill();
+          ctx.globalAlpha = 1;
+          ctx.fillStyle = "#fff6d5";
+          ctx.beginPath(); ctx.arc(f.x, f.y, 3, 0, Math.PI * 2); ctx.fill();
+        });
+        // Papelitos flotando dentro de la tribuna
         const t = Date.now() / 1000;
-        for (let i = 0; i < 40; i++) {
+        for (let i = 0; i < 60; i++) {
           const x = (i * 41 + (t * 20) % W) % W;
-          const y = 40 + ((i * 13 + t * 30) % 130);
+          const y = 50 + ((i * 17 + t * 30) % (ground - 110));
           const col = i % 3 === 0 ? home.primary : i % 3 === 1 ? away.primary : "#ffffff";
           ctx.fillStyle = col;
           ctx.globalAlpha = 0.5;
@@ -868,6 +935,7 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         }
         ctx.globalAlpha = 1;
       }
+
 
       // Torres de luz (mástiles)
       towers.forEach(tx => {
