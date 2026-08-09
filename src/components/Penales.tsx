@@ -299,8 +299,13 @@ export function Penales({ home, away, mode = "1v1", onEnd }: {
       setLastResult(shot);
       setComment(pickComment(shot));
       setPhase("result");
+      // Audio del relator según lo que pasó realmente. El audio "decisivo" sólo
+      // suena si este penal efectivamente definió al ganador de la tanda.
+      const definedNow = decisive && computeFinished(next);
+      playPenalAudio(definedNow ? "decisive" : shot.goal ? "goal" : "save");
       evaluateEnd(next);
     }, 620);
+
   }
 
   function pickComment(shot: Shot) {
