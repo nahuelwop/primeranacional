@@ -3,42 +3,68 @@ import { Shield } from "@/components/Shield";
 import { Team } from "@/data/teams";
 
 // ===== Penales — mini-juego interactivo (potencia + apunte) =====
-// Reemplaza al grid de botones original: ahora el arco, el arquero y el
-// pateador se dibujan en canvas (mismo lenguaje visual que el motor
-// principal), con 6 zonas de apunte, barra de potencia cargable, y un
-// arquero que "adivina" el lado según la stat de defensa del equipo rival.
+// El arco, el arquero y el pateador se dibujan en canvas (mismo lenguaje
+// visual que el motor principal). 6 zonas de apunte, barra de potencia
+// cargable, relatos según el momento, y — si el modo es 1 vs IA — cuando
+// patea la IA el usuario pasa a controlar al arquero (elige el palo).
 
 type Zone = 1 | 2 | 3 | 4 | 5 | 6;
 const ZONES: Zone[] = [1, 2, 3, 4, 5, 6];
 const zoneCol = (z: Zone): "L" | "C" | "R" => (z === 1 || z === 4 ? "L" : z === 3 || z === 6 ? "R" : "C");
 const zoneRow = (z: Zone): "T" | "B" => (z <= 3 ? "T" : "B");
+const otherZone = (z: Zone) => {
+  const rest = ZONES.filter(x => x !== z);
+  return rest[Math.floor(Math.random() * rest.length)];
+};
 
-type Shot = { team: "H" | "A"; zone: Zone; keeperZone: Zone | null; goal: boolean; missedTarget: boolean };
+type Shot = { team: "H" | "A"; zone: Zone; keeperZone: Zone | null; goal: boolean; missedTarget: boolean; decisive: boolean };
+type Phase = "aim" | "charging" | "keeper" | "flying" | "result";
+type Mode = "1v1" | "1vAI";
 
-type Phase = "aim" | "charging" | "flying" | "result";
-
-function resolveShot(zone: Zone, power: number, keeperDefense: number) {
+// ===== Resolución: transparente y basada en azar =====
+// - Si el arquero se tira al mismo palo que el remate: 50/50 puro (mano a mano).
+// - Si se tira al otro lado: normalmente gol, con una chance chica de que igual llegue.
+// - Potencia mal calibrada (muy floja o al palo) puede irse afuera, sea cual sea el palo.
+function resolveDuel(power: number, zonesMatch: boolean) {
   const overpowered = power > 92;
-  const weak = power < 35;
-  const missChance = overpowered ? 0.16 : weak ? 0.05 : 0.06;
-  if (Math.random() < missChance) return { goal: false, keeperZone: null as Zone | null, missedTarget: true };
+  const weak = power < 32;
+  const missChance = overpowered ? 0.13 : weak ? 0.08 : 0.05;
+  if (Math.random() < missChance) return { goal: false, missedTarget: true };
 
-  const guessChance = 0.30 + keeperDefense / 250; // ~0.3 a ~0.7
-  const guessedRight = Math.random() < guessChance;
-  const otherZones = ZONES.filter(z => z !== zone);
-  const keeperZone = guessedRight ? zone : otherZones[Math.floor(Math.random() * otherZones.length)];
-
-  if (guessedRight) {
-    const cornerBonus = zoneRow(zone) === "T" ? 0.15 : 0;
-    let saveChance = 0.55 - cornerBonus + (weak ? 0.15 : 0) - (overpowered ? 0.1 : 0) + keeperDefense / 500;
-    saveChance = Math.max(0.15, Math.min(0.85, saveChance));
-    const saved = Math.random() < saveChance;
-    return { goal: !saved, keeperZone, missedTarget: false };
+  if (zonesMatch) {
+    const saved = Math.random() < 0.5; // al azar, mano a mano
+    return { goal: !saved, missedTarget: false };
   }
-  const recoverChance = weak ? 0.12 : 0.03;
-  const saved = Math.random() < recoverChance;
-  return { goal: !saved, keeperZone, missedTarget: false };
+  const recovers = Math.random() < 0.1; // reflejos, aunque haya adivinado mal
+  return { goal: !recovers, missedTarget: false };
 }
+
+function guessKeeperZone(shooterZone: Zone, keeperDefense: number): Zone {
+  const guessChance = 0.28 + keeperDefense / 260; // ~0.28 a ~0.66
+  if (Math.random() < guessChance) return shooterZone;
+  return otherZone(shooterZone);
+}
+
+function pickAiShotZone(attackPower: number): Zone {
+  // Cuanto mejor el equipo, más probable que vaya a un palo difícil (esquinas)
+  const corners: Zone[] = [1, 3, 4, 6];
+  const goesCorner = Math.random() < 0.35 + attackPower / 400;
+  const pool = goesCorner ? corners : ZONES;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+const GOAL_COMMENTS = [
+  "¡GOOOOL!", "¡LA CLAVÓ!", "¡INATAJABLE!", "¡ADENTRO, SIN DUDAS!", "¡GOL, GOL, GOL!",
+];
+const SAVE_COMMENTS = [
+  "¡LA ATAJÓ EL ARQUERO!", "¡QUÉ TAPADÓN!", "¡SE LA SACÓ DE ADENTRO!", "¡ADIVINÓ EL PALO!",
+];
+const MISS_COMMENTS = ["¡SE FUE AFUERA!", "¡AL VIENTO!", "¡NO PUDO CON LOS NERVIOS!"];
+const DECISIVE_PRE = [
+  "SILENCIO EN LA CANCHA. ESTE PENAL LO DEFINE TODO.",
+  "PENAL DECISIVO. NO HAY MAÑANA.",
+  "SE JUEGA TODO EN ESTE TIRO.",
+];
 
 const CW = 900, CH = 460;
 const GOAL_X = 170, GOAL_Y = 70, GOAL_W = 560, GOAL_H = 250;
@@ -49,19 +75,40 @@ const zonePos = (z: Zone) => {
   return { x: cx, y: cy };
 };
 
-export function Penales({ home, away, onEnd }: { home: Team; away: Team; onEnd: (winner: "H" | "A", h: number, a: number) => void }) {
+export function Penales({ home, away, mode = "1v1", onEnd }: {
+  home: Team; away: Team; mode?: Mode; onEnd: (winner: "H" | "A", h: number, a: number) => void;
+}) {
   const [shots, setShots] = useState<Shot[]>([]);
   const [turn, setTurn] = useState<"H" | "A">("H");
   const [phase, setPhase] = useState<Phase>("aim");
-  const [aimZone, setAimZone] = useState<Zone>(2);
+  const [aimZone, setAimZone] = useState<Zone>(2);   // zona elegida por el usuario, sea para patear o para atajar
+  const [aiShotZone, setAiShotZone] = useState<Zone>(2); // zona real del remate de la IA (oculta hasta el resultado)
   const [power, setPower] = useState(0);
   const [lastResult, setLastResult] = useState<Shot | null>(null);
+  const [comment, setComment] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  const [isDecisive, setIsDecisive] = useState(false);
+
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const chargingRef = useRef(false);
   const powerRef = useRef(0);
+  const phaseRef = useRef<Phase>("aim");
+  const turnRef = useRef<"H" | "A">("H");
+  const aimZoneRef = useRef<Zone>(2);
+  const aiShotZoneRef = useRef<Zone>(2);
+  const shotsRef = useRef<Shot[]>([]);
+  const doneRef = useRef(false);
   const animRef = useRef<{ t: number; from: { x: number; y: number }; to: { x: number; y: number }; keeperTo: { x: number; y: number } } | null>(null);
+  const aiTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  useEffect(() => { phaseRef.current = phase; }, [phase]);
+  useEffect(() => { turnRef.current = turn; }, [turn]);
+  useEffect(() => { aimZoneRef.current = aimZone; }, [aimZone]);
+  useEffect(() => { aiShotZoneRef.current = aiShotZone; }, [aiShotZone]);
+  useEffect(() => { shotsRef.current = shots; }, [shots]);
+  useEffect(() => { doneRef.current = done; }, [done]);
+
+  const aiControlsShooter = mode === "1vAI" && turn === "A"; // la IA patea, el usuario ataja
   const shooter = turn === "H" ? home : away;
   const keeper = turn === "H" ? away : home;
   const hScore = shots.filter(s => s.team === "H" && s.goal).length;
@@ -69,12 +116,11 @@ export function Penales({ home, away, onEnd }: { home: Team; away: Team; onEnd: 
   const hShots = shots.filter(s => s.team === "H");
   const aShots = shots.filter(s => s.team === "A");
 
-  // Carga de potencia mientras se mantiene ESPACIO
+  // Carga de potencia mientras se mantiene ESPACIO (o el toque en mobile)
   useEffect(() => {
-    if (done) return;
     let raf = 0;
     const tick = () => {
-      if (chargingRef.current) {
+      if (chargingRef.current && !doneRef.current) {
         powerRef.current = Math.min(100, powerRef.current + 2.1);
         setPower(powerRef.current);
       }
@@ -82,19 +128,34 @@ export function Penales({ home, away, onEnd }: { home: Team; away: Team; onEnd: 
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [done]);
+  }, []);
 
+  // Controles: un único listener estable (sin dependencias que lo re-registren a mitad
+  // de una tecla presionada — eso era lo que hacía que la carga de potencia se sintiera rota).
   useEffect(() => {
-    if (done) return;
+    const moveZone = (z: Zone, dir: "left" | "right" | "up" | "down"): Zone => {
+      const col = zoneCol(z), row = zoneRow(z);
+      if (dir === "left") return (col === "C" ? (row === "T" ? 1 : 4) : col === "R" ? (row === "T" ? 2 : 5) : z) as Zone;
+      if (dir === "right") return (col === "C" ? (row === "T" ? 3 : 6) : col === "L" ? (row === "T" ? 2 : 5) : z) as Zone;
+      if (dir === "up") return (row === "B" ? ((z as number) - 3) as Zone : z);
+      return (row === "T" ? ((z as number) + 3) as Zone : z);
+    };
+
     const onDown = (e: KeyboardEvent) => {
-      if (phase !== "aim" && phase !== "charging") return;
+      if (doneRef.current) return;
+      const ph = phaseRef.current;
+      if (ph !== "aim" && ph !== "charging" && ph !== "keeper") return;
       const k = e.key.toLowerCase();
-      if (["1", "2", "3", "4", "5", "6"].includes(k)) setAimZone(Number(k) as Zone);
-      if (k === "arrowleft") setAimZone(z => (zoneCol(z) === "C" ? (zoneRow(z) === "T" ? 1 : 4) : zoneCol(z) === "R" ? (zoneRow(z) === "T" ? 2 : 5) : z) as Zone);
-      if (k === "arrowright") setAimZone(z => (zoneCol(z) === "C" ? (zoneRow(z) === "T" ? 3 : 6) : zoneCol(z) === "L" ? (zoneRow(z) === "T" ? 2 : 5) : z) as Zone);
-      if (k === "arrowup") setAimZone(z => (zoneRow(z) === "B" ? ((z as number) - 3) as Zone : z));
-      if (k === "arrowdown") setAimZone(z => (zoneRow(z) === "T" ? ((z as number) + 3) as Zone : z));
-      if (k === " ") { e.preventDefault(); chargingRef.current = true; setPhase("charging"); }
+      if (["1", "2", "3", "4", "5", "6"].includes(k)) { e.preventDefault(); setAimZone(Number(k) as Zone); }
+      if (k === "arrowleft") { e.preventDefault(); setAimZone(z => moveZone(z, "left")); }
+      if (k === "arrowright") { e.preventDefault(); setAimZone(z => moveZone(z, "right")); }
+      if (k === "arrowup") { e.preventDefault(); setAimZone(z => moveZone(z, "up")); }
+      if (k === "arrowdown") { e.preventDefault(); setAimZone(z => moveZone(z, "down")); }
+      if (k === " ") {
+        e.preventDefault();
+        if (ph === "keeper") { confirmDive(); return; }
+        if (!chargingRef.current) { chargingRef.current = true; setPhase("charging"); }
+      }
     };
     const onUp = (e: KeyboardEvent) => {
       if (e.key.toLowerCase() === " " && chargingRef.current) {
@@ -107,29 +168,99 @@ export function Penales({ home, away, onEnd }: { home: Team; away: Team; onEnd: 
     window.addEventListener("keyup", onUp);
     return () => { window.removeEventListener("keydown", onDown); window.removeEventListener("keyup", onUp); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, done]);
+  }, []);
+
+  // Cuando le toca patear a la IA (modo 1vAI), el usuario pasa a ser arquero:
+  // se sortea el remate de la IA (oculto), y se le da al usuario una ventana para elegir el palo.
+  useEffect(() => {
+    if (done) return;
+    if (mode !== "1vAI" || turn !== "A" || phase !== "aim") return;
+    const attackPower = away.stats.power ?? 70;
+    const zone = pickAiShotZone(attackPower);
+    setAiShotZone(zone);
+    setAimZone(2);
+    setPhase("keeper");
+    aiTimerRef.current = setTimeout(() => confirmDive(), 2600); // si no elige, se define solo
+    return () => { if (aiTimerRef.current) clearTimeout(aiTimerRef.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [turn, phase, mode, done]);
+
+  function confirmDive() {
+    if (phaseRef.current !== "keeper" || doneRef.current) return;
+    if (aiTimerRef.current) { clearTimeout(aiTimerRef.current); aiTimerRef.current = null; }
+    resolveKick({
+      team: "A",
+      shooterZone: aiShotZoneRef.current,
+      keeperZone: aimZoneRef.current,
+      power: 55 + Math.random() * 35,
+    });
+  }
 
   function shoot() {
-    if (phase === "result" || phase === "flying" || done) return;
-    const finalPower = powerRef.current;
-    const keeperDefense = (turn === "H" ? away.stats.defense : home.stats.defense) ?? 60;
-    const res = resolveShot(aimZone, finalPower, keeperDefense);
-    const shot: Shot = { team: turn, zone: aimZone, keeperZone: res.keeperZone, goal: res.goal, missedTarget: res.missedTarget };
+    const ph = phaseRef.current;
+    if (ph === "result" || ph === "flying" || ph === "keeper" || doneRef.current) return;
+    const team = turnRef.current;
+    const keeperDefense = (team === "H" ? away.stats.defense : home.stats.defense) ?? 60;
+    const shooterZone = aimZoneRef.current;
+    const keeperZone = guessKeeperZone(shooterZone, keeperDefense);
+    resolveKick({ team, shooterZone, keeperZone, power: powerRef.current });
+  }
+
+  function resolveKick(args: { team: "H" | "A"; shooterZone: Zone; keeperZone: Zone; power: number }) {
+    const { team, shooterZone, keeperZone, power: shotPower } = args;
+    const zonesMatch = shooterZone === keeperZone;
+    const res = resolveDuel(shotPower, zonesMatch);
+    const decisive = checkDecisive(shotsRef.current, team);
+    const shot: Shot = { team, zone: shooterZone, keeperZone, goal: res.goal, missedTarget: res.missedTarget, decisive };
+
     const from = { x: CW / 2, y: CH - 70 };
     const to = res.missedTarget
-      ? { x: zonePos(aimZone).x + (Math.random() > 0.5 ? 90 : -90), y: zonePos(aimZone).y - 60 }
-      : zonePos(aimZone);
-    animRef.current = { t: 0, from, to, keeperTo: res.keeperZone ? zonePos(res.keeperZone) : zonePos(aimZone) };
+      ? { x: zonePos(shooterZone).x + (Math.random() > 0.5 ? 90 : -90), y: zonePos(shooterZone).y - 60 }
+      : zonePos(shooterZone);
+    animRef.current = { t: 0, from, to, keeperTo: zonePos(keeperZone) };
+
+    setIsDecisive(decisive);
     setPhase("flying");
     powerRef.current = 0; setPower(0);
 
     setTimeout(() => {
-      const next = [...shots, shot];
+      const next = [...shotsRef.current, shot];
       setShots(next);
-      evaluateEnd(next);
       setLastResult(shot);
+      setComment(pickComment(shot));
       setPhase("result");
+      evaluateEnd(next);
     }, 620);
+  }
+
+  function pickComment(shot: Shot) {
+    const pool = shot.missedTarget ? MISS_COMMENTS : shot.goal ? GOAL_COMMENTS : SAVE_COMMENTS;
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
+
+  // ¿Es decisivo? Simula el resultado hipotético (gol o no) del PRÓXIMO tiro de `team`
+  // y ve si con cualquiera de los dos desenlaces ya se definiría el ganador.
+  function checkDecisive(current: Shot[], team: "H" | "A"): boolean {
+    const withGoal = computeFinished([...current, { team, zone: 2, keeperZone: null, goal: true, missedTarget: false, decisive: false }]);
+    const withMiss = computeFinished([...current, { team, zone: 2, keeperZone: null, goal: false, missedTarget: false, decisive: false }]);
+    return withGoal || withMiss;
+  }
+
+  function computeFinished(next: Shot[]): boolean {
+    const nh = next.filter(s => s.team === "H");
+    const na = next.filter(s => s.team === "A");
+    const hs = nh.filter(s => s.goal).length;
+    const as = na.filter(s => s.goal).length;
+    const round = Math.max(nh.length, na.length);
+    const both = nh.length === na.length;
+    if (round <= 5) {
+      const hRemaining = 5 - nh.length, aRemaining = 5 - na.length;
+      if (both && Math.abs(hs - as) > hRemaining && Math.abs(hs - as) > aRemaining) return true;
+      if (!both && Math.abs(hs - as) > Math.min(hRemaining, aRemaining)) return true;
+      if (both && nh.length === 5 && hs !== as) return true;
+      return false;
+    }
+    return both && hs !== as;
   }
 
   function evaluateEnd(next: Shot[]) {
@@ -137,15 +268,7 @@ export function Penales({ home, away, onEnd }: { home: Team; away: Team; onEnd: 
     const na = next.filter(s => s.team === "A");
     const hs = nh.filter(s => s.goal).length;
     const as = na.filter(s => s.goal).length;
-    const round = Math.max(nh.length, na.length);
-    const both = nh.length === na.length;
-    let finished = false;
-    if (round <= 5) {
-      const hRemaining = 5 - nh.length, aRemaining = 5 - na.length;
-      if (both && Math.abs(hs - as) > hRemaining && Math.abs(hs - as) > aRemaining) finished = true;
-      if (!both && Math.abs(hs - as) > Math.min(hRemaining, aRemaining)) finished = true;
-      if (both && nh.length === 5 && hs !== as) finished = true;
-    } else if (both && hs !== as) finished = true;
+    const finished = computeFinished(next);
 
     if (finished) {
       setTimeout(() => {
@@ -153,10 +276,13 @@ export function Penales({ home, away, onEnd }: { home: Team; away: Team; onEnd: 
         setTimeout(() => onEnd(hs > as ? "H" : "A", hs, as), 1400);
       }, 900);
     } else {
+      const nextTurn = turnRef.current === "H" ? "A" : "H";
       setTimeout(() => {
-        setTurn(t => (t === "H" ? "A" : "H"));
-        setPhase("aim");
+        setTurn(nextTurn);
         setAimZone(2);
+        setComment(null);
+        setIsDecisive(false);
+        setPhase("aim");
       }, 1300);
     }
   }
@@ -194,7 +320,6 @@ export function Penales({ home, away, onEnd }: { home: Team; away: Team; onEnd: 
       ctx.fillStyle = "#2f8c43"; ctx.fillRect(0, CH - 90, CW, 90);
       ctx.strokeStyle = "rgba(255,255,255,0.5)"; ctx.lineWidth = 2;
       ctx.strokeRect(GOAL_X - 60, CH - 90, GOAL_W + 120, 60);
-
       // Arco: red + marco
       ctx.strokeStyle = "rgba(255,255,255,0.35)"; ctx.lineWidth = 1;
       for (let y = GOAL_Y; y < GOAL_Y + GOAL_H; y += 10) { ctx.beginPath(); ctx.moveTo(GOAL_X, y); ctx.lineTo(GOAL_X + GOAL_W, y); ctx.stroke(); }
@@ -202,13 +327,14 @@ export function Penales({ home, away, onEnd }: { home: Team; away: Team; onEnd: 
       ctx.strokeStyle = "#fff"; ctx.lineWidth = 6;
       ctx.strokeRect(GOAL_X, GOAL_Y, GOAL_W, GOAL_H);
 
-      // Zonas de apunte (solo durante aim/charging)
-      if (phase === "aim" || phase === "charging") {
+      // Zonas: de apunte (pateando) o de salto (atajando)
+      if (phase === "aim" || phase === "charging" || phase === "keeper") {
         ZONES.forEach(z => {
           const { x, y } = zonePos(z);
           const active = z === aimZone;
           ctx.beginPath(); ctx.arc(x, y, 46, 0, Math.PI * 2);
-          ctx.fillStyle = active ? "rgba(56,189,248,0.28)" : "rgba(56,189,248,0.08)";
+          const color = phase === "keeper" ? "56,189,248" : "56,189,248";
+          ctx.fillStyle = active ? `rgba(${color},0.28)` : `rgba(${color},0.08)`;
           ctx.fill();
           ctx.lineWidth = active ? 3 : 1.5;
           ctx.strokeStyle = active ? "#38bdf8" : "rgba(56,189,248,0.5)";
@@ -222,9 +348,14 @@ export function Penales({ home, away, onEnd }: { home: Team; away: Team; onEnd: 
       }
 
       // Arquero
+      const keeperTargetZone = phase === "keeper" ? aimZone : undefined;
+      const keeperRestPos = { x: CW / 2, y: GOAL_Y + GOAL_H * 0.72 };
       const keeperPos = phase === "flying" || phase === "result"
-        ? lerpPos({ x: CW / 2, y: GOAL_Y + GOAL_H * 0.72 }, animRef.current?.keeperTo ?? { x: CW / 2, y: GOAL_Y + GOAL_H * 0.72 }, phase === "result" ? 1 : easeT(animRef.current?.t ?? 0))
-        : { x: CW / 2, y: GOAL_Y + GOAL_H * 0.72 };
+        ? lerpPos(keeperRestPos, animRef.current?.keeperTo ?? keeperRestPos, phase === "result" ? 1 : easeT(animRef.current?.t ?? 0))
+        : phase === "keeper" && keeperTargetZone
+        ? lerpPos(keeperRestPos, zonePos(keeperTargetZone), 0.35)
+        : keeperRestPos;
+      // En modo arquero, el que "ataja" ahora es el usuario controlando al equipo `keeper`
       drawHead(ctx, keeperPos.x, keeperPos.y, 32, keeper.primary, keeper.secondary, true);
 
       // Pateador (de espaldas, abajo)
@@ -279,22 +410,43 @@ export function Penales({ home, away, onEnd }: { home: Team; away: Team; onEnd: 
 
       {!done && (
         <>
-          <div className="text-center text-sm mb-2">
-            <span className="inline-block px-3 py-1 rounded-full bg-celeste/15 border border-celeste/40 text-celeste font-display tracking-wide text-xs mb-1">
-              PATEA AHORA · {turn === "H" ? "LOCAL" : "VISITANTE"}
-            </span>
-            <div>
-              Patea <span className="font-display text-base text-celeste">{shooter.name}</span> · ataja <span className="text-muted-foreground">{keeper.short}</span>
+          {isDecisive && (phase === "aim" || phase === "charging" || phase === "keeper") && (
+            <div className="text-center mb-2">
+              <span className="inline-block px-3 py-1 rounded-full bg-destructive/20 border border-destructive/50 text-destructive font-display tracking-widest text-xs animate-pulse">
+                {DECISIVE_PRE[Math.floor((shots.length) % DECISIVE_PRE.length)]}
+              </span>
             </div>
+          )}
+
+          <div className="text-center text-sm mb-2">
+            {phase === "keeper" ? (
+              <>
+                <span className="inline-block px-3 py-1 rounded-full bg-destructive/15 border border-destructive/40 text-destructive font-display tracking-wide text-xs mb-1">
+                  ¡SOS EL ARQUERO!
+                </span>
+                <div>
+                  Patea <span className="font-display text-base text-celeste">{away.name}</span> · elegí a qué palo tirarte
+                </div>
+              </>
+            ) : (
+              <>
+                <span className="inline-block px-3 py-1 rounded-full bg-celeste/15 border border-celeste/40 text-celeste font-display tracking-wide text-xs mb-1">
+                  PATEA AHORA · {turn === "H" ? "LOCAL" : "VISITANTE"}
+                </span>
+                <div>
+                  Patea <span className="font-display text-base text-celeste">{shooter.name}</span> · ataja <span className="text-muted-foreground">{keeper.short}</span>
+                </div>
+              </>
+            )}
           </div>
 
           <div className="mx-auto max-w-2xl rounded-xl overflow-hidden border-2 border-white/10 bg-black">
             <canvas ref={canvasRef} width={CW} height={CH} className="w-full h-auto block" />
           </div>
 
-          {phase === "result" && lastResult && (
-            <div className={`text-center font-display text-xl mt-2 ${lastResult.goal ? "text-celeste" : "text-destructive"}`}>
-              {lastResult.missedTarget ? "¡SE FUE AFUERA!" : lastResult.goal ? "¡GOOOOL!" : "¡LA ATAJÓ EL ARQUERO!"}
+          {phase === "result" && lastResult && comment && (
+            <div className={`text-center font-display mt-2 ${lastResult.decisive ? "text-3xl" : "text-xl"} ${lastResult.goal ? "text-celeste" : "text-destructive"}`}>
+              {comment}
             </div>
           )}
 
@@ -327,10 +479,33 @@ export function Penales({ home, away, onEnd }: { home: Team; away: Team; onEnd: 
               </div>
               <div className="flex justify-center mt-2 sm:hidden">
                 <button
-                  onTouchStart={(e) => { e.preventDefault(); chargingRef.current = true; setPhase("charging"); }}
+                  onTouchStart={(e) => { e.preventDefault(); if (!chargingRef.current) { chargingRef.current = true; setPhase("charging"); } }}
                   onTouchEnd={(e) => { e.preventDefault(); if (chargingRef.current) { chargingRef.current = false; shoot(); } }}
                   className="px-6 py-3 rounded-xl bg-celeste text-primary-foreground font-display tracking-wider active:scale-95">
                   MANTENÉ PARA CARGAR
+                </button>
+              </div>
+            </>
+          )}
+
+          {phase === "keeper" && (
+            <>
+              <div className="flex flex-wrap justify-center gap-4 mt-3 text-xs text-muted-foreground">
+                <span><kbd className="px-1.5 py-0.5 rounded bg-secondary border border-border">1-6</kbd> o flechas: elegir palo</span>
+                <span><kbd className="px-1.5 py-0.5 rounded bg-secondary border border-border">ESPACIO</kbd>: tirarte</span>
+              </div>
+              <div className="flex justify-center gap-2 mt-3 sm:hidden">
+                {ZONES.map(z => (
+                  <button key={z} onClick={() => setAimZone(z)}
+                    className={`w-9 h-9 rounded-full border text-sm font-display ${aimZone === z ? "bg-destructive/30 border-destructive text-destructive" : "border-border"}`}>
+                    {z}
+                  </button>
+                ))}
+              </div>
+              <div className="flex justify-center mt-2 sm:hidden">
+                <button onClick={confirmDive}
+                  className="px-6 py-3 rounded-xl bg-destructive text-white font-display tracking-wider active:scale-95">
+                  TIRARSE
                 </button>
               </div>
             </>
