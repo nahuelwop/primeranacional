@@ -7,6 +7,8 @@ import { useTeamsSync } from "@/lib/teams-sync";
 import { useTournament, recordUserPlayoff } from "@/store/tournament";
 import { Pair } from "@/lib/tournament";
 import { Game } from "@/components/Game";
+import { useAuth } from "@/lib/auth";
+import { fetchCareer } from "@/lib/career-api";
 
 export const Route = createFileRoute("/reducido")({
   head: () => ({
@@ -27,11 +29,49 @@ type PlayCtx = {
 function Reducido() {
   useTeamsSync();
   const s = useTournament();
+  const { user } = useAuth();
   const [play, setPlay] = useState<PlayCtx | null>(null);
   // El fixture se arma una sola vez; sin esto el estado quedaba vacío
   // y la fase final nunca se habilitaba.
   useEffect(() => { s.init(); }, []);
+
+  // Guard de identidad: userTeamId vive en un store local (localStorage) que solo
+  // se actualiza al pasar por "Ir a Fase Final" desde Carrera. Si quedó desincronizado
+  // con el club real de la carrera activa (guardada en Supabase) — por ej. porque el
+  // usuario entró acá directo, o jugó antes con otro club — todo el bracket se arma
+  // comparando contra el club viejo y termina "invirtiendo" al usuario con el rival.
+  const [teamMismatch, setTeamMismatch] = useState<{ real: string } | null | undefined>(undefined);
+  useEffect(() => {
+    if (!user || !s.userTeamId) { setTeamMismatch(null); return; }
+    let active = true;
+    fetchCareer(user.id).then(save => {
+      if (!active) return;
+      if (save && save.team_id !== s.userTeamId) setTeamMismatch({ real: save.team_id });
+      else setTeamMismatch(null);
+    }).catch(() => active && setTeamMismatch(null));
+    return () => { active = false; };
+  }, [user, s.userTeamId]);
+
   const allPlayed = s.fixture.length > 0 && s.fixture.every(m => m.played);
+
+  if (teamMismatch) {
+    const realTeam = TEAMS_BY_ID[teamMismatch.real];
+    return (
+      <div className="min-h-screen flex flex-col">
+        <Nav />
+        <main className="flex-1 grid place-items-center px-4">
+          <div className="text-center max-w-md">
+            <h1 className="font-display text-4xl">Fase final desactualizada</h1>
+            <p className="text-muted-foreground mt-2">
+              Esta fase final quedó armada para otro club. Volvé a Modo Carrera con {realTeam?.short ?? "tu equipo actual"} y
+              entrá de nuevo a la Fase Final para reconstruirla con los datos correctos.
+            </p>
+            <Link to="/carrera" className="mt-5 inline-block px-6 py-3 rounded-xl bg-celeste text-primary-foreground font-display tracking-wider">IR A MODO CARRERA</Link>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   if (!allPlayed) {
     return (
@@ -81,91 +121,121 @@ function Reducido() {
               )}
             </div>
 
-            <div className="lg:col-span-2 rounded-2xl bg-card/60 border border-border p-5">
+            <div className="lg:col-span-2 rounded-2xl bg-card border border-border p-5">
               <div className="flex items-center justify-between">
                 <div className="font-display text-xl">REDUCIDO · 2° ASCENSO</div>
                 <button onClick={() => s.advanceBracket()}
-                  className="px-4 py-2 rounded-lg bg-accent text-accent-foreground font-display tracking-wider text-sm">
-                  AVANZAR RONDA
+                  disabled={!!s.reducidoChampion}
+                  className="px-4 py-2 rounded-lg bg-accent text-accent-foreground font-display tracking-wider disabled:opacity-40">
+                  SIMULAR RIVALES
                 </button>
               </div>
 
-              {(["octavos", "cuartos", "semis", "final"] as const).map((round) => {
-                const pairs = s.bracket?.[round] ?? [];
-                if (!pairs.length) return null;
-                return (
-                  <div key={round} className="mt-5">
-                    <div className="text-xs uppercase tracking-widest text-muted-foreground">{round}</div>
-                    <div className="mt-2 grid sm:grid-cols-2 gap-2">
-                      {pairs.map((p, i) => (
-                        <div key={i} className="rounded-xl border border-border bg-background/40 p-3">
-                          <PairView pair={p} />
-                          {!p.winner && p.a && p.b && isUserPair(p) && (
-                            <button
-                              onClick={() => setPlay({
-                                kind: round === "final" ? "final_reducido" : round,
-                                idx: i,
-                                pair: p,
-                              })}
-                              className="mt-2 w-full px-3 py-2 rounded-lg bg-celeste text-primary-foreground font-display tracking-wider text-sm">
-                              JUGAR
-                            </button>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-5">
+                <BracketCol title="Octavos" pairs={s.bracket?.octavos ?? []} kind="octavos" onPlay={setPlay} userId={s.userTeamId} />
+                <BracketCol title="Cuartos" pairs={s.bracket?.cuartos ?? []} kind="cuartos" onPlay={setPlay} userId={s.userTeamId} />
+                <BracketCol title="Semis"   pairs={s.bracket?.semis ?? []}   kind="semis"   onPlay={setPlay} userId={s.userTeamId} />
+                <BracketCol title="Final"   pairs={s.bracket?.final ?? []}   kind="final_reducido" onPlay={setPlay} userId={s.userTeamId} />
+              </div>
 
               {s.reducidoChampion && (
-                <div className="mt-6 text-center">
-                  <div className="text-xs text-muted-foreground">GANADOR DEL REDUCIDO · 2° ASCENSO</div>
-                  <div className="font-display text-2xl text-accent">{TEAMS_BY_ID[s.reducidoChampion]?.name}</div>
+                <div className="mt-6 text-center p-4 rounded-xl bg-accent/10 border border-accent/40">
+                  <div className="text-xs text-muted-foreground">CAMPEÓN DEL REDUCIDO · 2° ASCENSO</div>
+                  <div className="font-display text-3xl text-accent">{TEAMS_BY_ID[s.reducidoChampion]?.name}</div>
                 </div>
               )}
             </div>
           </div>
         )}
-      </main>
 
-      {play && play.pair.a && play.pair.b && (
-        <div className="fixed inset-0 z-50 bg-background/95 overflow-auto">
-          <div className="max-w-5xl mx-auto p-4">
-            <Game
-              home={TEAMS_BY_ID[play.pair.a]}
-              away={TEAMS_BY_ID[play.pair.b]}
-              duration={60}
-              matchLabel={play.kind === "final" ? "FINAL POR EL 1° ASCENSO" : "REDUCIDO"}
-              onEnd={(hg, ag) => {
-                recordUserPlayoff(play.kind, play.idx, hg, ag);
-                setPlay(null);
-              }}
-            />
-          </div>
-        </div>
-      )}
+        {play && play.pair.a && play.pair.b && (() => {
+          const userIsAway = play.pair.b === s.userTeamId;
+          const left = userIsAway ? TEAMS_BY_ID[play.pair.b] : TEAMS_BY_ID[play.pair.a];
+          const right = userIsAway ? TEAMS_BY_ID[play.pair.a] : TEAMS_BY_ID[play.pair.b];
+          const label = play.kind === "final" ? "FINAL POR EL 1° ASCENSO"
+            : play.kind === "final_reducido" ? "FINAL DEL REDUCIDO"
+            : `${play.kind.toUpperCase()} · REDUCIDO`;
+          return (
+            <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm overflow-y-auto p-4 flex items-start justify-center">
+              <div className="w-full max-w-4xl bg-card rounded-2xl border border-border p-4">
+                <div className="flex justify-between items-center mb-3">
+                  <h2 className="font-display text-2xl text-celeste">JUGÁ TU PARTIDO</h2>
+                  <button onClick={() => setPlay(null)}
+                    className="px-3 py-1 rounded-lg bg-secondary border border-border text-sm">CERRAR</button>
+                </div>
+                <Game
+                  home={left}
+                  away={right}
+                  duration={60}
+                  aiDifficulty="hard"
+                  mode="1vAI"
+                  crowdIntensity="ascenso"
+                  matchLabel={label}
+                  onEnd={(lg, rg) => {
+                    const hg = userIsAway ? rg : lg;
+                    const ag = userIsAway ? lg : rg;
+                    recordUserPlayoff(play.kind, play.idx, hg, ag);
+                    setPlay(null);
+                  }}
+                />
+              </div>
+            </div>
+          );
+        })()}
+      </main>
     </div>
   );
 }
 
-function PairView({ pair, big = false }: { pair: Pair; big?: boolean }) {
-  const a = pair.a ? TEAMS_BY_ID[pair.a] : undefined;
-  const b = pair.b ? TEAMS_BY_ID[pair.b] : undefined;
-  const size = big ? 44 : 28;
+function BracketCol({ title, pairs, kind, onPlay, userId }: {
+  title: string; pairs: Pair[];
+  kind: PlayCtx["kind"]; onPlay: (c: PlayCtx) => void; userId?: string;
+}) {
   return (
-    <div className="mt-2 flex items-center justify-between gap-2">
+    <div>
+      <div className="text-xs uppercase tracking-wider text-muted-foreground mb-2">{title}</div>
+      <div className="space-y-2">
+        {pairs.length === 0 && <div className="text-xs text-muted-foreground/60">—</div>}
+        {pairs.map((p, i) => {
+          const isUser = userId && (p.a === userId || p.b === userId);
+          const canPlay = isUser && p.a && p.b && !p.winner;
+          return (
+            <div key={i} className="space-y-1">
+              <PairView pair={p} />
+              {canPlay && (
+                <button onClick={() => onPlay({ kind, idx: i, pair: p })}
+                  className="w-full px-2 py-1 rounded bg-celeste text-primary-foreground font-display text-xs tracking-wider">
+                  JUGAR
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function PairView({ pair, big }: { pair: Pair; big?: boolean }) {
+  const a = pair.a ? TEAMS_BY_ID[pair.a] : null;
+  const b = pair.b ? TEAMS_BY_ID[pair.b] : null;
+  const cls = big ? "text-base p-3" : "text-xs p-2";
+  return (
+    <div className={`rounded-lg bg-background border border-border ${cls}`}>
+      <Row team={a} g={pair.ag} winner={pair.winner === pair.a} big={big} />
+      <Row team={b} g={pair.bg} winner={pair.winner === pair.b} big={big} />
+    </div>
+  );
+}
+
+function Row({ team, g, winner, big }: { team: any; g?: number; winner?: boolean; big?: boolean }) {
+  return (
+    <div className={`flex items-center justify-between gap-2 ${winner ? "text-celeste font-bold" : ""}`}>
       <div className="flex items-center gap-2 min-w-0">
-        {a ? <Shield team={a} size={size} /> : <div style={{ width: size, height: size }} />}
-        <span className={`truncate ${big ? "font-display text-lg" : "text-sm"}`}>{a?.name ?? "—"}</span>
+        {team ? <Shield team={team} size={big ? 28 : 18} /> : <div className="w-4 h-4 rounded bg-muted" />}
+        <span className="truncate">{team?.name ?? "—"}</span>
       </div>
-      <div className="font-display tabular-nums px-2">
-        {pair.winner ? `${pair.ag ?? 0} - ${pair.bg ?? 0}` : "vs"}
-      </div>
-      <div className="flex items-center gap-2 min-w-0 justify-end">
-        <span className={`truncate text-right ${big ? "font-display text-lg" : "text-sm"}`}>{b?.name ?? "—"}</span>
-        {b ? <Shield team={b} size={size} /> : <div style={{ width: size, height: size }} />}
-      </div>
+      <span className="font-display">{g ?? ""}</span>
     </div>
   );
 }
