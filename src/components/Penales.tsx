@@ -101,6 +101,21 @@ export function Penales({ home, away, mode = "1v1", onEnd }: {
   const animRef = useRef<{ t: number; from: { x: number; y: number }; to: { x: number; y: number }; keeperTo: { x: number; y: number } } | null>(null);
   const aiTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Tribuna: se genera UNA sola vez (antes se recalculaba con Math.random() en
+  // cada frame del canvas, lo que hacía titilar los colores del público sin
+  // parar — parte de por qué se sentía "trabado").
+  const crowdRef = useRef<{ x: number; y: number; color: string }[] | null>(null);
+  if (!crowdRef.current) {
+    const colors = ["#7ec8ff", "#ffffff", "#ffe066", home.primary, away.primary];
+    const dots: { x: number; y: number; color: string }[] = [];
+    for (let row = 0; row < 4; row++) {
+      for (let i = 0; i < CW / 13; i++) {
+        dots.push({ x: i * 13 + (row % 2) * 6, y: 14 + row * 11, color: colors[Math.floor(Math.random() * colors.length)] });
+      }
+    }
+    crowdRef.current = dots;
+  }
+
   useEffect(() => { phaseRef.current = phase; }, [phase]);
   useEffect(() => { turnRef.current = turn; }, [turn]);
   useEffect(() => { aimZoneRef.current = aimZone; }, [aimZone]);
@@ -116,12 +131,19 @@ export function Penales({ home, away, mode = "1v1", onEnd }: {
   const hShots = shots.filter(s => s.team === "H");
   const aShots = shots.filter(s => s.team === "A");
 
-  // Carga de potencia mientras se mantiene ESPACIO (o el toque en mobile)
+  // Carga de potencia mientras se mantiene ESPACIO (o el toque en mobile).
+  // Basada en tiempo real transcurrido (no en cantidad de frames): así la velocidad
+  // de carga es siempre la misma aunque el navegador tenga algún frame lento,
+  // que era lo que hacía sentir la barra "trabada".
   useEffect(() => {
     let raf = 0;
-    const tick = () => {
+    let last = performance.now();
+    const FILL_RATE_PER_SEC = 145; // % por segundo mantenido
+    const tick = (now: number) => {
+      const dt = Math.min(0.1, (now - last) / 1000); // clamp por si la pestaña estuvo en pausa
+      last = now;
       if (chargingRef.current && !doneRef.current) {
-        powerRef.current = Math.min(100, powerRef.current + 2.1);
+        powerRef.current = Math.min(100, powerRef.current + FILL_RATE_PER_SEC * dt);
         setPower(powerRef.current);
       }
       raf = requestAnimationFrame(tick);
@@ -299,27 +321,55 @@ export function Penales({ home, away, mode = "1v1", onEnd }: {
       ctx.clearRect(0, 0, CW, CH);
       // Cielo nocturno
       const sky = ctx.createLinearGradient(0, 0, 0, CH);
-      sky.addColorStop(0, "#070d20"); sky.addColorStop(1, "#173463");
+      sky.addColorStop(0, "#050a18"); sky.addColorStop(1, "#173463");
       ctx.fillStyle = sky; ctx.fillRect(0, 0, CW, CH);
-      // Halos de luces
-      [CW * 0.1, CW * 0.9].forEach(tx => {
-        const g = ctx.createRadialGradient(tx, 10, 5, tx, 10, 220);
-        g.addColorStop(0, "rgba(255,250,210,0.35)"); g.addColorStop(1, "rgba(255,250,210,0)");
-        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(tx, 10, 220, 0, Math.PI * 2); ctx.fill();
+
+      // Reflectores con forma de cono (no solo un halo difuso)
+      [{ x: CW * 0.08, rot: 14 }, { x: CW * 0.92, rot: -14 }].forEach(({ x: lx, rot }) => {
+        ctx.save();
+        ctx.translate(lx, -6);
+        ctx.rotate((rot * Math.PI) / 180);
+        const cone = ctx.createLinearGradient(0, 0, 0, 260);
+        cone.addColorStop(0, "rgba(255,250,215,0.4)");
+        cone.addColorStop(1, "rgba(255,250,215,0)");
+        ctx.fillStyle = cone;
+        ctx.beginPath();
+        ctx.moveTo(-8, 0); ctx.lineTo(8, 0); ctx.lineTo(95, 260); ctx.lineTo(-95, 260);
+        ctx.closePath(); ctx.fill();
+        ctx.restore();
+        ctx.beginPath(); ctx.arc(lx, -6, 5, 0, Math.PI * 2);
+        ctx.fillStyle = "#fffbe6"; ctx.shadowColor = "#fffbe6"; ctx.shadowBlur = 18; ctx.fill();
+        ctx.shadowBlur = 0;
       });
-      // Tribuna simplificada (puntitos)
-      for (let row = 0; row < 3; row++) {
-        for (let i = 0; i < CW / 14; i++) {
-          ctx.fillStyle = ["#7ec8ff", "#ffffff", "#ffe066", home.primary, away.primary][Math.floor(Math.random() * 5)];
-          ctx.globalAlpha = 0.5;
-          ctx.beginPath(); ctx.arc(i * 14, 20 + row * 12, 3, 0, Math.PI * 2); ctx.fill();
-        }
-      }
+
+      // Tribuna (colores fijos, no titilan) + franja de publicidad
+      crowdRef.current!.forEach(d => {
+        ctx.globalAlpha = 0.55;
+        ctx.fillStyle = d.color;
+        ctx.beginPath(); ctx.arc(d.x, d.y, 3, 0, Math.PI * 2); ctx.fill();
+      });
       ctx.globalAlpha = 1;
+
+      // Pared de estadio: cierra el hueco entre la tribuna y la cancha (antes quedaba vacío)
+      const wallTop = 78, wallBottom = CH - 92;
+      const wallGrad = ctx.createLinearGradient(0, wallTop, 0, wallBottom);
+      wallGrad.addColorStop(0, "#0a1428"); wallGrad.addColorStop(1, "#132a4d");
+      ctx.fillStyle = wallGrad; ctx.fillRect(0, wallTop, CW, wallBottom - wallTop);
+      ctx.fillStyle = "rgba(140,180,255,0.06)";
+      for (let x = 8; x < CW; x += 40) ctx.fillRect(x, wallTop + 10, 24, wallBottom - wallTop - 20);
+
+      // Valla publicitaria pegada a la cancha, con los colores de ambos equipos
+      ctx.fillStyle = "#0d1f14"; ctx.fillRect(0, CH - 100, CW, 18);
+      const stripe = 90;
+      for (let x = -((Date.now() / 30) % (stripe * 2)); x < CW; x += stripe * 2) {
+        ctx.fillStyle = home.primary; ctx.fillRect(x, CH - 100, stripe, 18);
+        ctx.fillStyle = away.primary; ctx.fillRect(x + stripe, CH - 100, stripe, 18);
+      }
+
       // Césped
-      ctx.fillStyle = "#2f8c43"; ctx.fillRect(0, CH - 90, CW, 90);
+      ctx.fillStyle = "#2f8c43"; ctx.fillRect(0, CH - 82, CW, 82);
       ctx.strokeStyle = "rgba(255,255,255,0.5)"; ctx.lineWidth = 2;
-      ctx.strokeRect(GOAL_X - 60, CH - 90, GOAL_W + 120, 60);
+      ctx.strokeRect(GOAL_X - 60, CH - 82, GOAL_W + 120, 52);
       // Arco: red + marco
       ctx.strokeStyle = "rgba(255,255,255,0.35)"; ctx.lineWidth = 1;
       for (let y = GOAL_Y; y < GOAL_Y + GOAL_H; y += 10) { ctx.beginPath(); ctx.moveTo(GOAL_X, y); ctx.lineTo(GOAL_X + GOAL_W, y); ctx.stroke(); }
@@ -378,6 +428,12 @@ export function Penales({ home, away, mode = "1v1", onEnd }: {
       if (animRef.current && phase === "flying") {
         animRef.current.t = Math.min(1, animRef.current.t + 0.045);
       }
+
+      // Viñeta: oscurece bordes para dar profundidad, igual que en el motor principal
+      const vig = ctx.createRadialGradient(CW / 2, CH * 0.55, CH * 0.25, CW / 2, CH * 0.55, CW * 0.62);
+      vig.addColorStop(0, "rgba(0,0,0,0)"); vig.addColorStop(1, "rgba(0,0,0,0.35)");
+      ctx.fillStyle = vig; ctx.fillRect(0, 0, CW, CH);
+
       raf = requestAnimationFrame(draw);
     };
     raf = requestAnimationFrame(draw);
@@ -456,7 +512,7 @@ export function Penales({ home, away, mode = "1v1", onEnd }: {
                 <div className="text-center text-xs uppercase tracking-widest text-muted-foreground mb-1">Potencia del tiro</div>
                 <div className="h-5 rounded-full bg-white/10 overflow-hidden border border-white/10">
                   <div
-                    className="h-full transition-[width] duration-75"
+                    className="h-full transition-[width] duration-100 ease-linear"
                     style={{
                       width: `${power}%`,
                       background: "linear-gradient(90deg, #22c55e, #eab308, #ef4444)",
