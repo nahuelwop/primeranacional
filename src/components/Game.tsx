@@ -885,66 +885,48 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
       }
       ctx.lineTo(0, 40); ctx.closePath(); ctx.fill();
 
-      // Tribunas: 2 niveles separados por una platea VIP
-      // Nivel alto
-      ctx.fillStyle = "#0b1730";
-      ctx.fillRect(0, 40, W, 70);
-      // Platea VIP (cabinas)
-      ctx.fillStyle = "#1a253f";
-      ctx.fillRect(0, 108, W, 14);
-      for (let x = 0; x < W; x += 28) {
-        ctx.fillStyle = "rgba(255,220,120,0.4)";
-        ctx.fillRect(x + 4, 112, 18, 7);
-      }
-      // Nivel bajo
-      ctx.fillStyle = "#0d1a36";
-      ctx.fillRect(0, 122, W, 50);
+      // Tribuna completa (prerenderizada): bandeja alta → trapos → popular → valla
+      ctx.drawImage(crowdLayer, 0, 0);
 
-      // Pared perimetral del estadio (cierra el hueco vacío entre la tribuna y la cancha)
-      const wallTop = 172;
-      const wallBottom = ground - 22; // termina justo donde arranca la valla LED
-      const wallGrad = ctx.createLinearGradient(0, wallTop, 0, wallBottom);
-      wallGrad.addColorStop(0, "#0a1428");
-      wallGrad.addColorStop(1, "#152848");
-      ctx.fillStyle = wallGrad;
-      ctx.fillRect(0, wallTop, W, wallBottom - wallTop);
-
-      // Franja de "vidrios"/palcos a media altura de la pared, para que no quede lisa
-      ctx.fillStyle = "rgba(140,180,255,0.08)";
-      for (let x = 10; x < W; x += 46) {
-        ctx.fillRect(x, wallTop + 14, 28, wallBottom - wallTop - 28);
-      }
-      // Línea de sombra al ras del piso (contacto pared-cancha)
-      ctx.fillStyle = "rgba(0,0,0,0.35)";
-      ctx.fillRect(0, wallBottom - 10, W, 10);
-
-      // Hinchada (puntitos por toda la tribuna)
-      crowd.forEach(c => {
-        const y = c.y + Math.sin(c.bob) * 1.5;
-        ctx.fillStyle = c.c;
-        ctx.beginPath(); ctx.arc(c.x, y, 4.5, 0, Math.PI * 2); ctx.fill();
-      });
-
-      // Banderas de los hinchas (más cantidad y ondulación según intensidad)
+      // Banderas agitándose entre los hinchas (animadas sobre la tribuna)
       const flagCount = crowdIntensity === "ascenso" ? 26 : crowdIntensity === "clasico" ? 20 : 14;
       for (let i = 0; i < flagCount; i++) {
-        const fx = (i * W / flagCount) + (Date.now() / 200 % 30);
-        const sway = Math.sin(Date.now() / 350 + i * 0.7) * 6;
-        const fy = 70 + (i % 3) * 8 + sway;
-        const useHome = i % 2 === 0;
+        const fx = (i * W / flagCount) + 20;
+        const sway = Math.sin(Date.now() / 350 + i * 0.7) * 5;
+        const fy = (i % 3 === 0 ? 90 : i % 3 === 1 ? 160 : 300) + sway;
+        const useHome = fx < W / 2;
+        ctx.save();
+        ctx.translate(fx, fy);
+        ctx.rotate(Math.sin(Date.now() / 500 + i) * 0.08);
+        ctx.fillStyle = "#12161f";
+        ctx.fillRect(-1, -6, 2, 34);
         ctx.fillStyle = useHome ? home.primary : away.primary;
-        ctx.fillRect(fx, fy, 24, 15);
+        ctx.fillRect(0, -6, 26, 16);
         ctx.fillStyle = useHome ? home.secondary : away.secondary;
-        ctx.fillRect(fx, fy + 5, 24, 5);
-        ctx.fillStyle = "#1a1a1a";
-        ctx.fillRect(fx - 1, fy, 2, 34);
+        ctx.fillRect(0, -1, 26, 5);
+        ctx.restore();
       }
-      // Papelitos/humo en partidos calientes (clásicos y ascensos)
+
+      // Bengalas encendidas dentro del público + humo permanente en partidos calientes
       if (crowdIntensity !== "normal") {
+        flareSources.forEach((f, i) => {
+          const flick = 0.75 + Math.sin(Date.now() / 90 + i) * 0.25;
+          const g = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, 42 * flick);
+          g.addColorStop(0, f.color);
+          g.addColorStop(0.25, "rgba(255,220,150,0.35)");
+          g.addColorStop(1, "rgba(0,0,0,0)");
+          ctx.globalAlpha = 0.75;
+          ctx.fillStyle = g;
+          ctx.beginPath(); ctx.arc(f.x, f.y, 42 * flick, 0, Math.PI * 2); ctx.fill();
+          ctx.globalAlpha = 1;
+          ctx.fillStyle = "#fff6d5";
+          ctx.beginPath(); ctx.arc(f.x, f.y, 3, 0, Math.PI * 2); ctx.fill();
+        });
+        // Papelitos flotando dentro de la tribuna
         const t = Date.now() / 1000;
-        for (let i = 0; i < 40; i++) {
+        for (let i = 0; i < 60; i++) {
           const x = (i * 41 + (t * 20) % W) % W;
-          const y = 40 + ((i * 13 + t * 30) % 130);
+          const y = 50 + ((i * 17 + t * 30) % (ground - 110));
           const col = i % 3 === 0 ? home.primary : i % 3 === 1 ? away.primary : "#ffffff";
           ctx.fillStyle = col;
           ctx.globalAlpha = 0.5;
@@ -952,6 +934,7 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         }
         ctx.globalAlpha = 1;
       }
+
 
       // Torres de luz (mástiles)
       towers.forEach(tx => {
