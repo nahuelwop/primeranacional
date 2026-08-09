@@ -1145,9 +1145,14 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         ctx.restore();
       });
 
-      // Humo de bengalas (recibimiento de clásico)
+      // Humo de bengalas (recibimiento de clásico). Nunca tapa la pelota:
+      // se desvanece a medida que se acerca a ella.
       smoke.forEach(s => {
-        ctx.globalAlpha = Math.max(0, s.alpha);
+        const d = Math.hypot(s.x - ball.x, s.y - ball.y);
+        const clear = Math.min(1, Math.max(0, (d - ball.r * 2) / 90));
+        const a = Math.max(0, s.alpha) * 0.75 * clear;
+        if (a <= 0.01) return;
+        ctx.globalAlpha = a;
         const g = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, s.r);
         g.addColorStop(0, s.color);
         g.addColorStop(1, "rgba(0,0,0,0)");
@@ -1155,6 +1160,7 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2); ctx.fill();
       });
       ctx.globalAlpha = 1;
+
 
       // Chispas de las bengalas
       sparks.forEach(sp => {
