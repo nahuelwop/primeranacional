@@ -282,7 +282,12 @@ export function Penales({ home, away, onEnd }: { home: Team; away: Team; onEnd: 
       {!done && (
         <>
           <div className="text-center text-sm mb-2">
-            Patea <span className="font-display text-base text-celeste">{shooter.name}</span> · ataja <span className="text-muted-foreground">{keeper.short}</span>
+            <span className="inline-block px-3 py-1 rounded-full bg-celeste/15 border border-celeste/40 text-celeste font-display tracking-wide text-xs mb-1">
+              PATEA AHORA · {turn === "H" ? "LOCAL" : "VISITANTE"}
+            </span>
+            <div>
+              Patea <span className="font-display text-base text-celeste">{shooter.name}</span> · ataja <span className="text-muted-foreground">{keeper.short}</span>
+            </div>
           </div>
 
           <div className="mx-auto max-w-2xl rounded-xl overflow-hidden border-2 border-white/10 bg-black">
