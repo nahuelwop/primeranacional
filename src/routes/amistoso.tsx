@@ -109,7 +109,7 @@ function AmistosoPage() {
             )}
 
             {showPenales && homeKitted && awayKitted && !penalesResult && (
-              <Penales home={homeKitted} away={awayKitted}
+              <Penales home={homeKitted} away={awayKitted} mode={mode}
                 onEnd={(winner, h, a) => setPenalesResult({ winner, h, a })} />
             )}
 
