@@ -78,4 +78,94 @@ function Reducido() {
                   <div className="text-xs text-muted-foreground">CAMPEÓN · 1° ASCENSO</div>
                   <div className="font-display text-2xl text-celeste">{TEAMS_BY_ID[s.champion]?.name}</div>
                 </div>
-Listo
+              )}
+            </div>
+
+            <div className="lg:col-span-2 rounded-2xl bg-card/60 border border-border p-5">
+              <div className="flex items-center justify-between">
+                <div className="font-display text-xl">REDUCIDO · 2° ASCENSO</div>
+                <button onClick={() => s.advanceBracket()}
+                  className="px-4 py-2 rounded-lg bg-accent text-accent-foreground font-display tracking-wider text-sm">
+                  AVANZAR RONDA
+                </button>
+              </div>
+
+              {(["octavos", "cuartos", "semis", "final"] as const).map((round) => {
+                const pairs = s.bracket?.[round] ?? [];
+                if (!pairs.length) return null;
+                return (
+                  <div key={round} className="mt-5">
+                    <div className="text-xs uppercase tracking-widest text-muted-foreground">{round}</div>
+                    <div className="mt-2 grid sm:grid-cols-2 gap-2">
+                      {pairs.map((p, i) => (
+                        <div key={i} className="rounded-xl border border-border bg-background/40 p-3">
+                          <PairView pair={p} />
+                          {!p.winner && p.a && p.b && isUserPair(p) && (
+                            <button
+                              onClick={() => setPlay({
+                                kind: round === "final" ? "final_reducido" : round,
+                                idx: i,
+                                pair: p,
+                              })}
+                              className="mt-2 w-full px-3 py-2 rounded-lg bg-celeste text-primary-foreground font-display tracking-wider text-sm">
+                              JUGAR
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+
+              {s.reducidoChampion && (
+                <div className="mt-6 text-center">
+                  <div className="text-xs text-muted-foreground">GANADOR DEL REDUCIDO · 2° ASCENSO</div>
+                  <div className="font-display text-2xl text-accent">{TEAMS_BY_ID[s.reducidoChampion]?.name}</div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </main>
+
+      {play && play.pair.a && play.pair.b && (
+        <div className="fixed inset-0 z-50 bg-background/95 overflow-auto">
+          <div className="max-w-5xl mx-auto p-4">
+            <Game
+              home={TEAMS_BY_ID[play.pair.a]}
+              away={TEAMS_BY_ID[play.pair.b]}
+              duration={60}
+              matchLabel={play.kind === "final" ? "FINAL POR EL 1° ASCENSO" : "REDUCIDO"}
+              onEnd={(hg, ag) => {
+                recordUserPlayoff(play.kind, play.idx, hg, ag);
+                setPlay(null);
+              }}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PairView({ pair, big = false }: { pair: Pair; big?: boolean }) {
+  const a = pair.a ? TEAMS_BY_ID[pair.a] : undefined;
+  const b = pair.b ? TEAMS_BY_ID[pair.b] : undefined;
+  const size = big ? 44 : 28;
+  return (
+    <div className="mt-2 flex items-center justify-between gap-2">
+      <div className="flex items-center gap-2 min-w-0">
+        {a ? <Shield team={a} size={size} /> : <div style={{ width: size, height: size }} />}
+        <span className={`truncate ${big ? "font-display text-lg" : "text-sm"}`}>{a?.name ?? "—"}</span>
+      </div>
+      <div className="font-display tabular-nums px-2">
+        {pair.winner ? `${pair.ag ?? 0} - ${pair.bg ?? 0}` : "vs"}
+      </div>
+      <div className="flex items-center gap-2 min-w-0 justify-end">
+        <span className={`truncate text-right ${big ? "font-display text-lg" : "text-sm"}`}>{b?.name ?? "—"}</span>
+        {b ? <Shield team={b} size={size} /> : <div style={{ width: size, height: size }} />}
+      </div>
+    </div>
+  );
+}
