@@ -103,6 +103,9 @@ export type Database = {
           created_at: string
           id: string
           name: string
+          penal_decisive_urls: string[]
+          penal_goal_urls: string[]
+          penal_save_urls: string[]
           sort_order: number
           urls: string[]
         }
@@ -110,6 +113,9 @@ export type Database = {
           created_at?: string
           id?: string
           name: string
+          penal_decisive_urls?: string[]
+          penal_goal_urls?: string[]
+          penal_save_urls?: string[]
           sort_order?: number
           urls?: string[]
         }
@@ -117,6 +123,9 @@ export type Database = {
           created_at?: string
           id?: string
           name?: string
+          penal_decisive_urls?: string[]
+          penal_goal_urls?: string[]
+          penal_save_urls?: string[]
           sort_order?: number
           urls?: string[]
         }
