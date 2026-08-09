@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Shield } from "@/components/Shield";
 import { Team } from "@/data/teams";
+import { supabase } from "@/integrations/supabase/client";
 
 // ===== Penales — mini-juego interactivo (potencia + apunte) =====
 // El arco, el arquero y el pateador se dibujan en canvas (mismo lenguaje
@@ -75,10 +76,57 @@ const zonePos = (z: Zone) => {
   return { x: cx, y: cy };
 };
 
+type PenalNarrator = {
+  id: string; name: string; sort_order: number;
+  penal_goal_urls?: string[]; penal_save_urls?: string[]; penal_decisive_urls?: string[];
+};
+
 export function Penales({ home, away, mode = "1v1", onEnd }: {
   home: Team; away: Team; mode?: Mode; onEnd: (winner: "H" | "A", h: number, a: number) => void;
 }) {
+  // Relatores globales (los mismos que administra el panel Admin): audios propios
+  // para penal convertido, penal atajado y penal decisivo.
+  const penalNarratorRef = useRef<PenalNarrator | null>(null);
+  const penalAudioRef = useRef<HTMLAudioElement | null>(null);
+  useEffect(() => {
+    let alive = true;
+    (supabase.from("global_narrators" as any) as any)
+      .select("*")
+      .order("sort_order", { ascending: true })
+      .then(({ data }: { data: any }) => {
+        if (!alive) return;
+        const list = ((data ?? []) as PenalNarrator[]).filter(
+          n => (n.penal_goal_urls?.length ?? 0) + (n.penal_save_urls?.length ?? 0) + (n.penal_decisive_urls?.length ?? 0) > 0,
+        );
+        if (list.length > 0) penalNarratorRef.current = list[Math.floor(Math.random() * list.length)];
+      });
+    return () => {
+      alive = false;
+      if (penalAudioRef.current) { penalAudioRef.current.pause(); penalAudioRef.current.src = ""; penalAudioRef.current = null; }
+    };
+  }, []);
+
+  const playPenalAudio = (kind: "goal" | "save" | "decisive") => {
+    const n = penalNarratorRef.current;
+    if (!n) return;
+    const pool = kind === "goal" ? n.penal_goal_urls
+      : kind === "save" ? n.penal_save_urls
+      : n.penal_decisive_urls;
+    // Si no hay audio decisivo cargado, cae al de gol/atajada correspondiente.
+    const urls = (pool && pool.length > 0) ? pool : null;
+    if (!urls) return;
+    const url = urls[Math.floor(Math.random() * urls.length)];
+    try {
+      if (penalAudioRef.current) { penalAudioRef.current.pause(); penalAudioRef.current.src = ""; }
+      const a = new Audio(url);
+      a.volume = 0.9;
+      penalAudioRef.current = a;
+      a.play().catch(() => {});
+    } catch { /* autoplay bloqueado */ }
+  };
+
   const [shots, setShots] = useState<Shot[]>([]);
+
   const [turn, setTurn] = useState<"H" | "A">("H");
   const [phase, setPhase] = useState<Phase>("aim");
   const [aimZone, setAimZone] = useState<Zone>(2);   // zona elegida por el usuario, sea para patear o para atajar
@@ -251,8 +299,13 @@ export function Penales({ home, away, mode = "1v1", onEnd }: {
       setLastResult(shot);
       setComment(pickComment(shot));
       setPhase("result");
+      // Audio del relator según lo que pasó realmente. El audio "decisivo" sólo
+      // suena si este penal efectivamente definió al ganador de la tanda.
+      const definedNow = decisive && computeFinished(next);
+      playPenalAudio(definedNow ? "decisive" : shot.goal ? "goal" : "save");
       evaluateEnd(next);
     }, 620);
+
   }
 
   function pickComment(shot: Shot) {

@@ -187,12 +187,15 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
     const smoke: Smoke[] = [];
     type Spark = { x: number; y: number; vx: number; vy: number; color: string; life: number };
     const sparks: Spark[] = [];
-    // Bengalas repartidas por TODA la tribuna, sostenidas por la gente (dentro del público)
-    const flareSources = Array.from({ length: 10 }, (_, i) => ({
-      x: (W / 11) * (i + 1),
+    // Bengalas repartidas por TODA la tribuna, sostenidas por la gente (dentro del público).
+    // Cantidad según el contexto: partido normal = ninguna, ascenso = normales, clásico = muchas.
+    const flareCount = isClasico ? 16 : crowdIntensity === "ascenso" ? 10 : 0;
+    const flareSources = Array.from({ length: flareCount }, (_, i) => ({
+      x: (W / (flareCount + 1)) * (i + 1),
       y: i % 2 === 0 ? 300 : 210,
       color: i % 3 === 0 ? "#ffffff" : (i % 2 === 0 ? home.primary : away.primary),
     }));
+
     const spawnSmoke = () => {
       flareSources.forEach(src => {
         for (let i = 0; i < 4; i++) {
@@ -1057,15 +1060,28 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
 
       ctx.save();
       ctx.translate(ball.x, ball.y);
+      // Halo muy sutil cuando la pelota se mueve rápido (ayuda a seguirla sobre la tribuna)
+      const bSpeed = Math.hypot(ball.vx, ball.vy);
+      if (bSpeed > 5) {
+        const halo = ctx.createRadialGradient(0, 0, ball.r * 0.8, 0, 0, ball.r * 2.1);
+        halo.addColorStop(0, "rgba(255,255,255,0.22)");
+        halo.addColorStop(1, "rgba(255,255,255,0)");
+        ctx.fillStyle = halo;
+        ctx.beginPath(); ctx.arc(0, 0, ball.r * 2.1, 0, Math.PI * 2); ctx.fill();
+      }
+      // Anillo oscuro de contraste detrás de la pelota (la despega de cualquier fondo)
+      ctx.fillStyle = "rgba(0,0,0,0.45)";
+      ctx.beginPath(); ctx.arc(0, 0, ball.r + 2.4, 0, Math.PI * 2); ctx.fill();
       ctx.rotate(ball.spin);
       ctx.scale(1 + ball.squash, 1 - ball.squash * 0.65);
       ctx.beginPath(); ctx.arc(0, 0, ball.r, 0, Math.PI * 2);
       const ballGrad = ctx.createRadialGradient(-ball.r * 0.35, -ball.r * 0.35, 1, 0, 0, ball.r * 1.3);
       ballGrad.addColorStop(0, "#ffffff");
-      ballGrad.addColorStop(0.55, "#f2f2f2");
-      ballGrad.addColorStop(1, "#c9c9c9");
+      ballGrad.addColorStop(0.55, "#fbfbfb");
+      ballGrad.addColorStop(1, "#dcdcdc");
       ctx.fillStyle = ballGrad; ctx.fill();
-      ctx.lineWidth = 1.5; ctx.strokeStyle = "#2a2a2a"; ctx.stroke();
+      ctx.lineWidth = 2.4; ctx.strokeStyle = "#141414"; ctx.stroke();
+
       // Parches tipo pentágono en vez de puntos planos, dan sensación de pelota real
       ctx.fillStyle = "#222";
       for (let i = 0; i < 5; i++) {
@@ -1145,9 +1161,14 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         ctx.restore();
       });
 
-      // Humo de bengalas (recibimiento de clásico)
+      // Humo de bengalas (recibimiento de clásico). Nunca tapa la pelota:
+      // se desvanece a medida que se acerca a ella.
       smoke.forEach(s => {
-        ctx.globalAlpha = Math.max(0, s.alpha);
+        const d = Math.hypot(s.x - ball.x, s.y - ball.y);
+        const clear = Math.min(1, Math.max(0, (d - ball.r * 2) / 90));
+        const a = Math.max(0, s.alpha) * 0.75 * clear;
+        if (a <= 0.01) return;
+        ctx.globalAlpha = a;
         const g = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, s.r);
         g.addColorStop(0, s.color);
         g.addColorStop(1, "rgba(0,0,0,0)");
@@ -1155,6 +1176,7 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2); ctx.fill();
       });
       ctx.globalAlpha = 1;
+
 
       // Chispas de las bengalas
       sparks.forEach(sp => {
