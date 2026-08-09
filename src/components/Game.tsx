@@ -1057,15 +1057,28 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
 
       ctx.save();
       ctx.translate(ball.x, ball.y);
+      // Halo muy sutil cuando la pelota se mueve rápido (ayuda a seguirla sobre la tribuna)
+      const bSpeed = Math.hypot(ball.vx, ball.vy);
+      if (bSpeed > 5) {
+        const halo = ctx.createRadialGradient(0, 0, ball.r * 0.8, 0, 0, ball.r * 2.1);
+        halo.addColorStop(0, "rgba(255,255,255,0.22)");
+        halo.addColorStop(1, "rgba(255,255,255,0)");
+        ctx.fillStyle = halo;
+        ctx.beginPath(); ctx.arc(0, 0, ball.r * 2.1, 0, Math.PI * 2); ctx.fill();
+      }
+      // Anillo oscuro de contraste detrás de la pelota (la despega de cualquier fondo)
+      ctx.fillStyle = "rgba(0,0,0,0.45)";
+      ctx.beginPath(); ctx.arc(0, 0, ball.r + 2.4, 0, Math.PI * 2); ctx.fill();
       ctx.rotate(ball.spin);
       ctx.scale(1 + ball.squash, 1 - ball.squash * 0.65);
       ctx.beginPath(); ctx.arc(0, 0, ball.r, 0, Math.PI * 2);
       const ballGrad = ctx.createRadialGradient(-ball.r * 0.35, -ball.r * 0.35, 1, 0, 0, ball.r * 1.3);
       ballGrad.addColorStop(0, "#ffffff");
-      ballGrad.addColorStop(0.55, "#f2f2f2");
-      ballGrad.addColorStop(1, "#c9c9c9");
+      ballGrad.addColorStop(0.55, "#fbfbfb");
+      ballGrad.addColorStop(1, "#dcdcdc");
       ctx.fillStyle = ballGrad; ctx.fill();
-      ctx.lineWidth = 1.5; ctx.strokeStyle = "#2a2a2a"; ctx.stroke();
+      ctx.lineWidth = 2.4; ctx.strokeStyle = "#141414"; ctx.stroke();
+
       // Parches tipo pentágono en vez de puntos planos, dan sensación de pelota real
       ctx.fillStyle = "#222";
       for (let i = 0; i < 5; i++) {
