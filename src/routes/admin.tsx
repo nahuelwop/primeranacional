@@ -71,7 +71,21 @@ function AdminPage() {
   );
 }
 
-type GlobalNarrator = { id: string; name: string; urls: string[]; sort_order: number };
+type NarratorField = "urls" | "penal_goal_urls" | "penal_save_urls" | "penal_decisive_urls";
+type GlobalNarrator = {
+  id: string; name: string; sort_order: number;
+  urls: string[];
+  penal_goal_urls?: string[];
+  penal_save_urls?: string[];
+  penal_decisive_urls?: string[];
+};
+
+const NARRATOR_FIELDS: { field: NarratorField; label: string; sub: string }[] = [
+  { field: "urls", label: "Gol (partido)", sub: "goles" },
+  { field: "penal_goal_urls", label: "Penal → Gol", sub: "penal-gol" },
+  { field: "penal_save_urls", label: "Penal → Atajada", sub: "penal-atajada" },
+  { field: "penal_decisive_urls", label: "Penal → Decisivo", sub: "penal-decisivo" },
+];
 
 function RelatoresTab() {
   const [narrators, setNarrators] = useState<GlobalNarrator[]>([]);
@@ -113,14 +127,14 @@ function RelatoresTab() {
     setNarrators(n => n.filter(x => x.id !== id));
   }
 
-  async function uploadAudios(id: string, files: FileList | null) {
+  async function uploadAudios(id: string, files: FileList | null, field: NarratorField, sub: string) {
     if (!files || files.length === 0) return;
-    setBusyId(id); setErr(null);
+    setBusyId(id + field); setErr(null);
     try {
       const urls: string[] = [];
       for (const file of Array.from(files)) {
         const ext = file.name.split(".").pop() || "mp3";
-        const path = `global-relatores/${id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+        const path = `global-relatores/${id}/${sub}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
         const { error } = await supabase.storage.from("team-audios").upload(path, file, { upsert: false, contentType: file.type });
         if (error) throw error;
         const { data, error: sErr } = await supabase.storage.from("team-audios").createSignedUrl(path, 60 * 60 * 24 * 365 * 10);
@@ -128,10 +142,10 @@ function RelatoresTab() {
         urls.push(data.signedUrl);
       }
       const target = narrators.find(n => n.id === id);
-      const newUrls = [...(target?.urls ?? []), ...urls];
-      const { error } = await (supabase.from("global_narrators" as any) as any).update({ urls: newUrls }).eq("id", id);
+      const newUrls = [...((target?.[field] as string[] | undefined) ?? []), ...urls];
+      const { error } = await (supabase.from("global_narrators" as any) as any).update({ [field]: newUrls }).eq("id", id);
       if (error) throw error;
-      setNarrators(n => n.map(x => x.id === id ? { ...x, urls: newUrls } : x));
+      setNarrators(n => n.map(x => x.id === id ? { ...x, [field]: newUrls } : x));
     } catch (e) {
       setErr((e as Error).message);
     } finally {
@@ -139,12 +153,12 @@ function RelatoresTab() {
     }
   }
 
-  async function removeAudio(id: string, idx: number) {
+  async function removeAudio(id: string, idx: number, field: NarratorField) {
     const target = narrators.find(n => n.id === id);
     if (!target) return;
-    const newUrls = target.urls.filter((_, i) => i !== idx);
-    setNarrators(n => n.map(x => x.id === id ? { ...x, urls: newUrls } : x));
-    await (supabase.from("global_narrators" as any) as any).update({ urls: newUrls }).eq("id", id);
+    const newUrls = ((target[field] as string[] | undefined) ?? []).filter((_, i) => i !== idx);
+    setNarrators(n => n.map(x => x.id === id ? { ...x, [field]: newUrls } : x));
+    await (supabase.from("global_narrators" as any) as any).update({ [field]: newUrls }).eq("id", id);
   }
 
   if (loading) return <div className="text-sm text-muted-foreground">Cargando relatores...</div>;
@@ -154,7 +168,7 @@ function RelatoresTab() {
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground max-w-xl">
           Relatores globales: se ofrecen en <b>cualquier partido</b>, sin importar qué equipos jueguen.
-          No hace falta cargarlos equipo por equipo.
+          Cada relator puede tener sus audios de gol y sus audios propios para los penales.
         </p>
         <Button onClick={addNarrator}>+ Nuevo relator</Button>
       </div>
@@ -169,7 +183,7 @@ function RelatoresTab() {
 
       <div className="grid gap-3">
         {narrators.map(n => (
-          <div key={n.id} className="border border-border rounded-lg p-4 space-y-2">
+          <div key={n.id} className="border border-border rounded-lg p-4 space-y-3">
             <div className="flex items-center gap-2">
               <Input
                 value={n.name}
@@ -182,32 +196,42 @@ function RelatoresTab() {
               </button>
             </div>
 
-            <div className="flex flex-wrap gap-2">
-              {n.urls.map((u, i) => (
-                <div key={i} className="flex items-center gap-1 bg-muted rounded px-2 py-1 text-xs">
-                  <audio src={u} controls className="h-6" />
-                  <button onClick={() => removeAudio(n.id, i)} className="text-destructive hover:underline">Quitar</button>
+            {NARRATOR_FIELDS.map(({ field, label, sub }) => {
+              const list = (n[field] as string[] | undefined) ?? [];
+              const busy = busyId === n.id + field;
+              return (
+                <div key={field} className="rounded-md border border-border/60 p-2 space-y-2">
+                  <div className="text-xs uppercase text-muted-foreground">{label}</div>
+                  <div className="flex flex-wrap gap-2">
+                    {list.map((u, i) => (
+                      <div key={i} className="flex items-center gap-1 bg-muted rounded px-2 py-1 text-xs">
+                        <audio src={u} controls className="h-6" />
+                        <button onClick={() => removeAudio(n.id, i, field)} className="text-destructive hover:underline">Quitar</button>
+                      </div>
+                    ))}
+                    {list.length === 0 && <span className="text-xs text-muted-foreground">Sin audios</span>}
+                  </div>
+                  <label className="text-xs text-celeste underline cursor-pointer inline-block">
+                    {busy ? "Subiendo..." : "+ Subir audios"}
+                    <input
+                      type="file"
+                      accept="audio/*"
+                      multiple
+                      className="hidden"
+                      disabled={busy}
+                      onChange={e => { uploadAudios(n.id, e.target.files, field, sub); e.target.value = ""; }}
+                    />
+                  </label>
                 </div>
-              ))}
-            </div>
-
-            <label className="text-xs text-celeste underline cursor-pointer">
-              {busyId === n.id ? "Subiendo..." : "+ Subir audios de gol"}
-              <input
-                type="file"
-                accept="audio/*"
-                multiple
-                className="hidden"
-                disabled={busyId === n.id}
-                onChange={e => { uploadAudios(n.id, e.target.files); e.target.value = ""; }}
-              />
-            </label>
+              );
+            })}
           </div>
         ))}
       </div>
     </div>
   );
 }
+
 
 function EquiposTab() {
   const [editing, setEditing] = useState<Team | null>(null);
