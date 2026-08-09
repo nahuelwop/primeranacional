@@ -752,7 +752,7 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         if (w.x > W + 10) w.x = -10;
       });
 
-      crowd.forEach(c => c.bob += 0.05);
+      
 
       // Guardar snapshot al ring buffer
       history.push({
