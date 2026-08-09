@@ -187,12 +187,15 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
     const smoke: Smoke[] = [];
     type Spark = { x: number; y: number; vx: number; vy: number; color: string; life: number };
     const sparks: Spark[] = [];
-    // Bengalas repartidas por TODA la tribuna, sostenidas por la gente (dentro del público)
-    const flareSources = Array.from({ length: 10 }, (_, i) => ({
-      x: (W / 11) * (i + 1),
+    // Bengalas repartidas por TODA la tribuna, sostenidas por la gente (dentro del público).
+    // Cantidad según el contexto: partido normal = ninguna, ascenso = normales, clásico = muchas.
+    const flareCount = isClasico ? 16 : crowdIntensity === "ascenso" ? 10 : 0;
+    const flareSources = Array.from({ length: flareCount }, (_, i) => ({
+      x: (W / (flareCount + 1)) * (i + 1),
       y: i % 2 === 0 ? 300 : 210,
       color: i % 3 === 0 ? "#ffffff" : (i % 2 === 0 ? home.primary : away.primary),
     }));
+
     const spawnSmoke = () => {
       flareSources.forEach(src => {
         for (let i = 0; i < 4; i++) {
