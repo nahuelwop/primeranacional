@@ -377,11 +377,12 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
       banners.forEach((txt, i) => {
         const bw = 210, bx = 40 + i * ((W - 120) / banners.length);
         const homeSide = bx + bw / 2 < W / 2;
-        c.fillStyle = homeSide ? home.secondary : away.secondary;
+        c.fillStyle = "#f2f0e6";
         c.fillRect(bx, BANNER_Y + 3, bw, 24);
         c.strokeStyle = homeSide ? home.primary : away.primary; c.lineWidth = 3;
         c.strokeRect(bx, BANNER_Y + 3, bw, 24);
-        c.fillStyle = "#0b1120";
+        c.fillStyle = "#12161f";
+
         c.font = "bold 13px system-ui"; c.textAlign = "center";
         c.fillText(txt.toUpperCase(), bx + bw / 2, BANNER_Y + 20);
       });
