@@ -719,3 +719,97 @@
   /* Selección de texto con el color de marca en vez del azul del navegador */
   ::selection { background: oklch(0.72 0.19 145 / 0.35); color: var(--color-foreground); }
 }
+
+@layer utilities {
+  /* ===== Ambiente "wow": orbes de luz flotando de fondo, muy sutiles ===== */
+  .ambient-orbs {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    overflow: hidden;
+    pointer-events: none;
+  }
+  .ambient-orbs::before,
+  .ambient-orbs::after {
+    content: "";
+    position: absolute;
+    width: 46vw;
+    height: 46vw;
+    border-radius: 50%;
+    filter: blur(90px);
+    opacity: 0.28;
+    animation: ambient-drift 22s ease-in-out infinite alternate;
+  }
+  .ambient-orbs::before {
+    top: -12%; left: -8%;
+    background: radial-gradient(circle, var(--celeste) 0%, transparent 70%);
+  }
+  .ambient-orbs::after {
+    bottom: -16%; right: -10%;
+    background: radial-gradient(circle, var(--gold) 0%, transparent 70%);
+    animation-delay: -11s;
+  }
+  @keyframes ambient-drift {
+    from { transform: translate(0, 0) scale(1); }
+    to { transform: translate(4vw, 5vw) scale(1.12); }
+  }
+
+  /* ===== Botón con brillo animado — para CTAs importantes ===== */
+  .btn-glow {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    box-shadow: 0 0 0 0 oklch(0.82 0.13 230 / 0);
+    transition: transform .2s ease, box-shadow .3s ease, filter .2s ease;
+  }
+  .btn-glow:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 30px -8px oklch(0.82 0.13 230 / 0.65);
+    filter: brightness(1.06);
+  }
+  .btn-glow::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: linear-gradient(120deg, transparent 30%, oklch(1 0 0 / 0.35) 50%, transparent 70%);
+    transform: translateX(-120%);
+    transition: transform .6s ease;
+  }
+  .btn-glow:hover::after { transform: translateX(120%); }
+
+  /* ===== Tarjeta con glow al hover — para paneles/cards genéricos ===== */
+  .card-glow {
+    position: relative;
+    transition: transform .25s ease, box-shadow .3s ease, border-color .3s ease;
+  }
+  .card-glow:hover {
+    transform: translateY(-3px);
+    border-color: oklch(0.62 0.11 230 / 0.6);
+    box-shadow: 0 20px 45px -20px oklch(0.6 0.13 230 / 0.55);
+  }
+
+  /* ===== Borde con gradiente animado — para destacar un panel puntual ===== */
+  .border-gradient-glow {
+    position: relative;
+    border: 1px solid transparent;
+    background-clip: padding-box;
+  }
+  .border-gradient-glow::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    margin: -1px;
+    border-radius: inherit;
+    background: linear-gradient(120deg, var(--celeste), var(--gold), var(--celeste));
+    background-size: 200% 200%;
+    animation: border-gradient-move 6s ease infinite;
+    opacity: 0.7;
+  }
+  @keyframes border-gradient-move {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+}
