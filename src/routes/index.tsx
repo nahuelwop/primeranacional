@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+¿import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useRef, useState } from "react";
 import { Shield } from "@/components/Shield";
 import { Nav } from "@/components/Nav";
@@ -6,6 +6,7 @@ import { ZONE_A, ZONE_B, type Team } from "@/data/teams";
 import { hydrateTeamsFromDbRows, useTeamsSync, type DbTeam } from "@/lib/teams-sync";
 import { getTeamsForBoot } from "@/lib/teams.functions";
 import { useAuth } from "@/lib/auth";
+import { PlayCircle, Handshake, Trophy } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   loader: async () => {
@@ -141,19 +142,28 @@ function StadiumHero({ user, username }: { user: unknown; username: string | nul
           {/* Botones principales */}
           <div className="flex flex-wrap gap-4 mt-8">
             <Link to="/amistoso"
-              className="group relative px-8 py-5 rounded-2xl bg-green-500 text-black font-display text-xl tracking-wider overflow-hidden hover:scale-[1.03] transition-transform shadow-[0_0_30px_rgba(34,197,94,0.35)]">
-              <span className="relative z-10">JUGAR</span>
-              <span className="relative z-10 block text-xs font-sans font-normal tracking-normal opacity-80">Partido rápido</span>
+              className="btn-glow group relative px-8 py-5 rounded-2xl bg-green-500 text-black font-display text-xl tracking-wider overflow-hidden hover:scale-[1.03] transition-transform shadow-[0_0_30px_rgba(34,197,94,0.35)] flex items-center gap-3">
+              <PlayCircle className="w-7 h-7 shrink-0" strokeWidth={2.2} />
+              <span className="relative z-10 text-left">
+                <span className="block">JUGAR</span>
+                <span className="block text-xs font-sans font-normal tracking-normal opacity-80">Partido rápido</span>
+              </span>
             </Link>
             <Link to="/amistoso"
-              className="px-8 py-5 rounded-2xl bg-card/70 border border-celeste/40 font-display text-xl tracking-wider hover:bg-celeste/10 hover:border-celeste transition-all">
-              AMISTOSO
-              <span className="block text-xs font-sans font-normal tracking-normal text-muted-foreground">1 vs 1</span>
+              className="btn-glow px-8 py-5 rounded-2xl bg-card/70 border border-celeste/40 font-display text-xl tracking-wider hover:bg-celeste/10 hover:border-celeste transition-all flex items-center gap-3">
+              <Handshake className="w-6 h-6 text-celeste shrink-0" strokeWidth={2.2} />
+              <span className="text-left">
+                <span className="block">AMISTOSO</span>
+                <span className="block text-xs font-sans font-normal tracking-normal text-muted-foreground">1 vs 1</span>
+              </span>
             </Link>
             <Link to="/carrera"
-              className="px-8 py-5 rounded-2xl bg-card/70 border border-border font-display text-xl tracking-wider hover:bg-card transition-all">
-              MODO CARRERA
-              <span className="block text-xs font-sans font-normal tracking-normal text-muted-foreground">Tu club, tu historia</span>
+              className="btn-glow px-8 py-5 rounded-2xl bg-card/70 border border-border font-display text-xl tracking-wider hover:bg-card transition-all flex items-center gap-3">
+              <Trophy className="w-6 h-6 text-accent shrink-0" strokeWidth={2.2} />
+              <span className="text-left">
+                <span className="block">MODO CARRERA</span>
+                <span className="block text-xs font-sans font-normal tracking-normal text-muted-foreground">Tu club, tu historia</span>
+              </span>
             </Link>
           </div>
         </div>
@@ -374,7 +384,7 @@ function InfoCards() {
     <section className="bg-card/30 border-y border-border">
       <div className="max-w-6xl mx-auto px-4 py-12 grid sm:grid-cols-2 md:grid-cols-4 gap-5">
         {cards.map(c => (
-          <div key={c.t} className="p-5 rounded-2xl bg-background border border-border hover:border-celeste/40 hover:-translate-y-1 transition-all">
+          <div key={c.t} className="card-glow p-5 rounded-2xl bg-background border border-border transition-all">
             <div className={`font-display text-lg tracking-wide ${c.color}`}>{c.t}</div>
             <p className="text-muted-foreground text-sm mt-2">{c.d}</p>
           </div>
