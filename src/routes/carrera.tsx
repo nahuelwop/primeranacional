@@ -728,28 +728,66 @@ function CalendarioTab({ state, teamId }: { state: CareerState; teamId: string }
     return [...map.entries()].sort((a, b) => a[0] - b[0]);
   }, [state.matches]);
 
+  const nextRound = useMemo(() => {
+    const found = byRound.find(([, ms]) => ms.some(m => !m.played));
+    return found ? found[0] : null;
+  }, [byRound]);
+
   return (
     <div className="hud-panel p-4">
-      <div className="text-[11px] uppercase tracking-widest text-muted-foreground mb-3">Calendario · Zona {state.zone}</div>
+      <div className="flex items-center justify-between mb-3">
+        <div className="text-[11px] uppercase tracking-widest text-muted-foreground">Calendario · Zona {state.zone}</div>
+        <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-hud-green" />Ganado</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-muted-foreground/60" />Empate</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-destructive" />Perdido</span>
+        </div>
+      </div>
       <div className="grid md:grid-cols-2 gap-3">
-        {byRound.map(([round, ms]) => (
-          <div key={round} className="rounded-xl border border-border/60 bg-card/40 p-3">
-            <div className="font-display text-sm tracking-widest text-celeste mb-2">FECHA {round}</div>
-            <div className="space-y-1">
-              {ms.map(m => {
-                const mine = m.home === teamId || m.away === teamId;
-                return (
-                  <div key={m.id} className={`flex items-center justify-between text-xs rounded-lg px-2 py-1.5 ${mine ? "bg-celeste/15 border border-celeste/40" : ""}`}>
-                    <span className="truncate">{TEAMS_BY_ID[m.home]?.short} <span className="text-muted-foreground">vs</span> {TEAMS_BY_ID[m.away]?.short}</span>
-                    <span className="font-display tabular-nums ml-2 shrink-0">
-                      {m.played ? `${m.homeGoals}-${m.awayGoals}` : "—"}
-                    </span>
-                  </div>
-                );
-              })}
+        {byRound.map(([round, ms]) => {
+          const isNext = round === nextRound;
+          return (
+            <div key={round} className={`rounded-xl border p-3 transition-colors ${
+              isNext ? "border-celeste bg-celeste/[0.06] shadow-[0_0_18px_rgba(56,189,248,0.15)]" : "border-border/60 bg-card/40"
+            }`}>
+              <div className="flex items-center gap-2 mb-2">
+                <div className="font-display text-sm tracking-widest text-celeste">FECHA {round}</div>
+                {isNext && (
+                  <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-celeste/20 border border-celeste/50 text-celeste font-display tracking-wide">PRÓXIMA</span>
+                )}
+              </div>
+              <div className="space-y-1">
+                {ms.map(m => {
+                  const mine = m.home === teamId || m.away === teamId;
+                  const home = TEAMS_BY_ID[m.home];
+                  const away = TEAMS_BY_ID[m.away];
+                  let resultColor = "";
+                  if (mine && m.played) {
+                    const myGoals = m.home === teamId ? m.homeGoals! : m.awayGoals!;
+                    const rivalGoals = m.home === teamId ? m.awayGoals! : m.homeGoals!;
+                    resultColor = myGoals > rivalGoals ? "border-l-hud-green" : myGoals < rivalGoals ? "border-l-destructive" : "border-l-muted-foreground";
+                  }
+                  return (
+                    <div key={m.id} className={`flex items-center justify-between text-xs rounded-lg px-2 py-1.5 gap-2 ${
+                      mine ? `bg-celeste/10 border border-celeste/30 border-l-[3px] ${resultColor || "border-l-celeste"}` : "hover:bg-white/[0.03]"
+                    }`}>
+                      <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                        <Shield team={home} size={16} />
+                        <span className="truncate">{home?.short}</span>
+                        <span className="text-muted-foreground shrink-0">vs</span>
+                        <span className="truncate">{away?.short}</span>
+                        <Shield team={away} size={16} />
+                      </div>
+                      <span className={`font-display tabular-nums shrink-0 ${mine && m.played ? "text-sm" : ""}`}>
+                        {m.played ? `${m.homeGoals}-${m.awayGoals}` : "—"}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -760,18 +798,36 @@ function CalendarioTab({ state, teamId }: { state: CareerState; teamId: string }
 function CompeticionTab({ state, teamId }: { state: CareerState; teamId: string }) {
   return (
     <div className="grid lg:grid-cols-2 gap-3">
-      <TablaZona title={`Zona ${state.zone}`} rows={sortStandings(state.standings)} highlight={teamId} />
+      <TablaZona title={`Zona ${state.zone}`} rows={sortStandings(state.standings)} highlight={teamId} matches={state.matches} />
       {state.otherStandings && state.otherStandings.length > 0 && (
-        <TablaZona title={`Zona ${state.zone === "A" ? "B" : "A"} (simulada)`} rows={sortStandings(state.otherStandings)} />
+        <TablaZona title={`Zona ${state.zone === "A" ? "B" : "A"} (simulada)`} rows={sortStandings(state.otherStandings)} matches={[]} />
       )}
     </div>
   );
 }
 
-function TablaZona({ title, rows, highlight }: { title: string; rows: StandingRow[]; highlight?: string }) {
+function recentForm(teamId: string, matches: Match[]): ("V" | "E" | "D")[] {
+  return matches
+    .filter(m => m.played && (m.home === teamId || m.away === teamId))
+    .sort((a, b) => a.round - b.round)
+    .slice(-5)
+    .map(m => {
+      const mine = m.home === teamId ? m.homeGoals! : m.awayGoals!;
+      const rival = m.home === teamId ? m.awayGoals! : m.homeGoals!;
+      return mine > rival ? "V" : mine < rival ? "D" : "E";
+    });
+}
+
+function TablaZona({ title, rows, highlight, matches }: { title: string; rows: StandingRow[]; highlight?: string; matches: Match[] }) {
   return (
     <div className="hud-panel overflow-hidden">
-      <div className="px-4 py-2.5 font-display text-sm uppercase tracking-widest text-celeste border-b border-border">{title}</div>
+      <div className="px-4 py-2.5 font-display text-sm uppercase tracking-widest text-celeste border-b border-border flex items-center justify-between">
+        <span>{title}</span>
+        <div className="flex items-center gap-3 text-[9px] normal-case font-sans tracking-normal text-muted-foreground">
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-accent" />Campeón</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-celeste" />Reducido</span>
+        </div>
+      </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="text-[10px] text-muted-foreground uppercase">
@@ -779,27 +835,56 @@ function TablaZona({ title, rows, highlight }: { title: string; rows: StandingRo
               <th className="text-left px-3 py-2">#</th><th className="text-left px-3 py-2">Equipo</th>
               <th className="px-2 py-2">PJ</th><th className="px-2 py-2">PG</th><th className="px-2 py-2">PE</th>
               <th className="px-2 py-2">PP</th><th className="px-2 py-2">DG</th><th className="px-2 py-2">Pts</th>
+              <th className="px-2 py-2 hidden sm:table-cell">Forma</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((r, i) => {
               const t = TEAMS_BY_ID[r.teamId];
               const mine = r.teamId === highlight;
+              const pos = i + 1;
+              const isChamp = pos === 1;
+              const inReducido = pos <= 8 && !isChamp;
+              const form = recentForm(r.teamId, matches);
               return (
-                <tr key={r.teamId} className={`border-t border-border/60 ${mine ? "bg-celeste/15" : ""} ${i === 0 ? "text-accent" : ""}`}>
-                  <td className="px-3 py-1.5 tabular-nums">{i + 1}</td>
-                  <td className="px-3 py-1.5 flex items-center gap-2 min-w-0"><Shield team={t} size={20} /> <span className="truncate">{t?.short}</span></td>
+                <tr key={r.teamId} className={`border-t border-border/40 transition-colors ${
+                  mine ? "bg-celeste/15" : i % 2 === 1 ? "bg-white/[0.02]" : ""
+                } ${isChamp ? "border-l-[3px] border-l-accent" : inReducido ? "border-l-[3px] border-l-celeste/70" : "border-l-[3px] border-l-transparent"}`}
+                >
+                  <td className="px-3 py-1.5 tabular-nums">
+                    <span className={isChamp ? "text-accent font-display" : "text-muted-foreground"}>{pos}</span>
+                  </td>
+                  <td className="px-3 py-1.5">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Shield team={t} size={mine ? 24 : 20} />
+                      <span className={`truncate ${mine ? "font-display text-celeste" : ""}`}>{t?.short}</span>
+                      {isChamp && <span className="text-accent text-xs">🏆</span>}
+                    </div>
+                  </td>
                   <td className="text-center tabular-nums">{r.pj}</td>
                   <td className="text-center tabular-nums">{r.pg}</td>
                   <td className="text-center tabular-nums">{r.pe}</td>
                   <td className="text-center tabular-nums">{r.pp}</td>
-                  <td className="text-center tabular-nums">{r.dg}</td>
-                  <td className="text-center tabular-nums font-display">{r.pts}</td>
+                  <td className={`text-center tabular-nums ${r.dg > 0 ? "text-hud-green" : r.dg < 0 ? "text-destructive" : ""}`}>{r.dg > 0 ? `+${r.dg}` : r.dg}</td>
+                  <td className="text-center tabular-nums font-display text-base">{r.pts}</td>
+                  <td className="px-2 py-1.5 hidden sm:table-cell">
+                    <div className="flex gap-0.5 justify-center">
+                      {form.length === 0 && <span className="text-muted-foreground text-[10px]">—</span>}
+                      {form.map((f, fi) => (
+                        <span key={fi} className={`w-3.5 h-3.5 rounded-[3px] grid place-items-center text-[8px] font-bold ${
+                          f === "V" ? "bg-hud-green/80 text-black" : f === "D" ? "bg-destructive/80 text-white" : "bg-muted-foreground/50 text-black"
+                        }`}>{f}</span>
+                      ))}
+                    </div>
+                  </td>
                 </tr>
               );
             })}
           </tbody>
         </table>
+      </div>
+      <div className="px-4 py-2 text-[10px] text-muted-foreground border-t border-border/40">
+        1° campeón asciende directo · 2° al 8° juegan el Reducido
       </div>
     </div>
   );
