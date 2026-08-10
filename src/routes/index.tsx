@@ -1,4 +1,4 @@
-¿import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useRef, useState } from "react";
 import { Shield } from "@/components/Shield";
 import { Nav } from "@/components/Nav";
