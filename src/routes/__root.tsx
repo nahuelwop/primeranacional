@@ -123,6 +123,7 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <TeamsBoot />
+        <div className="ambient-orbs" aria-hidden="true" />
         <Outlet />
       </AuthProvider>
     </QueryClientProvider>
