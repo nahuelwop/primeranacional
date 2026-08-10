@@ -101,7 +101,7 @@ function StadiumHero({ user, username }: { user: unknown; username: string | nul
       <div className="max-w-6xl mx-auto px-4 pt-10 pb-20 grid lg:grid-cols-[1fr_1fr] gap-8 items-center">
         <div>
           {/* Panel de sesión */}
-          <div className="flex flex-wrap items-center gap-3 mb-8">
+          <div className="flex flex-wrap items-center gap-3 mb-6 hud-rise">
             {user ? (
               <div className="px-4 py-2 rounded-xl bg-card/70 border border-border text-sm">
                 Jugando como <span className="text-celeste font-semibold">{username ?? "vos"}</span>
@@ -126,24 +126,24 @@ function StadiumHero({ user, username }: { user: unknown; username: string | nul
             )}
           </div>
 
-          <p className="text-celeste font-display tracking-[0.35em] text-sm mb-2">FÚTBOL ARCADE · ARGENTINA</p>
-          <h1 className="font-display text-7xl md:text-8xl leading-[0.9]">
+          <p className="text-celeste font-display tracking-[0.4em] text-sm mb-3 hud-rise">FÚTBOL ARCADE · ARGENTINA</p>
+          <h1 className="font-display leading-[0.88] hud-rise" style={{ animationDelay: "0.05s", fontSize: "clamp(3.5rem, 7vw, 6.5rem)" }}>
             PRIMERA<br />
-            <span className="text-celeste drop-shadow-[0_0_25px_rgba(56,189,248,0.45)]">HEADS</span>
+            <span className="text-celeste drop-shadow-[0_0_28px_rgba(56,189,248,0.5)]">HEADS</span>
           </h1>
-          <p className="mt-3 font-display text-3xl md:text-4xl text-accent drop-shadow-[0_0_18px_rgba(250,204,21,0.35)]">
+          <p className="mt-4 font-display tracking-wide text-accent drop-shadow-[0_0_20px_rgba(250,204,21,0.4)] hud-rise" style={{ animationDelay: "0.1s", fontSize: "clamp(1.5rem, 2.6vw, 2.25rem)" }}>
             EL ASCENSO ES NUESTRO
           </p>
-          <p className="mt-5 text-muted-foreground max-w-lg">
+          <p className="mt-5 text-muted-foreground max-w-lg leading-relaxed hud-rise" style={{ animationDelay: "0.15s" }}>
             Cabezones gigantes, rebotes locos y partidos llenos de acción.
             Disputá la Primera Nacional con sus 36 equipos reales, ganá tu zona y subí a Primera.
           </p>
 
           {/* Botones principales */}
-          <div className="flex flex-wrap gap-4 mt-8">
+          <div className="flex flex-wrap gap-4 mt-9 hud-rise" style={{ animationDelay: "0.2s" }}>
             <Link to="/amistoso"
-              className="btn-glow group relative px-8 py-5 rounded-2xl bg-green-500 text-black font-display text-xl tracking-wider overflow-hidden hover:scale-[1.03] transition-transform shadow-[0_0_30px_rgba(34,197,94,0.35)] flex items-center gap-3">
-              <PlayCircle className="w-7 h-7 shrink-0" strokeWidth={2.2} />
+              className="btn-glow group relative px-9 py-5 rounded-2xl bg-gradient-to-b from-green-400 to-green-600 text-black font-display text-xl tracking-wider overflow-hidden hover:scale-[1.04] active:scale-[0.98] transition-transform shadow-[0_10px_35px_-8px_rgba(34,197,94,0.55)] flex items-center gap-3">
+              <PlayCircle className="w-8 h-8 shrink-0" strokeWidth={2.3} />
               <span className="relative z-10 text-left">
                 <span className="block">JUGAR</span>
                 <span className="block text-xs font-sans font-normal tracking-normal opacity-80">Partido rápido</span>
@@ -320,11 +320,15 @@ function TeamCarousel() {
   };
 
   return (
-    <section className="max-w-6xl mx-auto px-4 py-10">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="font-display text-xl tracking-widest text-celeste">36 EQUIPOS REALES</h2>
-        <Link to="/equipos" className="text-sm text-muted-foreground hover:text-celeste transition-colors underline underline-offset-4">
-          Ver todos los equipos
+    <section className="max-w-6xl mx-auto px-4 py-12">
+      <div className="flex items-center justify-between mb-5 pb-4 border-b border-white/10">
+        <div>
+          <h2 className="font-display text-2xl tracking-widest text-celeste text-glow-celeste">36 EQUIPOS REALES</h2>
+          <p className="text-xs text-muted-foreground mt-1">Todos los clubes de la Primera Nacional, con sus colores oficiales.</p>
+        </div>
+        <Link to="/equipos" className="group flex items-center gap-1.5 text-sm text-muted-foreground hover:text-celeste transition-colors shrink-0">
+          Ver todos
+          <span className="transition-transform group-hover:translate-x-1">→</span>
         </Link>
       </div>
 
@@ -348,10 +352,10 @@ function TeamCarousel() {
             <button
               key={t.id}
               onClick={() => { if (!drag.current.moved) setSelected(t.id); }}
-              className={`group relative shrink-0 snap-start w-20 h-24 rounded-xl border grid place-items-center gap-1 transition-all
+              className={`group relative shrink-0 snap-start w-20 h-24 rounded-xl border grid place-items-center gap-1 transition-all duration-200
                 ${selected === t.id
-                  ? "border-celeste bg-celeste/10 shadow-[0_0_18px_rgba(56,189,248,0.4)] scale-105"
-                  : "border-border bg-card/50 hover:border-celeste/60 hover:scale-110 hover:shadow-[0_0_16px_rgba(56,189,248,0.25)]"}`}
+                  ? "border-celeste bg-celeste/10 shadow-[0_0_18px_rgba(56,189,248,0.4)] scale-105 -translate-y-1"
+                  : "border-border bg-card/50 hover:border-celeste/60 hover:scale-110 hover:-translate-y-1 hover:shadow-[0_10px_24px_-8px_rgba(56,189,248,0.35)]"}`}
             >
               <Shield team={t} size={40} />
               <span className="text-[10px] leading-tight text-center text-muted-foreground group-hover:text-foreground line-clamp-1 px-1">
