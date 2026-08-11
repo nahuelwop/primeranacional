@@ -2,11 +2,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Shield } from "@/components/Shield";
 import { Team, type Narrator } from "@/data/teams";
 import { supabase } from "@/integrations/supabase/client";
-
 export type Weather = "clear" | "rain" | "wind" | "thunder" | "fog";
 export type Difficulty = "easy" | "normal" | "hard" | "expert";
 export type Mode = "1v1" | "1vAI";
-
 type Props = {
   home: Team;
   away: Team;
@@ -22,21 +20,18 @@ type Props = {
   doubleGoalChance?: number;      // 0..1 · probabilidad de que un gol propio cuente doble
   onEnd: (hg: number, ag: number, stats: MatchStats) => void;
 };
-
 export type MatchStats = {
   possessionH: number; // 0..100
   shotsH: number; shotsA: number;
   onTargetH: number; onTargetA: number;
   savesH: number; savesA: number;
 };
-
 const ScoreColorBars = ({ team, reverse = false }: { team: Team; reverse?: boolean }) => (
   <div className="score-color-bars" aria-hidden="true">
     <span style={{ backgroundColor: reverse ? team.secondary : team.primary }} />
     <span style={{ backgroundColor: reverse ? team.primary : team.secondary }} />
   </div>
 );
-
 // Football Heads style arcade — sin poderes, físicas con postes y travesaño.
 export function Game({ home, away, duration = 60, weather = "clear", aiDifficulty = "normal", mode = "1vAI", sharedNarrator = false, crowdIntensity = "normal", matchLabel, startingScore, cancelOpponentGoals = 0, doubleGoalChance = 0, onEnd }: Props) {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -48,7 +43,6 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
   const stateRef = useRef({ h: startingScore?.h ?? 0, a: startingScore?.a ?? 0, posH: 0, posA: 0, shotsH: 0, shotsA: 0, otH: 0, otA: 0, savH: 0, savA: 0 });
   const overRef = useRef(false);
   const pauseClockRef = useRef(false);
-
   // Audio: relato + hinchada (volumen ajustable en vivo, refs evitan stale closures)
   const [narratorVol, setNarratorVol] = useState(0.9);
   const [crowdVol, setCrowdVol] = useState(0.35);
@@ -58,7 +52,6 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
   const crowdRef = useRef<HTMLAudioElement | null>(null);
   useEffect(() => { narratorVolRef.current = narratorVol; if (narratorRef.current) narratorRef.current.volume = narratorVol; }, [narratorVol]);
   useEffect(() => { crowdVolRef.current = crowdVol; if (crowdRef.current) crowdRef.current.volume = crowdVol; }, [crowdVol]);
-
   // Relatores globales (Admin → Relatores): se ofrecen en cualquier partido, sin depender del equipo.
   const [globalNarrators, setGlobalNarrators] = useState<Narrator[]>([]);
   useEffect(() => {
@@ -68,7 +61,6 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
     });
     return () => { active = false; };
   }, []);
-
   // Relator seleccionado por equipo (id del narrador). null = elegir al azar de todos.
   const homeNarrators = useMemo<Narrator[]>(() => {
     const list = [...(home.narrators ?? []), ...globalNarrators];
@@ -94,7 +86,6 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
   const awayNarratorsRef = useRef<Narrator[]>(awayNarrators);
   useEffect(() => { homeNarratorsRef.current = homeNarrators; }, [homeNarrators]);
   useEffect(() => { awayNarratorsRef.current = awayNarrators; }, [awayNarrators]);
-
   // Relator compartido (amistoso 1v1): un solo relator narra ambos equipos.
   // Opciones = nombres únicos presentes en alguno de los dos equipos.
   const sharedOptions = useMemo<{ name: string }[]>(() => {
@@ -107,7 +98,6 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
   useEffect(() => { setSharedName(sharedOptions[0]?.name ?? ""); }, [sharedOptions]);
   const sharedNameRef = useRef(sharedName);
   useEffect(() => { sharedNameRef.current = sharedName; }, [sharedName]);
-
   useEffect(() => {
     overRef.current = false;
     const initH = startingScore?.h ?? 0;
@@ -116,7 +106,6 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
     setScore({ h: initH, a: initA });
     setTime(duration);
     setStats({ possessionH: 50, shotsH: 0, shotsA: 0, onTargetH: 0, onTargetA: 0, savesH: 0, savesA: 0 });
-
     const canvas = ref.current!;
     const ctx = canvas.getContext("2d")!;
     // Espacio lógico de juego (todas las coordenadas de física/dibujo siguen usando estos valores)
@@ -134,7 +123,6 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
     const ground = H - 60;
     const goalW = 70, goalH = 150;
     const crossbarY = ground - goalH;
-
     type Player = {
       x: number; y: number; vx: number; vy: number; r: number;
       color: string; second: string; kick: number; facing: 1 | -1;
@@ -146,8 +134,6 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
     const p1 = mkP(W * 0.28, home.primary, home.secondary, 1);
     const p2 = mkP(W * 0.72, away.primary, away.secondary, -1);
     const ball = { x: W / 2, y: H / 2 - 30, vx: 1.8, vy: -2.8, r: 13, spin: 0, squash: 0, lastTouch: 0 as 0 | 1 | 2 };
-
-
     // Configuración por dificultad
     // jumpCd en frames (60fps): 48 = 0.8s, 72 = 1.2s
     const aiCfg = {
@@ -161,7 +147,6 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
     let aiAirborne = false; // true entre despegue y aterrizaje
     let aiLastKickFrame = -999;
     let goalsCancelLeft = Number.isFinite(cancelOpponentGoals) ? Math.max(0, cancelOpponentGoals) : 999;
-
     // ===== Replay de gol: ring buffer de los últimos ~2.5s =====
     type Snap = { bx:number; by:number; bs:number; p1x:number; p1y:number; p1k:number; p1v:number; p2x:number; p2y:number; p2k:number; p2v:number };
     const history: Snap[] = [];
@@ -173,12 +158,10 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
     // para que la animación siga aunque el replay esté congelando la física del resto de la escena)
     let netWave: { side: "L" | "R"; age: number; entryPos: number } | null = null;
     const NET_WAVE_FRAMES = 75; // ~1.25s @ 60fps
-
     // ===== Papelitos al inicio (primeros 3 segundos) =====
     const confetti: { x:number; y:number; vx:number; vy:number; w:number; h:number; color:string; rot:number; vr:number; sway:number }[] = [];
     const confettiColors = [home.primary, home.secondary, away.primary, away.secondary, "#ffffff", "#ffe066"];
     let confettiTimer = 180; // 3s @ 60fps
-
     // ===== Recibimiento de clásico: bengalas + humo + banner, con el partido pausado =====
     const isClasico = crowdIntensity === "clasico";
     let recibimientoTimer = isClasico ? 320 : 0; // ~5.3s @ 60fps, más largo para que entre el caos
@@ -195,7 +178,6 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
       y: i % 2 === 0 ? 300 : 210,
       color: i % 3 === 0 ? "#ffffff" : (i % 2 === 0 ? home.primary : away.primary),
     }));
-
     const spawnSmoke = () => {
       flareSources.forEach(src => {
         for (let i = 0; i < 4; i++) {
@@ -220,9 +202,6 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         }
       });
     };
-
-
-
     // Relato: en cada gol. Si llega otro, corta el anterior.
     const pickAudio = (urls?: string[]) => {
       if (!urls || urls.length === 0) return null;
@@ -253,7 +232,31 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         a.play().catch(() => {});
       } catch {}
     };
-
+    // Relato de previa: se dispara una sola vez al arrancar el recibimiento del
+    // clásico (mientras está el cartel "¡BIENVENIDOS AL CLÁSICO!"). Usa el mismo
+    // pool de relatores que los goles (el que ya se elige en Admin/el selector de
+    // abajo), pero no depende de qué equipo — es una sola voz para la previa.
+    const playPreviaAudio = () => {
+      const homeList = homeNarratorsRef.current;
+      const awayList = awayNarratorsRef.current;
+      let urls: string[];
+      if (sharedNarrator) {
+        const name = sharedNameRef.current;
+        urls = [...homeList, ...awayList].filter(n => n.name === name).flatMap(n => n.urls ?? []);
+        if (urls.length === 0) urls = [...homeList, ...awayList].flatMap(n => n.urls ?? []);
+      } else {
+        urls = [...homeList, ...awayList].flatMap(n => n.urls ?? []);
+      }
+      const url = pickAudio(urls);
+      if (!url) return;
+      try {
+        if (narratorRef.current) { narratorRef.current.pause(); narratorRef.current.src = ""; }
+        const a = new Audio(url);
+        a.volume = narratorVolRef.current;
+        narratorRef.current = a;
+        a.play().catch(() => {});
+      } catch {}
+    };
     // Hinchada: 3 tramos de 30s (local, visitante, local), tema al azar de cada equipo.
     const segments: Array<{ team: Team; until: number }> = [
       { team: home, until: duration / 2 }, // primera mitad
@@ -278,7 +281,6 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         a.play().catch(() => {});
       } catch {}
     };
-
     // Partículas confeti
     const particles: { x: number; y: number; vx: number; vy: number; life: number; color: string; size: number }[] = [];
     const spawnGoal = (x: number, y: number, color: string) => {
@@ -293,7 +295,6 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         });
       }
     };
-
     // Clima (solo clear / rain / wind / thunder)
     const weatherP: { x: number; y: number; vx: number; vy: number; size: number }[] = [];
     if (weather !== "clear") {
@@ -308,7 +309,6 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         });
       }
     }
-
     // ===== Tribuna prerenderizada: llena, continua y pegada al campo =====
     const STAND_TOP = 42;
     const STAND_BOTTOM = ground - 22;   // justo donde arranca la valla LED
@@ -324,7 +324,6 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
       const skins = ["#f0c39a", "#d9a172", "#a9714a", "#f7d9b6"];
       const neutral = ["#e9e9e9", "#c9d2dd", "#2b3242", "#8a93a3"];
       const density = crowdIntensity === "normal" ? 1 : 1.15;
-
       const deck = (top: number, bottom: number, bg1: string, bg2: string, step: number, size: number) => {
         const g = c.createLinearGradient(0, top, 0, bottom);
         g.addColorStop(0, bg1); g.addColorStop(1, bg2);
@@ -335,7 +334,6 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         // pasillos
         c.fillStyle = "rgba(0,0,0,0.28)";
         for (let x = W * 0.2; x < W; x += W * 0.2) c.fillRect(x - 5, top, 10, bottom - top);
-
         const gap = Math.max(7, (size * 2.1) / density);
         for (let y = top + step; y < bottom - 2; y += step) {
           const depth = (y - top) / Math.max(1, bottom - top);
@@ -370,10 +368,8 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         sh.addColorStop(0.35, "rgba(0,0,0,0)");
         c.fillStyle = sh; c.fillRect(0, top, W, bottom - top);
       };
-
       // Bandeja alta
       deck(STAND_TOP, BANNER_Y, "#101c33", "#16243f", 15, 7);
-
       // Franja de trapos/banderas colgadas entre bandejas
       const banners = ["VAMOS " + home.short, "SIEMPRE A TU LADO", "LA BANDA DEL SUR", "ALENTAMOS DE CORAZÓN", "AGUANTE " + away.short];
       c.fillStyle = "#060d1a"; c.fillRect(0, BANNER_Y, W, 30);
@@ -385,15 +381,12 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         c.strokeStyle = homeSide ? home.primary : away.primary; c.lineWidth = 3;
         c.strokeRect(bx, BANNER_Y + 3, bw, 24);
         c.fillStyle = "#12161f";
-
         c.font = "bold 13px system-ui"; c.textAlign = "center";
         c.fillText(txt.toUpperCase(), bx + bw / 2, BANNER_Y + 20);
       });
       c.textAlign = "start";
-
       // Bandeja baja (popular, más cerca del campo → gente más grande)
       deck(BANNER_Y + 30, FENCE_TOP, "#0c1729", "#122a4a", 18, 9);
-
       // Valla / borde de tribuna que separa público y campo
       const fg = c.createLinearGradient(0, FENCE_TOP, 0, STAND_BOTTOM);
       fg.addColorStop(0, "#1a2740"); fg.addColorStop(1, "#0a1120");
@@ -405,8 +398,6 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
       c.fillStyle = "rgba(0,0,0,0.35)"; c.fillRect(0, STAND_BOTTOM - 4, W, 4);
     };
     buildCrowd();
-
-
     const keys: Record<string, boolean> = {};
     const onKey = (e: KeyboardEvent, down: boolean) => {
       keys[e.key.toLowerCase()] = down;
@@ -416,13 +407,13 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
     const ku = (e: KeyboardEvent) => onKey(e, false);
     window.addEventListener("keydown", kd);
     window.addEventListener("keyup", ku);
-
+    // Relato de previa del clásico: se dispara una única vez, apenas arranca el
+    // recibimiento (banner + bengalas), no en cada frame.
+    if (isClasico) playPreviaAudio();
     const speedScale = (s: number) => 3 + s / 28;
     const jumpScale = (s: number) => -7.5 - s / 22;
-
     const update = () => {
       frame++;
-
       // === Replay activo: reproducir snapshots, no avanzar físicas ===
       if (replay) {
         const snap = replay.frames[replay.idx];
@@ -447,7 +438,6 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         }
         return;
       }
-
       // === Recibimiento de clásico: bengalas + humo, partido congelado ===
       let shakeX = 0, shakeY = 0;
       if (recibimientoTimer > 0) {
@@ -477,7 +467,6 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
           return; // no avanza física ni IA mientras dura el recibimiento
         }
       }
-
       // === Papelitos al inicio ===
       if (confettiTimer > 0) {
         confettiTimer--;
@@ -504,8 +493,6 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         c.rot += c.vr;
         if (c.y > H + 20) confetti.splice(i, 1);
       }
-
-
       // P1 controles: WASD+ESPACIO o ←/→ ↑ ENTER (en 1vAI ambos sirven)
       const sp1 = speedScale(home.stats.speed);
       const p1Left = keys["a"] || (mode === "1vAI" && keys["arrowleft"]);
@@ -517,7 +504,6 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
       else p1.vx *= 0.78;
       if (p1Jump && p1.y >= ground) p1.vy = jumpScale(home.stats.jump);
       if (p1Kick) p1.kick = 10;
-
       // P2: en 1v1 humano con flechas; en 1vAI siempre IA
       if (mode === "1v1") {
         const sp2 = speedScale(away.stats.speed);
@@ -531,7 +517,6 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         if (aiJumpCd > 0) aiJumpCd--;
         // detectar aterrizaje: si vuelve al suelo, ya puede considerar saltar de nuevo
         if (aiAirborne && p2.y >= ground) aiAirborne = false;
-
         const sp2 = speedScale(away.stats.speed) * aiCfg.speed;
         // arco propio (derecha, W) vs arco rival (izquierda, 0)
         const ownGoalX = W - 10;
@@ -539,12 +524,10 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         // Predicción con react más baja => IA "ve" antes en Hard/Expert
         const predictedX = ball.x + ball.vx * aiCfg.react;
         const predictedY = ball.y + ball.vy * aiCfg.react;
-
         // Decidir modo: DEFENDER si la pelota va a mi arco; ATACAR si va al rival
         const ballGoingToOwnGoal = ball.vx > 0.5;
         const ballBehindMe = ball.x > p2.x + 30; // pelota entre yo y mi arco
         const mustDefend = ballGoingToOwnGoal || ballBehindMe;
-
         // Posición objetivo:
         // - Defender: pararse entre la pelota y el arco propio
         // - Atacar: acercarse a la pelota por detrás para pegarle hacia el arco rival
@@ -558,13 +541,11 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
           targetX = predictedX + attackOffset;
         }
         targetX = Math.max(p2.r, Math.min(W - p2.r, targetX));
-
         // Movimiento con banda muerta para no oscilar
         const dead = 12;
         const dx = targetX - p2.x;
         if (Math.abs(dx) > dead) p2.vx = dx > 0 ? sp2 : -sp2;
         else p2.vx *= 0.7;
-
         // ===== Salto: sólo cuando es realmente útil =====
         // Reglas:
         //  1) Cooldown terminado (0.8s+ Hard, 0.9s Expert)
@@ -585,7 +566,6 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
           aiJumpCd = aiCfg.jumpCd;
           aiAirborne = true;
         }
-
         // ===== Patear: al alcance y con dirección aprovechable =====
         const inKickRange = Math.abs(p2.x - ball.x) < 55 && Math.abs(p2.y - ball.y) < 55;
         // Sólo patear si puede darle hacia el arco rival (pelota a la izquierda del bicho o mismo x)
@@ -595,15 +575,12 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
           p2.kick = 10;
           aiLastKickFrame = frame;
         }
-
         // Micro-pausas naturales sólo en Easy/Normal si está lejos
         if (aiCfg.smart < 0.8 && Math.abs(ball.x - p2.x) > 220 && Math.random() < 0.02) p2.vx *= 0.4;
       }
-
       // Posesión: cuenta el último que tocó
       if (ball.lastTouch === 1) stateRef.current.posH++;
       else if (ball.lastTouch === 2) stateRef.current.posA++;
-
       [p1, p2].forEach(p => {
         p.x += p.vx;
         p.vy += 0.42;
@@ -612,9 +589,7 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         p.x = Math.max(p.r, Math.min(W - p.r, p.x));
         if (p.kick > 0) p.kick--;
       });
-
       const wind = weather === "wind" ? -0.06 : 0;
-
       // Pelota — físicas tipo Football Heads (liviana, alegre)
       ball.vy += 0.22;
       // Gravedad extra cuando está muy alta (por encima del travesaño): sin esto,
@@ -630,7 +605,6 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
       ball.vx *= 0.996;
       ball.spin += ball.vx * 0.05;
       ball.squash = 0;
-
       // Suelo (rebote vivo)
       if (ball.y > ground - ball.r) {
         ball.y = ground - ball.r;
@@ -640,8 +614,6 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
       // Paredes
       if (ball.x < ball.r) { ball.x = ball.r; ball.vx = Math.abs(ball.vx) * 0.75; }
       if (ball.x > W - ball.r) { ball.x = W - ball.r; ball.vx = -Math.abs(ball.vx) * 0.75; }
-
-
       // ===== Travesaño (único elemento sólido del arco) =====
       // El balón puede entrar libremente al arco; solo rebota en la barra superior.
       const hitCrossbar = (xMin: number, xMax: number) => {
@@ -662,10 +634,8 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
       };
       hitCrossbar(0, goalW);
       hitCrossbar(W - goalW, W);
-
       const lpx = goalW;
       const rpx = W - goalW;
-
       [p1, p2].forEach((p, i) => {
         const rad = p.r;
         // Cabeza
@@ -705,7 +675,6 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
           }
         }
       });
-
       // Goles: solo cuando la pelota cruza la línea claramente bajo el travesaño
       const triggerReplay = (dir: number, color: string, scorer: "home"|"away") => {
         replay = { frames: history.slice(), idx: 0, color, scorer };
@@ -740,14 +709,12 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         playGoalAudio(home, "home");
         triggerReplay(1, home.primary, "home");
       }
-
       // Particulas
       for (let i = particles.length - 1; i >= 0; i--) {
         const pt = particles[i];
         pt.vy += 0.2; pt.x += pt.vx; pt.y += pt.vy; pt.life--;
         if (pt.life <= 0) particles.splice(i, 1);
       }
-
       weatherP.forEach(w => {
         w.x += w.vx; w.y += w.vy;
         if (w.y > H) { w.y = -10; w.x = Math.random() * W; }
@@ -755,9 +722,7 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         if (w.x < -10) w.x = W + 10;
         if (w.x > W + 10) w.x = -10;
       });
-
       
-
       // Guardar snapshot al ring buffer
       history.push({
         bx: ball.x, by: ball.y, bs: ball.spin,
@@ -765,7 +730,6 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         p2x: p2.x, p2y: p2.y, p2k: p2.kick, p2v: p2.vx,
       });
       if (history.length > HISTORY_MAX) history.shift();
-
       // Refresca stats UI cada ~30 frames
       if (frame % 30 === 0) {
         const total = stateRef.current.posH + stateRef.current.posA;
@@ -780,8 +744,6 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         });
       }
     };
-
-
     const registerShot = (who: 1 | 2) => {
       // Evita contar varias veces el mismo contacto
       if (frame - lastShotFrame[who] < 20) return;
@@ -793,14 +755,12 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
       }
     };
     const lastShotFrame = { 1: -999, 2: -999 } as Record<1 | 2, number>;
-
     const resetBall = (dir: number) => {
       ball.x = W / 2; ball.y = H / 2 - 50; ball.vx = dir * 2.1; ball.vy = -4.2; ball.squash = 0;
       ball.lastTouch = 0;
       p1.x = W * 0.28; p1.y = ground; p1.vx = 0; p1.vy = 0;
       p2.x = W * 0.72; p2.y = ground; p2.vx = 0; p2.vy = 0;
     };
-
     const drawHead = (p: Player) => {
       const rad = p.r;
       const run = Math.min(1, Math.abs(p.vx) / 6);
@@ -811,11 +771,9 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
       ctx.beginPath();
       ctx.ellipse(p.x, ground + 6, rad * 0.9 * shadowScale, 6 * shadowScale, 0, 0, Math.PI * 2);
       ctx.fill();
-
       ctx.save();
       ctx.translate(p.x, p.y + hop);
       ctx.rotate(lean);
-
       // Pie SIEMPRE en el lado del arco rival (p.facing fijo)
       const kickPhase = p.kick > 0 ? p.kick / 10 : 0;
       const stride = Math.sin(frame * 0.45) * 7 * run;
@@ -825,24 +783,17 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
       ctx.beginPath(); ctx.ellipse(footX, footY, 16, 9, 0, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = "#fff";
       ctx.beginPath(); ctx.ellipse(footX - p.facing * 4, footY + 2, 5, 4, 0, 0, Math.PI * 2); ctx.fill();
-
-
-
-
-
       // Cabeza
       ctx.beginPath();
       ctx.ellipse(0, -rad, rad * (1 + run * 0.025), rad * (1 - run * 0.02), 0, 0, Math.PI * 2);
       ctx.fillStyle = "#f4c89a"; ctx.fill();
       ctx.lineWidth = 3; ctx.strokeStyle = "#1a1a1a"; ctx.stroke();
-
       // Gorra
       ctx.beginPath();
       ctx.arc(0, -rad - 2, rad - 1, Math.PI + 0.3, -0.3);
       ctx.fillStyle = p.color; ctx.fill(); ctx.stroke();
       ctx.fillStyle = p.second;
       ctx.fillRect(-rad + 3, -rad - 6, (rad * 2) - 6, 5);
-
       // Ojos hacia la pelota
       const look = ball.x > p.x ? 1 : -1;
       const eyeX = look === 1 ? 8 : -8;
@@ -851,16 +802,13 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
       ctx.strokeStyle = "#1a1a1a"; ctx.lineWidth = 1.5; ctx.stroke();
       ctx.fillStyle = "#1a1a1a";
       ctx.beginPath(); ctx.arc(eyeX + look * 2, -rad + 3, 3.5, 0, Math.PI * 2); ctx.fill();
-
       // Boca
       ctx.strokeStyle = "#1a1a1a"; ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.arc(look * 4, -rad + 14, p.kick > 0 ? 7 : 5, 0.1, Math.PI - 0.1);
       ctx.stroke();
-
       ctx.restore();
     };
-
     const draw = () => {
       // Cielo nocturno con halos de focos
       const sky = ctx.createLinearGradient(0, 0, 0, ground);
@@ -869,7 +817,6 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
       sky.addColorStop(1, "#2f7fc7");
       ctx.fillStyle = sky;
       ctx.fillRect(0, 0, W, ground);
-
       // Halos de iluminación (4 torres)
       const towers = [W * 0.08, W * 0.32, W * 0.68, W * 0.92];
       towers.forEach(tx => {
@@ -879,7 +826,6 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         ctx.fillStyle = grad;
         ctx.beginPath(); ctx.arc(tx, 20, 240, 0, Math.PI * 2); ctx.fill();
       });
-
       // Techo del estadio (silueta)
       ctx.fillStyle = "#06101f";
       ctx.beginPath();
@@ -888,10 +834,8 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         ctx.lineTo(x, 40 + Math.sin(x * 0.02) * 6);
       }
       ctx.lineTo(0, 40); ctx.closePath(); ctx.fill();
-
       // Tribuna completa (prerenderizada): bandeja alta → trapos → popular → valla
       ctx.drawImage(crowdLayer, 0, 0);
-
       // Banderas agitándose entre los hinchas (animadas sobre la tribuna)
       const flagCount = crowdIntensity === "ascenso" ? 26 : crowdIntensity === "clasico" ? 20 : 14;
       for (let i = 0; i < flagCount; i++) {
@@ -910,7 +854,6 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         ctx.fillRect(0, -1, 26, 5);
         ctx.restore();
       }
-
       // Bengalas encendidas dentro del público + humo permanente en partidos calientes
       if (crowdIntensity !== "normal") {
         flareSources.forEach((f, i) => {
@@ -938,8 +881,6 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         }
         ctx.globalAlpha = 1;
       }
-
-
       // Torres de luz (mástiles)
       towers.forEach(tx => {
         ctx.fillStyle = "#1a1f2e";
@@ -952,7 +893,6 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
           ctx.beginPath(); ctx.arc(tx - 14 + i * 6, 7, 2.2, 0, Math.PI * 2); ctx.fill();
         }
       });
-
       // Marcador LED gigante (centro arriba)
       ctx.fillStyle = "#000";
       ctx.fillRect(W / 2 - 70, 6, 140, 30);
@@ -967,7 +907,6 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
       ctx.textAlign = "center";
       ctx.fillText(`${stateRef.current.h} - ${stateRef.current.a}`, W / 2, 26);
       ctx.textAlign = "start";
-
       // Vallas publicitarias LED dinámicas
       const adColors = [home.primary, "#0d1424", away.primary, "#0d1424"];
       const adTexts = ["PRIMERA NACIONAL", home.short, "TNT SPORTS", away.short];
@@ -977,27 +916,23 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
       ctx.fillStyle = "#fff";
       ctx.font = "bold 13px system-ui";
       for (let i = 0; i < W; i += 160) ctx.fillText(adTexts[adIdx], i + 12, ground - 7);
-
       // Césped a rayas
       for (let i = 0; i < W; i += 50) {
         ctx.fillStyle = (i / 50) % 2 === 0 ? "#3aa550" : "#2f8c43";
         ctx.fillRect(i, ground, 50, H - ground);
       }
-
       // Reflector central sobre la cancha (le da protagonismo y contraste vs. el fondo oscuro)
       const spot = ctx.createRadialGradient(W / 2, ground - 40, 40, W / 2, ground - 40, W * 0.55);
       spot.addColorStop(0, "rgba(255,255,240,0.16)");
       spot.addColorStop(1, "rgba(255,255,240,0)");
       ctx.fillStyle = spot;
       ctx.fillRect(0, 0, W, ground);
-
       // Viñeta: oscurece un poco las esquinas para que el centro (donde se juega) resalte
       const vig = ctx.createRadialGradient(W / 2, ground * 0.7, H * 0.25, W / 2, ground * 0.7, W * 0.65);
       vig.addColorStop(0, "rgba(0,0,0,0)");
       vig.addColorStop(1, "rgba(0,0,0,0.22)");
       ctx.fillStyle = vig;
       ctx.fillRect(0, 0, W, H);
-
       // Sombra de contacto césped/pared para que no se vea "pegado" de golpe
       ctx.fillStyle = "rgba(0,0,0,0.25)";
       ctx.fillRect(0, ground, W, 6);
@@ -1009,7 +944,6 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
       // Áreas
       ctx.strokeRect(goalW, ground + 6, 90, H - ground - 12);
       ctx.strokeRect(W - goalW - 90, ground + 6, 90, H - ground - 12);
-
       // Desplazamiento de la red por el impacto del gol: ripple que decae con el tiempo
       // y se atenúa con la distancia al punto donde entró la pelota.
       const netDisplacement = (side: "L" | "R", pos: number) => {
@@ -1047,17 +981,13 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         netWave.age++;
         if (netWave.age > NET_WAVE_FRAMES) netWave = null;
       }
-
-
       drawHead(p1);
       drawHead(p2);
-
       const sScale = Math.max(0.3, 1 - (ground - ball.y) / 350);
       ctx.fillStyle = "rgba(0,0,0,0.3)";
       ctx.beginPath();
       ctx.ellipse(ball.x, ground + 4, ball.r * sScale, 4 * sScale, 0, 0, Math.PI * 2);
       ctx.fill();
-
       ctx.save();
       ctx.translate(ball.x, ball.y);
       // Halo muy sutil cuando la pelota se mueve rápido (ayuda a seguirla sobre la tribuna)
@@ -1081,7 +1011,6 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
       ballGrad.addColorStop(1, "#dcdcdc");
       ctx.fillStyle = ballGrad; ctx.fill();
       ctx.lineWidth = 2.4; ctx.strokeStyle = "#141414"; ctx.stroke();
-
       // Parches tipo pentágono en vez de puntos planos, dan sensación de pelota real
       ctx.fillStyle = "#222";
       for (let i = 0; i < 5; i++) {
@@ -1107,14 +1036,12 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
       ctx.fillStyle = "rgba(255,255,255,0.55)";
       ctx.fill();
       ctx.restore();
-
       particles.forEach(pt => {
         ctx.globalAlpha = Math.max(0, pt.life / 90);
         ctx.fillStyle = pt.color;
         ctx.fillRect(pt.x, pt.y, pt.size, pt.size);
         ctx.globalAlpha = 1;
       });
-
       ctx.save();
       weatherP.forEach(w => {
         if (weather === "rain") {
@@ -1150,7 +1077,6 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         }
       }
       ctx.restore();
-
       // Papelitos al inicio (sobre todo)
       confetti.forEach(c => {
         ctx.save();
@@ -1160,7 +1086,6 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         ctx.fillRect(-c.w / 2, -c.h / 2, c.w, c.h);
         ctx.restore();
       });
-
       // Humo de bengalas (recibimiento de clásico). Nunca tapa la pelota:
       // se desvanece a medida que se acerca a ella.
       smoke.forEach(s => {
@@ -1176,8 +1101,6 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2); ctx.fill();
       });
       ctx.globalAlpha = 1;
-
-
       // Chispas de las bengalas
       sparks.forEach(sp => {
         ctx.globalAlpha = Math.max(0, sp.life / 50);
@@ -1185,7 +1108,6 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         ctx.beginPath(); ctx.arc(sp.x, sp.y, 2, 0, Math.PI * 2); ctx.fill();
       });
       ctx.globalAlpha = 1;
-
       // Banner "¡BIENVENIDOS AL CLÁSICO!" durante el recibimiento
       if (recibimientoTimer > 0) {
         ctx.fillStyle = "rgba(0,0,0,0.3)";
@@ -1206,7 +1128,6 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         ctx.textAlign = "start";
         ctx.globalAlpha = 1;
       }
-
       // Overlay REPLAY
       if (replay) {
         ctx.fillStyle = "rgba(0,0,0,0.35)";
@@ -1226,8 +1147,6 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         ctx.textAlign = "start";
       }
     };
-
-
     let raf = 0;
     let last = performance.now();
     let acc = 0;
@@ -1241,7 +1160,6 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
       raf = requestAnimationFrame(loop);
     };
     loop();
-
     advanceCrowdSegment(duration);
     const tick = setInterval(() => {
       setTime(t => {
@@ -1267,7 +1185,6 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         return next;
       });
     }, 1000);
-
     return () => {
       overRef.current = true;
       cancelAnimationFrame(raf);
@@ -1278,14 +1195,11 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
       window.removeEventListener("keyup", ku);
     };
   }, [home, away, onEnd, weather, aiDifficulty, mode, duration]);
-
   const press = (k: string, down: boolean) => {
     const ev = new KeyboardEvent(down ? "keydown" : "keyup", { key: k });
     window.dispatchEvent(ev);
   };
-
   const possA = 100 - stats.possessionH;
-
   return (
     <div className="flex flex-col items-center gap-3 w-full relative">
       {matchLabel && (
@@ -1314,7 +1228,6 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         <div className="scorebug-clock">{String(Math.floor(time / 60)).padStart(2, "0")}:{String(time % 60).padStart(2, "0")}</div>
         <div className="scorebug-half">1T</div>
       </div>
-
       <div className="relative w-full max-w-6xl">
         <canvas ref={ref} width={1400} height={520} className="w-full rounded-2xl border-2 border-border bg-black" />
         {varMsg && (
@@ -1325,21 +1238,17 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
           </div>
         )}
       </div>
-
-
       {/* Estadísticas en vivo */}
       <div className="w-full max-w-6xl rounded-2xl bg-card border border-border p-3 text-sm">
         <div className="grid grid-cols-3 gap-2 items-center">
           <div className="text-right font-display">{home.short}</div>
           <div className="text-center text-xs text-muted-foreground uppercase tracking-wider">Estadísticas</div>
           <div className="text-left font-display">{away.short}</div>
-
           <StatRow label="Posesión" h={`${stats.possessionH}%`} a={`${possA}%`} barH={stats.possessionH} barA={possA} />
           <StatRow label="Remates" h={stats.shotsH} a={stats.shotsA} />
           <StatRow label="Al arco" h={stats.onTargetH} a={stats.onTargetA} />
         </div>
       </div>
-
       <div className="w-full max-w-6xl rounded-2xl bg-card border border-border p-3 text-xs grid sm:grid-cols-2 gap-3">
         <label className="flex items-center gap-2">
           <span className="w-20 uppercase tracking-wider text-muted-foreground">Relato</span>
@@ -1384,8 +1293,6 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
           </label>
         )}
       </div>
-
-
       <div className="grid grid-cols-4 gap-2 w-full max-w-3xl md:hidden">
         {[["a","◀"],["d","▶"],["w","▲"],[" ","⚽"]].map(([k,l]) => (
           <button key={k}
@@ -1405,7 +1312,6 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
     </div>
   );
 }
-
 function StatRow({ label, h, a, barH, barA }: { label: string; h: number | string; a: number | string; barH?: number; barA?: number }) {
   return (
     <>
@@ -1423,7 +1329,6 @@ function StatRow({ label, h, a, barH, barA }: { label: string; h: number | strin
     </>
   );
 }
-
 // Reemplaza al <select> nativo (que renderiza fondo blanco del sistema al desplegar,
 // haciendo ilegibles los nombres de relatores): un botón + lista propia, siempre
 // oscura y legible, con la opción actual bien resaltada.
@@ -1436,7 +1341,6 @@ function DarkSelect({ value, options, onChange, className = "" }: {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const current = options.find(o => o.value === value);
-
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
@@ -1444,7 +1348,6 @@ function DarkSelect({ value, options, onChange, className = "" }: {
     document.addEventListener("mousedown", onDocClick);
     return () => document.removeEventListener("mousedown", onDocClick);
   }, []);
-
   return (
     <div ref={ref} className={`relative flex-1 ${className}`}>
       <button
