@@ -58,7 +58,7 @@ function Home() {
 
 function StadiumHero({ user, username }: { user: unknown; username: string | null }) {
   return (
-    <section className="relative overflow-hidden border-b border-border">
+    <section className="relative isolate overflow-hidden border-b border-border">
       {/* Fondo de estadio nocturno: foto real */}
       <div className="absolute inset-0 -z-10">
         <div
