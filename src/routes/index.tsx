@@ -7,6 +7,7 @@ import { hydrateTeamsFromDbRows, useTeamsSync, type DbTeam } from "@/lib/teams-s
 import { getTeamsForBoot } from "@/lib/teams.functions";
 import { useAuth } from "@/lib/auth";
 import { PlayCircle, Handshake, Trophy } from "lucide-react";
+import stadiumHero from "@/assets/stadium-hero.jpg";
 
 export const Route = createFileRoute("/")({
   loader: async () => {
@@ -58,44 +59,26 @@ function Home() {
 function StadiumHero({ user, username }: { user: unknown; username: string | null }) {
   return (
     <section className="relative overflow-hidden border-b border-border">
-      {/* Fondo de estadio nocturno */}
+      {/* Fondo de estadio nocturno: foto real */}
       <div className="absolute inset-0 -z-10">
-        <div className="absolute inset-0 bg-gradient-to-b from-[#03060d] via-[#071324] to-[#050810]" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_0%,rgba(56,189,248,0.28),transparent_55%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_85%_20%,rgba(250,204,21,0.10),transparent_45%)]" />
+        <div
+          className="absolute inset-0 bg-cover bg-center"
+          style={{ backgroundImage: `url(${stadiumHero})` }}
+        />
+        {/* Overlay degradado: oscurece lo suficiente para que el texto sea legible
+            sin tapar el estadio — público y luces siguen visibles. Más marcado a la
+            izquierda (donde va el título) y hacia abajo (para fundir con el resto de
+            la página); más liviano a la derecha, donde va el collage de escudos. */}
+        <div className="absolute inset-0 bg-gradient-to-r from-[#03060d]/90 via-[#050a16]/70 to-[#050a16]/45" />
+        <div className="absolute inset-0 bg-gradient-to-b from-[#03060d]/60 via-transparent to-[#050810]/95" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_0%,rgba(56,189,248,0.16),transparent_60%)]" />
 
-        {/* Siluetas de tribuna: filas de "cabezas" de público sugeridas con puntos */}
-        <div className="absolute top-0 left-0 right-0 h-24 opacity-30" style={{
-          backgroundImage: "radial-gradient(circle, rgba(255,255,255,0.5) 1.5px, transparent 1.5px)",
-          backgroundSize: "14px 14px",
-          maskImage: "linear-gradient(to bottom, black, transparent)",
-        }} />
-
-        {/* Reflectores bien marcados, en forma de cono */}
-        {[
-          { x: 6, rot: 18 }, { x: 26, rot: 8 }, { x: 74, rot: -8 }, { x: 94, rot: -18 },
-        ].map((s, i) => (
-          <div key={i} className="absolute -top-10" style={{ left: `${s.x}%` }}>
-            <div
-              className="w-2 h-2 rounded-full bg-white shadow-[0_0_25px_10px_rgba(255,255,255,0.9)]"
-            />
-            <div
-              className="w-56 h-[420px] opacity-25 blur-md"
-              style={{
-                background: "linear-gradient(180deg, #eafcff 0%, rgba(56,189,248,0) 75%)",
-                transform: `translateX(-50%) rotate(${s.rot}deg)`,
-                clipPath: "polygon(45% 0, 55% 0, 100% 100%, 0% 100%)",
-              }}
-            />
-          </div>
-        ))}
-
-        {/* Partículas flotantes (humo/polvo del estadio) */}
+        {/* Partículas flotantes (ya existentes, sutiles) */}
         <FloatingParticles />
 
         <div className="absolute bottom-0 left-0 right-0 h-48 bg-gradient-to-t from-background to-transparent" />
         {/* Viñeta para dar profundidad */}
-        <div className="absolute inset-0 shadow-[inset_0_0_180px_60px_rgba(0,0,0,0.55)]" />
+        <div className="absolute inset-0 shadow-[inset_0_0_180px_60px_rgba(0,0,0,0.5)]" />
       </div>
 
       <div className="max-w-6xl mx-auto px-4 pt-10 pb-20 grid lg:grid-cols-[1fr_1fr] gap-8 items-center">
