@@ -7,7 +7,7 @@ import { hydrateTeamsFromDbRows, useTeamsSync, type DbTeam } from "@/lib/teams-s
 import { getTeamsForBoot } from "@/lib/teams.functions";
 import { useAuth } from "@/lib/auth";
 import { PlayCircle, Handshake, Trophy } from "lucide-react";
-import stadiumHero from "@/assets/stadium-hero.jpg";
+import stadiumHero from "@/assets/stadium-hero.png";
 
 export const Route = createFileRoute("/")({
   loader: async () => {
