@@ -69,16 +69,16 @@ function StadiumHero({ user, username }: { user: unknown; username: string | nul
             sin tapar el estadio — público y luces siguen visibles. Más marcado a la
             izquierda (donde va el título) y hacia abajo (para fundir con el resto de
             la página); más liviano a la derecha, donde va el collage de escudos. */}
-        <div className="absolute inset-0 bg-gradient-to-r from-[#03060d]/90 via-[#050a16]/70 to-[#050a16]/45" />
-        <div className="absolute inset-0 bg-gradient-to-b from-[#03060d]/60 via-transparent to-[#050810]/95" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_0%,rgba(56,189,248,0.16),transparent_60%)]" />
+        <div className="absolute inset-0 bg-gradient-to-r from-[#03060d]/70 via-[#050a16]/40 to-[#050a16]/10" />
+        <div className="absolute inset-0 bg-gradient-to-b from-[#03060d]/35 via-transparent to-[#050810]/85" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_0%,rgba(56,189,248,0.14),transparent_60%)]" />
 
         {/* Partículas flotantes (ya existentes, sutiles) */}
         <FloatingParticles />
 
-        <div className="absolute bottom-0 left-0 right-0 h-48 bg-gradient-to-t from-background to-transparent" />
-        {/* Viñeta para dar profundidad */}
-        <div className="absolute inset-0 shadow-[inset_0_0_180px_60px_rgba(0,0,0,0.5)]" />
+        <div className="absolute bottom-0 left-0 right-0 h-40 bg-gradient-to-t from-background to-transparent" />
+        {/* Viñeta liviana, solo para redondear los bordes */}
+        <div className="absolute inset-0 shadow-[inset_0_0_140px_50px_rgba(0,0,0,0.3)]" />
       </div>
 
       <div className="max-w-6xl mx-auto px-4 pt-10 pb-20 grid lg:grid-cols-[1fr_1fr] gap-8 items-center">
