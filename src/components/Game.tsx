@@ -195,10 +195,14 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
     const sparks: Spark[] = [];
     // Bengalas repartidas por TODA la tribuna, sostenidas por la gente (dentro del público).
     // Cantidad según el contexto: partido normal = ninguna, ascenso = normales, clásico = muchas.
-    const flareCount = isClasico ? 16 : crowdIntensity === "ascenso" ? 10 : 0;
+    const isAllBoysHome = home.id === "allboys";
+    const flareCount = (isClasico ? 16 : crowdIntensity === "ascenso" ? 10 : 0) - (isAllBoysHome ? 0 : 0);
+    const allBoysFlareCount = Math.min(flareCount, 6); // menos bengalas y más contenidas en la tribuna foto
     const flareSources = Array.from({ length: flareCount }, (_, i) => ({
       x: (W / (flareCount + 1)) * (i + 1),
-      y: i % 2 === 0 ? 300 : 210,
+      y: isAllBoysHome
+        ? (i < allBoysFlareCount ? 190 + (i % 3) * 70 : -9999) // fuera de cámara si sobran: mantiene el conteo de humo/relato sin ensuciar la foto
+        : (i % 2 === 0 ? 300 : 210),
       color: i % 3 === 0 ? "#ffffff" : (i % 2 === 0 ? home.primary : away.primary),
     }));
     const spawnSmoke = () => {
@@ -348,7 +352,6 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
     // BANNER_Y/FENCE_TOP/STAND_BOTTOM. Se dibuja la foto/ilustración real del estadio (sin
     // hinchas) como fondo, con la hinchada procedural existente superpuesta y semitransparente
     // encima para mantener el dinamismo de colores según el rival.
-    const isAllBoysHome = home.id === "allboys";
     let allBoysStandImg: HTMLImageElement | null = null;
     if (isAllBoysHome) {
       allBoysStandImg = new Image();
@@ -374,16 +377,18 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
       const skins = ["#f0c39a", "#d9a172", "#a9714a", "#f7d9b6"];
       const neutral = ["#e9e9e9", "#c9d2dd", "#2b3242", "#8a93a3"];
       const density = crowdIntensity === "normal" ? 1 : 1.15;
-      const deck = (top: number, bottom: number, bg1: string, bg2: string, step: number, size: number) => {
-        const g = c.createLinearGradient(0, top, 0, bottom);
-        g.addColorStop(0, bg1); g.addColorStop(1, bg2);
-        c.fillStyle = g; c.fillRect(0, top, W, bottom - top);
-        // escalones
-        c.fillStyle = "rgba(0,0,0,0.18)";
-        for (let y = top; y < bottom; y += step) c.fillRect(0, y + step - 2, W, 2);
-        // pasillos
-        c.fillStyle = "rgba(0,0,0,0.28)";
-        for (let x = W * 0.2; x < W; x += W * 0.2) c.fillRect(x - 5, top, 10, bottom - top);
+      const deck = (top: number, bottom: number, bg1: string, bg2: string, step: number, size: number, figuresOnly = false) => {
+        if (!figuresOnly) {
+          const g = c.createLinearGradient(0, top, 0, bottom);
+          g.addColorStop(0, bg1); g.addColorStop(1, bg2);
+          c.fillStyle = g; c.fillRect(0, top, W, bottom - top);
+          // escalones
+          c.fillStyle = "rgba(0,0,0,0.18)";
+          for (let y = top; y < bottom; y += step) c.fillRect(0, y + step - 2, W, 2);
+          // pasillos
+          c.fillStyle = "rgba(0,0,0,0.28)";
+          for (let x = W * 0.2; x < W; x += W * 0.2) c.fillRect(x - 5, top, 10, bottom - top);
+        }
         const gap = Math.max(7, (size * 2.1) / density);
         for (let y = top + step; y < bottom - 2; y += step) {
           const depth = (y - top) / Math.max(1, bottom - top);
@@ -413,10 +418,12 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
           }
         }
         // sombra ambiente
-        const sh = c.createLinearGradient(0, top, 0, bottom);
-        sh.addColorStop(0, "rgba(0,0,0,0.35)");
-        sh.addColorStop(0.35, "rgba(0,0,0,0)");
-        c.fillStyle = sh; c.fillRect(0, top, W, bottom - top);
+        if (!figuresOnly) {
+          const sh = c.createLinearGradient(0, top, 0, bottom);
+          sh.addColorStop(0, "rgba(0,0,0,0.35)");
+          sh.addColorStop(0.35, "rgba(0,0,0,0)");
+          c.fillStyle = sh; c.fillRect(0, top, W, bottom - top);
+        }
       };
       if (isAllBoysHome) {
         // Fondo real: la ilustración del estadio (cartel "ISLAS MALVINAS", sponsors,
@@ -427,11 +434,12 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
           // Mientras carga la imagen: placeholder oscuro para no dejar el layer vacío
           c.fillStyle = "#0a0a0a"; c.fillRect(0, STAND_TOP, W, STAND_BOTTOM - STAND_TOP);
         }
-        // Hinchada procedural superpuesta y semitransparente (mantiene el dinamismo de
-        // colores según el rival visitante) sin tapar el cartel/escudo de la foto.
+        // Hinchada procedural superpuesta: figuras chicas y densas (textura, no bloques
+        // sueltos) para mezclarse con la platea real de la foto, sin escalones/pasillos
+        // sintéticos que no coinciden con la perspectiva de la imagen.
         c.save();
-        c.globalAlpha = 0.55;
-        deck(BANNER_Y + 12, FENCE_TOP, "rgba(0,0,0,0)", "rgba(0,0,0,0)", 18, 8);
+        c.globalAlpha = 0.38;
+        deck(150, 400, "", "", 10, 3.2, true);
         c.restore();
         // Valla / borde inferior sutil para separar del césped (la foto ya trae sus propias
         // publicidades, no se agregan sintéticas encima)
@@ -908,11 +916,14 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
       // Tribuna completa (prerenderizada): bandeja alta → trapos → popular → valla
       ctx.drawImage(crowdLayer, 0, 0);
       // Banderas agitándose entre los hinchas (animadas sobre la tribuna)
-      const flagCount = crowdIntensity === "ascenso" ? 26 : crowdIntensity === "clasico" ? 20 : 14;
+      const flagCountBase = crowdIntensity === "ascenso" ? 26 : crowdIntensity === "clasico" ? 20 : 14;
+      const flagCount = isAllBoysHome ? Math.min(flagCountBase, 10) : flagCountBase;
       for (let i = 0; i < flagCount; i++) {
         const fx = (i * W / flagCount) + 20;
         const sway = Math.sin(Date.now() / 350 + i * 0.7) * 5;
-        const fy = (i % 3 === 0 ? 90 : i % 3 === 1 ? 160 : 300) + sway;
+        const fy = (isAllBoysHome
+          ? (i % 3 === 0 ? 190 : i % 3 === 1 ? 260 : 340) // dentro de la tribuna-foto, no sobre el cartel/cielo
+          : (i % 3 === 0 ? 90 : i % 3 === 1 ? 160 : 300)) + sway;
         const useHome = fx < W / 2;
         ctx.save();
         ctx.translate(fx, fy);
