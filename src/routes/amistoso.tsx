@@ -63,7 +63,8 @@ function AmistosoPage() {
         <main className="flex-1 max-w-5xl w-full mx-auto px-4 py-6">
           <Game home={homeKitted} away={awayKitted} duration={60} weather={activeWeather} aiDifficulty={difficulty} mode={mode} sharedNarrator
             crowdIntensity={(home?.rivals?.includes(away?.id ?? "") || away?.rivals?.includes(home?.id ?? "")) ? "clasico" : "normal"}
-            onEnd={(h, a, stats) => { setResult({ h, a, stats }); setPlaying(false); setShowPenales(false); setPenalesResult(null); }} />
+            onEnd={(h, a, stats) => { setResult({ h, a, stats }); setPlaying(false); setShowPenales(false); setPenalesResult(null); }}
+            onExit={() => { setPlaying(false); setResult(null); setShowPenales(false); setPenalesResult(null); }} />
 
         </main>
       </div>
