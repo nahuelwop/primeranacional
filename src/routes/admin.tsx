@@ -71,13 +71,14 @@ function AdminPage() {
   );
 }
 
-type NarratorField = "urls" | "penal_goal_urls" | "penal_save_urls" | "penal_decisive_urls";
+type NarratorField = "urls" | "penal_goal_urls" | "penal_save_urls" | "penal_decisive_urls" | "clasico_previa_urls";
 type GlobalNarrator = {
   id: string; name: string; sort_order: number;
   urls: string[];
   penal_goal_urls?: string[];
   penal_save_urls?: string[];
   penal_decisive_urls?: string[];
+  clasico_previa_urls?: string[];
 };
 
 const NARRATOR_FIELDS: { field: NarratorField; label: string; sub: string }[] = [
@@ -85,6 +86,7 @@ const NARRATOR_FIELDS: { field: NarratorField; label: string; sub: string }[] = 
   { field: "penal_goal_urls", label: "Penal → Gol", sub: "penal-gol" },
   { field: "penal_save_urls", label: "Penal → Atajada", sub: "penal-atajada" },
   { field: "penal_decisive_urls", label: "Penal → Decisivo", sub: "penal-decisivo" },
+  { field: "clasico_previa_urls", label: "Previa del Clásico", sub: "clasico-previa" },
 ];
 
 function RelatoresTab() {
