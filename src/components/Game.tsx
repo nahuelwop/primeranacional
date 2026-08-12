@@ -33,9 +33,12 @@ export type MatchStats = {
 // vAnchor = qué franja vertical de la foto se prioriza al recortar (0 = arriba, 1 = abajo).
 // shieldExclude = zona central a no tapar con la hinchada procedural (si la foto ya tiene
 // un escudo grande dibujado ahí, como en All Boys).
-const STADIUM_THEMES: Record<string, { img: string; vAnchor: number; shieldExclude?: { halfW: number; top: number; bottom: number } }> = {
-  allboys: { img: allBoysStandBg, vAnchor: 0.18, shieldExclude: { halfW: 130, top: 150, bottom: 330 } },
-  colon: { img: colonStandBg, vAnchor: 0.38 },
+const STADIUM_THEMES: Record<string, { img: string; vAnchor: number; crowdBand: { top: number; bottom: number }; shieldExclude?: { halfW: number; top: number; bottom: number } }> = {
+  allboys: { img: allBoysStandBg, vAnchor: 0.18, crowdBand: { top: 150, bottom: 400 }, shieldExclude: { halfW: 130, top: 150, bottom: 330 } },
+  // La franja 260-400 esquiva por completo las letras "C.A. COLÓN" pintadas en las
+  // butacas (quedan entre ~102 y ~257 con este recorte) y sólo pone hinchas en la
+  // bandeja baja lisa, debajo del texto.
+  colon: { img: colonStandBg, vAnchor: 0.38, crowdBand: { top: 265, bottom: 400 } },
 };
 const ScoreColorBars = ({ team, reverse = false }: { team: Team; reverse?: boolean }) => (
   <div className="score-color-bars" aria-hidden="true">
@@ -211,7 +214,9 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
       : (isClasico ? 16 : crowdIntensity === "ascenso" ? 10 : 0);
     const flareSources = Array.from({ length: flareCount }, (_, i) => ({
       x: (W / (flareCount + 1)) * (i + 1),
-      y: isThemedHome ? 170 + (i % 3) * 90 : (i % 2 === 0 ? 300 : 210),
+      y: isThemedHome
+        ? stadiumTheme.crowdBand.top + (i % 3) * ((stadiumTheme.crowdBand.bottom - stadiumTheme.crowdBand.top) / 3)
+        : (i % 2 === 0 ? 300 : 210),
       color: i % 3 === 0 ? "#ffffff" : (i % 2 === 0 ? home.primary : away.primary),
     }));
     const spawnSmoke = () => {
@@ -454,7 +459,7 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         // sin invadir la zona central si la foto ya tiene ahí un escudo grande.
         c.save();
         c.globalAlpha = 0.62;
-        deck(150, 400, "", "", 9, 5, true, stadiumTheme.shieldExclude
+        deck(stadiumTheme.crowdBand.top, stadiumTheme.crowdBand.bottom, "", "", 9, 5, true, stadiumTheme.shieldExclude
           ? { cx: W / 2, ...stadiumTheme.shieldExclude }
           : undefined);
         c.restore();
@@ -939,7 +944,7 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         const fx = (i * W / flagCount) + 20;
         const sway = Math.sin(Date.now() / 350 + i * 0.7) * 5;
         const fy = (isThemedHome
-          ? (i % 3 === 0 ? 190 : i % 3 === 1 ? 260 : 340) // dentro de la tribuna-foto, no sobre el cartel/cielo
+          ? stadiumTheme.crowdBand.top + (i % 3) * ((stadiumTheme.crowdBand.bottom - stadiumTheme.crowdBand.top) / 3) // misma franja que la hinchada, sin invadir letras/escudo/cartel
           : (i % 3 === 0 ? 90 : i % 3 === 1 ? 160 : 300)) + sway;
         const useHome = fx < W / 2;
         ctx.save();
