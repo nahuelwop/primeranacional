@@ -193,6 +193,7 @@ function AmistosoPage() {
 
 // ===== Selector estilo PES 2013: dos paneles (LOCAL / VISITANTE) + fila de escudos =====
 type Side = "home" | "away";
+type Phase = "zone" | "teams";
 
 function PesTeamSelect({
   home, away, onHome, onAway, homeKit, awayKit, onHomeKit, onAwayKit,
@@ -205,26 +206,52 @@ function PesTeamSelect({
   const [focus, setFocus] = useState<Side>("home");
   const [zoneHome, setZoneHome] = useState<"A" | "B">(home?.zone ?? "A");
   const [zoneAway, setZoneAway] = useState<"A" | "B">(away?.zone ?? "A");
+  // Paso previo, tipo selección de liga en PES: primero elegís la zona,
+  // recién ahí aparece la fila de escudos de esa zona.
+  const [phaseHome, setPhaseHome] = useState<Phase>("zone");
+  const [phaseAway, setPhaseAway] = useState<Phase>("zone");
   const zone = focus === "home" ? zoneHome : zoneAway;
   const setZone = focus === "home" ? setZoneHome : setZoneAway;
+  const phase = focus === "home" ? phaseHome : phaseAway;
+  const setPhase = focus === "home" ? setPhaseHome : setPhaseAway;
   const selected = focus === "home" ? home : away;
   const setSelected = focus === "home" ? onHome : onAway;
 
   const list = useMemo(() => TEAMS.filter(t => t.zone === zone), [zone, TEAMS.length]);
+  const countA = useMemo(() => TEAMS.filter(t => t.zone === "A").length, [TEAMS.length]);
+  const countB = useMemo(() => TEAMS.filter(t => t.zone === "B").length, [TEAMS.length]);
   const idx = Math.max(0, list.findIndex(t => t.id === selected?.id));
   const stripRef = useRef<HTMLDivElement | null>(null);
   const itemRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  // Qué zona está resaltada en la pantalla de selección de zona (navegable con teclado)
+  const [zoneHighlight, setZoneHighlight] = useState<"A" | "B">(zone);
+  useEffect(() => { setZoneHighlight(zone); }, [focus]);
 
   useEffect(() => {
     const el = selected && itemRefs.current[selected.id];
     el?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
   }, [selected?.id, zone]);
 
+  function pickZone(z: "A" | "B") {
+    setZone(z);
+    setPhase("teams");
+  }
+
   // Navegación con teclado (A/D o flechas para moverse, Enter/Espacio para confirmar)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const k = e.key.toLowerCase();
       if (["a", "arrowleft", "d", "arrowright", "enter", " ", "backspace"].includes(k)) e.preventDefault();
+      if (phase === "zone") {
+        if (k === "a" || k === "arrowleft" || k === "d" || k === "arrowright") {
+          setZoneHighlight(z => (z === "A" ? "B" : "A"));
+        } else if (k === "enter" || k === " ") {
+          pickZone(zoneHighlight);
+        } else if (k === "backspace" && focus === "away") {
+          setFocus("home");
+        }
+        return;
+      }
       if (k === "a" || k === "arrowleft") {
         const next = list[Math.max(0, idx - 1)];
         if (next) setSelected(next);
@@ -233,13 +260,13 @@ function PesTeamSelect({
         if (next) setSelected(next);
       } else if (k === "enter" || k === " ") {
         setFocus(f => (f === "home" ? "away" : "home"));
-      } else if (k === "backspace" && focus === "away") {
-        setFocus("home");
+      } else if (k === "backspace") {
+        setPhase("zone");
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [idx, list, setSelected, focus]);
+  }, [idx, list, setSelected, focus, phase, zoneHighlight]);
 
   return (
     <div className="mt-6 rounded-2xl border border-border overflow-hidden bg-[radial-gradient(ellipse_at_top,_#123058_0%,_#070b14_75%)]">
@@ -250,53 +277,92 @@ function PesTeamSelect({
           active={focus === "away"} onClick={() => setFocus("away")} align="right" />
       </div>
 
-      {/* Fila horizontal de escudos del lado enfocado */}
-      <div className="border-t border-white/10 bg-black/40 px-4 py-3">
-        <div className="flex items-center justify-between mb-2">
-          <div className="text-[11px] uppercase tracking-[0.2em] text-white/50">
-            Eligiendo {focus === "home" ? "LOCAL" : "VISITANTE"}
+      {phase === "zone" ? (
+        /* ===== Pantalla de selección de ZONA (equivalente a elegir liga) ===== */
+        <div className="border-t border-white/10 bg-black/40 px-4 py-5">
+          <div className="text-[11px] uppercase tracking-[0.2em] text-white/50 text-center mb-3">
+            Eligiendo {focus === "home" ? "LOCAL" : "VISITANTE"} · elegí la zona
           </div>
-          <div className="flex gap-1">
-            {(["A", "B"] as const).map(z => (
-              <button key={z} onClick={() => setZone(z)}
-                className={`px-2 py-1 text-[11px] rounded transition ${zone === z ? "bg-celeste text-primary-foreground" : "bg-white/10 text-white/60 hover:bg-white/20"}`}>
-                Zona {z}
+          <div className="grid sm:grid-cols-2 gap-3 max-w-xl mx-auto">
+            {([
+              { z: "A" as const, count: countA },
+              { z: "B" as const, count: countB },
+            ]).map(({ z, count }) => (
+              <button
+                key={z}
+                onClick={() => pickZone(z)}
+                onMouseEnter={() => setZoneHighlight(z)}
+                className={`rounded-xl border p-5 text-center transition-all duration-200 ${
+                  zoneHighlight === z
+                    ? "border-celeste bg-celeste/10 scale-[1.03] shadow-[0_0_24px_-4px_rgba(56,189,248,0.5)]"
+                    : "border-white/10 bg-white/[0.03] hover:border-white/25"
+                }`}
+              >
+                <div className="text-[11px] uppercase tracking-[0.25em] text-white/50 mb-2">Primera Nacional</div>
+                <div className="font-display text-3xl text-white mb-3">ZONA {z}</div>
+                {/* Mini-collage de 4 escudos como vista previa de la zona */}
+                <div className="flex justify-center -space-x-2 mb-3">
+                  {TEAMS.filter(t => t.zone === z).slice(0, 4).map(t => (
+                    <div key={t.id} className="rounded-full bg-[#0b1220] border border-white/15 p-1">
+                      <Shield team={t} size={28} />
+                    </div>
+                  ))}
+                </div>
+                <div className="text-xs text-white/50">{count} equipos</div>
               </button>
             ))}
           </div>
         </div>
-        <div ref={stripRef} className="flex items-end gap-2 overflow-x-auto pb-1 [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full">
-          {list.map((t, i) => {
-            const dist = Math.abs(i - idx);
-            const scale = dist === 0 ? "scale-125 opacity-100" : dist === 1 ? "scale-100 opacity-80" : "scale-90 opacity-50";
-            return (
-              <button
-                key={t.id}
-                ref={el => { itemRefs.current[t.id] = el; }}
-                onClick={() => setSelected(t)}
-                title={t.name}
-                className={`shrink-0 flex flex-col items-center gap-1 transition-transform duration-200 ease-out ${scale}`}
-              >
-                <div className={`rounded-full p-1 transition ${t.id === selected?.id ? "ring-2 ring-celeste bg-white/10" : ""}`}>
-                  <Shield team={t} size={40} />
-                </div>
-              </button>
-            );
-          })}
+      ) : (
+        /* ===== Fila horizontal de escudos de la zona elegida ===== */
+        <div className="border-t border-white/10 bg-black/40 px-4 py-3">
+          <div className="flex items-center justify-between mb-2">
+            <button onClick={() => setPhase("zone")} className="text-[11px] uppercase tracking-[0.2em] text-white/50 hover:text-celeste transition-colors flex items-center gap-1">
+              <span>‹</span> Zona {zone} — {focus === "home" ? "LOCAL" : "VISITANTE"}
+            </button>
+            <div className="flex gap-1">
+              {(["A", "B"] as const).map(z => (
+                <button key={z} onClick={() => setZone(z)}
+                  className={`px-2 py-1 text-[11px] rounded transition ${zone === z ? "bg-celeste text-primary-foreground" : "bg-white/10 text-white/60 hover:bg-white/20"}`}>
+                  Zona {z}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div ref={stripRef} className="flex items-end gap-2 overflow-x-auto pb-1 [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full">
+            {list.map((t, i) => {
+              const dist = Math.abs(i - idx);
+              const scale = dist === 0 ? "scale-125 opacity-100" : dist === 1 ? "scale-100 opacity-80" : "scale-90 opacity-50";
+              return (
+                <button
+                  key={t.id}
+                  ref={el => { itemRefs.current[t.id] = el; }}
+                  onClick={() => setSelected(t)}
+                  title={t.name}
+                  className={`shrink-0 flex flex-col items-center gap-1 transition-transform duration-200 ease-out ${scale}`}
+                >
+                  <div className={`rounded-full p-1 transition ${t.id === selected?.id ? "ring-2 ring-celeste bg-white/10" : ""}`}>
+                    <Shield team={t} size={40} />
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Confirmar / Atrás */}
       <div className="border-t border-white/10 bg-black/50 px-4 py-3 flex items-center justify-center gap-3">
         <button
-          onClick={() => setFocus("home")}
-          disabled={focus === "home"}
+          onClick={() => (phase === "teams" ? setPhase("zone") : setFocus("home"))}
+          disabled={focus === "home" && phase === "zone"}
           className="px-5 py-2 rounded-lg text-sm font-display tracking-wider bg-white/10 text-white/70 hover:bg-white/20 disabled:opacity-30 disabled:hover:bg-white/10 transition">
           ATRÁS
         </button>
         <button
           onClick={() => setFocus(focus === "home" ? "away" : "home")}
-          className="px-5 py-2 rounded-lg text-sm font-display tracking-wider bg-celeste text-primary-foreground hover:brightness-110 transition">
+          disabled={phase === "zone"}
+          className="px-5 py-2 rounded-lg text-sm font-display tracking-wider bg-celeste text-primary-foreground hover:brightness-110 disabled:opacity-30 transition">
           {focus === "home" ? "CONFIRMAR LOCAL" : "CONFIRMAR VISITANTE"}
         </button>
       </div>
