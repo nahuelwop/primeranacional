@@ -342,6 +342,18 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
     const STAND_BOTTOM = ground - 22;   // justo donde arranca la valla LED
     const BANNER_Y = 232;               // franja de trapos entre bandeja alta y baja
     const FENCE_TOP = STAND_BOTTOM - 30;
+    // ===== Fondo temático "Islas Malvinas": sólo cuando All Boys juega de local =====
+    // No cambia estructura ni proporciones de la tribuna: reutiliza los mismos STAND_TOP/
+    // BANNER_Y/FENCE_TOP/STAND_BOTTOM. Sólo agrega una franja de cartel, un escudo grande
+    // semitransparente sobre la bandeja alta y publicidades sobre la valla.
+    const isAllBoysHome = home.id === "allboys";
+    let allBoysShieldImg: HTMLImageElement | null = null;
+    if (isAllBoysHome && home.logoUrl) {
+      allBoysShieldImg = new Image();
+      allBoysShieldImg.crossOrigin = "anonymous";
+      allBoysShieldImg.onload = () => buildCrowd();
+      allBoysShieldImg.src = home.logoUrl;
+    }
     const crowdLayer = document.createElement("canvas");
     crowdLayer.width = W;
     crowdLayer.height = STAND_BOTTOM;
@@ -397,7 +409,38 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         c.fillStyle = sh; c.fillRect(0, top, W, bottom - top);
       };
       // Bandeja alta
-      deck(STAND_TOP, BANNER_Y, "#101c33", "#16243f", 15, 7);
+      const facadeH = isAllBoysHome ? 24 : 0;
+      deck(STAND_TOP + facadeH, BANNER_Y,
+        isAllBoysHome ? "#1b1b1b" : "#101c33",
+        isAllBoysHome ? "#0a0a0a" : "#16243f",
+        15, 7);
+      if (isAllBoysHome) {
+        // Cartel de fachada "ISLAS MALVINAS" (como el cartel real del estadio)
+        c.fillStyle = "#050505";
+        c.fillRect(0, STAND_TOP, W, facadeH);
+        c.strokeStyle = "rgba(255,255,255,0.25)"; c.lineWidth = 1;
+        c.beginPath(); c.moveTo(0, STAND_TOP + facadeH); c.lineTo(W, STAND_TOP + facadeH); c.stroke();
+        c.fillStyle = "#f2f0e6";
+        c.font = "bold 15px system-ui";
+        c.textAlign = "center";
+        c.textBaseline = "middle";
+        const label = "ISLAS MALVINAS";
+        const step = 240;
+        const reps = Math.ceil(W / step) + 1;
+        for (let i = 0; i < reps; i++) c.fillText(label, i * step + step / 2, STAND_TOP + facadeH / 2);
+        c.textBaseline = "alphabetic";
+        // Escudo gigante semitransparente centrado en la bandeja alta
+        if (allBoysShieldImg && allBoysShieldImg.complete && allBoysShieldImg.naturalWidth > 0) {
+          const top = STAND_TOP + facadeH, bottom = BANNER_Y;
+          const size = (bottom - top) * 0.9;
+          const sx = W / 2 - size / 2;
+          const sy = top + (bottom - top - size) / 2;
+          c.save();
+          c.globalAlpha = 0.45;
+          c.drawImage(allBoysShieldImg, sx, sy, size, size);
+          c.restore();
+        }
+      }
       // Franja de trapos/banderas colgadas entre bandejas
       const banners = ["VAMOS " + home.short, "SIEMPRE A TU LADO", "LA BANDA DEL SUR", "ALENTAMOS DE CORAZÓN", "AGUANTE " + away.short];
       c.fillStyle = "#060d1a"; c.fillRect(0, BANNER_Y, W, 30);
@@ -424,6 +467,16 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
       c.strokeStyle = "rgba(200,220,255,0.4)"; c.lineWidth = 2;
       [FENCE_TOP + 4, STAND_BOTTOM - 6].forEach(y => { c.beginPath(); c.moveTo(0, y); c.lineTo(W, y); c.stroke(); });
       c.fillStyle = "rgba(0,0,0,0.35)"; c.fillRect(0, STAND_BOTTOM - 4, W, 4);
+      if (isAllBoysHome) {
+        // Publicidades simples sobre la valla (misma franja, no altera el arco ni el césped)
+        const ads = ["SINTEPLAST", "LA NUEVA", "MULTILEO"];
+        c.font = "bold 10px system-ui";
+        c.textAlign = "center";
+        c.fillStyle = "rgba(240,240,240,0.55)";
+        const adW = W / ads.length;
+        ads.forEach((txt, i) => c.fillText(txt, adW * i + adW / 2, FENCE_TOP + 17));
+        c.textAlign = "start";
+      }
     };
     buildCrowd();
     const keys: Record<string, boolean> = {};
