@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Shield } from "@/components/Shield";
 import { Team, type Narrator } from "@/data/teams";
 import { supabase } from "@/integrations/supabase/client";
+import allBoysStandBg from "@/assets/allboys-islas-malvinas.png";
 export type Weather = "clear" | "rain" | "wind" | "thunder" | "fog";
 export type Difficulty = "easy" | "normal" | "hard" | "expert";
 export type Mode = "1v1" | "1vAI";
@@ -344,15 +345,15 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
     const FENCE_TOP = STAND_BOTTOM - 30;
     // ===== Fondo temático "Islas Malvinas": sólo cuando All Boys juega de local =====
     // No cambia estructura ni proporciones de la tribuna: reutiliza los mismos STAND_TOP/
-    // BANNER_Y/FENCE_TOP/STAND_BOTTOM. Sólo agrega una franja de cartel, un escudo grande
-    // semitransparente sobre la bandeja alta y publicidades sobre la valla.
+    // BANNER_Y/FENCE_TOP/STAND_BOTTOM. Se dibuja la foto/ilustración real del estadio (sin
+    // hinchas) como fondo, con la hinchada procedural existente superpuesta y semitransparente
+    // encima para mantener el dinamismo de colores según el rival.
     const isAllBoysHome = home.id === "allboys";
-    let allBoysShieldImg: HTMLImageElement | null = null;
-    if (isAllBoysHome && home.logoUrl) {
-      allBoysShieldImg = new Image();
-      allBoysShieldImg.crossOrigin = "anonymous";
-      allBoysShieldImg.onload = () => buildCrowd();
-      allBoysShieldImg.src = home.logoUrl;
+    let allBoysStandImg: HTMLImageElement | null = null;
+    if (isAllBoysHome) {
+      allBoysStandImg = new Image();
+      allBoysStandImg.onload = () => buildCrowd();
+      allBoysStandImg.src = allBoysStandBg;
     }
     const crowdLayer = document.createElement("canvas");
     crowdLayer.width = W;
@@ -361,6 +362,15 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
       const c = crowdLayer.getContext("2d");
       if (!c) return;
       c.clearRect(0, 0, W, STAND_BOTTOM);
+      // Dibuja una imagen cubriendo un rectángulo destino (recorte centrado, con anclaje
+      // vertical ajustable para priorizar qué franja de la foto se ve).
+      const drawCover = (img: HTMLImageElement, dx: number, dy: number, dw: number, dh: number, vAnchor = 0.5) => {
+        const scale = Math.max(dw / img.width, dh / img.height);
+        const sw = dw / scale, sh = dh / scale;
+        const sx = (img.width - sw) / 2;
+        const sy = Math.max(0, Math.min(img.height - sh, (img.height - sh) * vAnchor));
+        c.drawImage(img, sx, sy, sw, sh, dx, dy, dw, dh);
+      };
       const skins = ["#f0c39a", "#d9a172", "#a9714a", "#f7d9b6"];
       const neutral = ["#e9e9e9", "#c9d2dd", "#2b3242", "#8a93a3"];
       const density = crowdIntensity === "normal" ? 1 : 1.15;
@@ -408,74 +418,53 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         sh.addColorStop(0.35, "rgba(0,0,0,0)");
         c.fillStyle = sh; c.fillRect(0, top, W, bottom - top);
       };
-      // Bandeja alta
-      const facadeH = isAllBoysHome ? 24 : 0;
-      deck(STAND_TOP + facadeH, BANNER_Y,
-        isAllBoysHome ? "#1b1b1b" : "#101c33",
-        isAllBoysHome ? "#0a0a0a" : "#16243f",
-        15, 7);
       if (isAllBoysHome) {
-        // Cartel de fachada "ISLAS MALVINAS" (como el cartel real del estadio)
-        c.fillStyle = "#050505";
-        c.fillRect(0, STAND_TOP, W, facadeH);
-        c.strokeStyle = "rgba(255,255,255,0.25)"; c.lineWidth = 1;
-        c.beginPath(); c.moveTo(0, STAND_TOP + facadeH); c.lineTo(W, STAND_TOP + facadeH); c.stroke();
-        c.fillStyle = "#f2f0e6";
-        c.font = "bold 15px system-ui";
-        c.textAlign = "center";
-        c.textBaseline = "middle";
-        const label = "ISLAS MALVINAS";
-        const step = 240;
-        const reps = Math.ceil(W / step) + 1;
-        for (let i = 0; i < reps; i++) c.fillText(label, i * step + step / 2, STAND_TOP + facadeH / 2);
-        c.textBaseline = "alphabetic";
-        // Escudo gigante semitransparente centrado en la bandeja alta
-        if (allBoysShieldImg && allBoysShieldImg.complete && allBoysShieldImg.naturalWidth > 0) {
-          const top = STAND_TOP + facadeH, bottom = BANNER_Y;
-          const size = (bottom - top) * 0.9;
-          const sx = W / 2 - size / 2;
-          const sy = top + (bottom - top - size) / 2;
-          c.save();
-          c.globalAlpha = 0.45;
-          c.drawImage(allBoysShieldImg, sx, sy, size, size);
-          c.restore();
+        // Fondo real: la ilustración del estadio (cartel "ISLAS MALVINAS", sponsors,
+        // "SECTOR CARLOS PATO SGARRA", escudo y valla de publicidad ya vienen en la imagen).
+        if (allBoysStandImg && allBoysStandImg.complete && allBoysStandImg.naturalWidth > 0) {
+          drawCover(allBoysStandImg, 0, STAND_TOP, W, STAND_BOTTOM - STAND_TOP, 0.18);
+        } else {
+          // Mientras carga la imagen: placeholder oscuro para no dejar el layer vacío
+          c.fillStyle = "#0a0a0a"; c.fillRect(0, STAND_TOP, W, STAND_BOTTOM - STAND_TOP);
         }
-      }
-      // Franja de trapos/banderas colgadas entre bandejas
-      const banners = ["VAMOS " + home.short, "SIEMPRE A TU LADO", "LA BANDA DEL SUR", "ALENTAMOS DE CORAZÓN", "AGUANTE " + away.short];
-      c.fillStyle = "#060d1a"; c.fillRect(0, BANNER_Y, W, 30);
-      banners.forEach((txt, i) => {
-        const bw = 210, bx = 40 + i * ((W - 120) / banners.length);
-        const homeSide = bx + bw / 2 < W / 2;
-        c.fillStyle = "#f2f0e6";
-        c.fillRect(bx, BANNER_Y + 3, bw, 24);
-        c.strokeStyle = homeSide ? home.primary : away.primary; c.lineWidth = 3;
-        c.strokeRect(bx, BANNER_Y + 3, bw, 24);
-        c.fillStyle = "#12161f";
-        c.font = "bold 13px system-ui"; c.textAlign = "center";
-        c.fillText(txt.toUpperCase(), bx + bw / 2, BANNER_Y + 20);
-      });
-      c.textAlign = "start";
-      // Bandeja baja (popular, más cerca del campo → gente más grande)
-      deck(BANNER_Y + 30, FENCE_TOP, "#0c1729", "#122a4a", 18, 9);
-      // Valla / borde de tribuna que separa público y campo
-      const fg = c.createLinearGradient(0, FENCE_TOP, 0, STAND_BOTTOM);
-      fg.addColorStop(0, "#1a2740"); fg.addColorStop(1, "#0a1120");
-      c.fillStyle = fg; c.fillRect(0, FENCE_TOP, W, STAND_BOTTOM - FENCE_TOP);
-      c.strokeStyle = "rgba(180,205,255,0.25)"; c.lineWidth = 1;
-      for (let x = 0; x < W; x += 9) { c.beginPath(); c.moveTo(x, FENCE_TOP + 4); c.lineTo(x, STAND_BOTTOM - 4); c.stroke(); }
-      c.strokeStyle = "rgba(200,220,255,0.4)"; c.lineWidth = 2;
-      [FENCE_TOP + 4, STAND_BOTTOM - 6].forEach(y => { c.beginPath(); c.moveTo(0, y); c.lineTo(W, y); c.stroke(); });
-      c.fillStyle = "rgba(0,0,0,0.35)"; c.fillRect(0, STAND_BOTTOM - 4, W, 4);
-      if (isAllBoysHome) {
-        // Publicidades simples sobre la valla (misma franja, no altera el arco ni el césped)
-        const ads = ["SINTEPLAST", "LA NUEVA", "MULTILEO"];
-        c.font = "bold 10px system-ui";
-        c.textAlign = "center";
-        c.fillStyle = "rgba(240,240,240,0.55)";
-        const adW = W / ads.length;
-        ads.forEach((txt, i) => c.fillText(txt, adW * i + adW / 2, FENCE_TOP + 17));
+        // Hinchada procedural superpuesta y semitransparente (mantiene el dinamismo de
+        // colores según el rival visitante) sin tapar el cartel/escudo de la foto.
+        c.save();
+        c.globalAlpha = 0.55;
+        deck(BANNER_Y + 12, FENCE_TOP, "rgba(0,0,0,0)", "rgba(0,0,0,0)", 18, 8);
+        c.restore();
+        // Valla / borde inferior sutil para separar del césped (la foto ya trae sus propias
+        // publicidades, no se agregan sintéticas encima)
+        c.fillStyle = "rgba(0,0,0,0.35)"; c.fillRect(0, STAND_BOTTOM - 4, W, 4);
+      } else {
+        // Bandeja alta
+        deck(STAND_TOP, BANNER_Y, "#101c33", "#16243f", 15, 7);
+        // Franja de trapos/banderas colgadas entre bandejas
+        const banners = ["VAMOS " + home.short, "SIEMPRE A TU LADO", "LA BANDA DEL SUR", "ALENTAMOS DE CORAZÓN", "AGUANTE " + away.short];
+        c.fillStyle = "#060d1a"; c.fillRect(0, BANNER_Y, W, 30);
+        banners.forEach((txt, i) => {
+          const bw = 210, bx = 40 + i * ((W - 120) / banners.length);
+          const homeSide = bx + bw / 2 < W / 2;
+          c.fillStyle = "#f2f0e6";
+          c.fillRect(bx, BANNER_Y + 3, bw, 24);
+          c.strokeStyle = homeSide ? home.primary : away.primary; c.lineWidth = 3;
+          c.strokeRect(bx, BANNER_Y + 3, bw, 24);
+          c.fillStyle = "#12161f";
+          c.font = "bold 13px system-ui"; c.textAlign = "center";
+          c.fillText(txt.toUpperCase(), bx + bw / 2, BANNER_Y + 20);
+        });
         c.textAlign = "start";
+        // Bandeja baja (popular, más cerca del campo → gente más grande)
+        deck(BANNER_Y + 30, FENCE_TOP, "#0c1729", "#122a4a", 18, 9);
+        // Valla / borde de tribuna que separa público y campo
+        const fg = c.createLinearGradient(0, FENCE_TOP, 0, STAND_BOTTOM);
+        fg.addColorStop(0, "#1a2740"); fg.addColorStop(1, "#0a1120");
+        c.fillStyle = fg; c.fillRect(0, FENCE_TOP, W, STAND_BOTTOM - FENCE_TOP);
+        c.strokeStyle = "rgba(180,205,255,0.25)"; c.lineWidth = 1;
+        for (let x = 0; x < W; x += 9) { c.beginPath(); c.moveTo(x, FENCE_TOP + 4); c.lineTo(x, STAND_BOTTOM - 4); c.stroke(); }
+        c.strokeStyle = "rgba(200,220,255,0.4)"; c.lineWidth = 2;
+        [FENCE_TOP + 4, STAND_BOTTOM - 6].forEach(y => { c.beginPath(); c.moveTo(0, y); c.lineTo(W, y); c.stroke(); });
+        c.fillStyle = "rgba(0,0,0,0.35)"; c.fillRect(0, STAND_BOTTOM - 4, W, 4);
       }
     };
     buildCrowd();
