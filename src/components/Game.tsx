@@ -940,9 +940,12 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
       ctx.lineTo(0, 40); ctx.closePath(); ctx.fill();
       // Tribuna completa (prerenderizada): bandeja alta → trapos → popular → valla
       ctx.drawImage(crowdLayer, 0, 0);
-      // Banderas agitándose entre los hinchas (animadas sobre la tribuna)
+      // Banderas agitándose entre los hinchas (animadas sobre la tribuna) — se omiten en
+      // temas cuya foto ya trae banderas/trapos propios integrados (crowdOverlay: false),
+      // para no duplicarlas ni que floten sueltas encima de la multitud de la imagen.
+      const skipFlags = isThemedHome && stadiumTheme.crowdOverlay === false;
       const flagCountBase = crowdIntensity === "ascenso" ? 26 : crowdIntensity === "clasico" ? 20 : 14;
-      const flagCount = isThemedHome ? Math.min(flagCountBase, 10) : flagCountBase;
+      const flagCount = skipFlags ? 0 : (isThemedHome ? Math.min(flagCountBase, 10) : flagCountBase);
       for (let i = 0; i < flagCount; i++) {
         const fx = (i * W / flagCount) + 20;
         const sway = Math.sin(Date.now() / 350 + i * 0.7) * 5;
