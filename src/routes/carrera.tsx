@@ -277,7 +277,8 @@ function CarreraPage() {
           startingScore={fx.startingScore}
           cancelOpponentGoals={fx.cancelOpponentGoals ?? 0}
           doubleGoalChance={fx.doubleGoalChance ?? 0}
-          onEnd={onMatchEnd} />
+          onEnd={onMatchEnd}
+          onExit={() => setPlaying(false)} />
       </Shell>
     );
   }
