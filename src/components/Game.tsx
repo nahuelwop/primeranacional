@@ -33,12 +33,12 @@ export type MatchStats = {
 // vAnchor = qué franja vertical de la foto se prioriza al recortar (0 = arriba, 1 = abajo).
 // shieldExclude = zona central a no tapar con la hinchada procedural (si la foto ya tiene
 // un escudo grande dibujado ahí, como en All Boys).
-const STADIUM_THEMES: Record<string, { img: string; vAnchor: number; crowdBand: { top: number; bottom: number }; shieldExclude?: { halfW: number; top: number; bottom: number } }> = {
+const STADIUM_THEMES: Record<string, { img: string; vAnchor: number; crowdBand: { top: number; bottom: number }; shieldExclude?: { halfW: number; top: number; bottom: number }; crowdOverlay?: boolean }> = {
   allboys: { img: allBoysStandBg, vAnchor: 0.18, crowdBand: { top: 150, bottom: 400 }, shieldExclude: { halfW: 130, top: 150, bottom: 330 } },
   // La franja 260-400 esquiva por completo las letras "C.A. COLÓN" pintadas en las
-  // butacas (quedan entre ~102 y ~257 con este recorte) y sólo pone hinchas en la
-  // bandeja baja lisa, debajo del texto.
-  colon: { img: colonStandBg, vAnchor: 0.38, crowdBand: { top: 265, bottom: 400 } },
+  // butacas. crowdOverlay: false porque a ese tamaño la hinchada procedural se ve como
+  // ruido/puntitos sueltos sobre la platea lisa — mejor dejar la foto real tal cual.
+  colon: { img: colonStandBg, vAnchor: 0.38, crowdBand: { top: 265, bottom: 400 }, crowdOverlay: false },
 };
 const ScoreColorBars = ({ team, reverse = false }: { team: Team; reverse?: boolean }) => (
   <div className="score-color-bars" aria-hidden="true">
