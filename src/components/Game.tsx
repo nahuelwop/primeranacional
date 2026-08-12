@@ -455,14 +455,17 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
           // Mientras carga la imagen: placeholder oscuro para no dejar el layer vacío
           c.fillStyle = "#0a0a0a"; c.fillRect(0, STAND_TOP, W, STAND_BOTTOM - STAND_TOP);
         }
-        // Hinchada procedural superpuesta: más notoria (tamaño y opacidad reales) pero
-        // sin invadir la zona central si la foto ya tiene ahí un escudo grande.
-        c.save();
-        c.globalAlpha = 0.62;
-        deck(stadiumTheme.crowdBand.top, stadiumTheme.crowdBand.bottom, "", "", 9, 5, true, stadiumTheme.shieldExclude
-          ? { cx: W / 2, ...stadiumTheme.shieldExclude }
-          : undefined);
-        c.restore();
+        // Hinchada procedural superpuesta: sólo si el tema no trae ya la multitud
+        // integrada en la foto (crowdOverlay !== false). Colón usa una foto con la
+        // tribuna ya llena, así que no se agrega nada encima.
+        if (stadiumTheme.crowdOverlay !== false) {
+          c.save();
+          c.globalAlpha = 0.62;
+          deck(stadiumTheme.crowdBand.top, stadiumTheme.crowdBand.bottom, "", "", 9, 5, true, stadiumTheme.shieldExclude
+            ? { cx: W / 2, ...stadiumTheme.shieldExclude }
+            : undefined);
+          c.restore();
+        }
         // Valla / borde inferior sutil para separar del césped (la foto ya trae sus propias
         // publicidades, no se agregan sintéticas encima)
         c.fillStyle = "rgba(0,0,0,0.35)"; c.fillRect(0, STAND_BOTTOM - 4, W, 4);
