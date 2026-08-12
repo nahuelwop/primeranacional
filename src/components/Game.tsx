@@ -3,6 +3,7 @@ import { Shield } from "@/components/Shield";
 import { Team, type Narrator } from "@/data/teams";
 import { supabase } from "@/integrations/supabase/client";
 import allBoysStandBg from "@/assets/allboys-islas-malvinas.png";
+import colonStandBg from "@/assets/colon-estadio.png";
 export type Weather = "clear" | "rain" | "wind" | "thunder" | "fog";
 export type Difficulty = "easy" | "normal" | "hard" | "expert";
 export type Mode = "1v1" | "1vAI";
@@ -27,6 +28,14 @@ export type MatchStats = {
   shotsH: number; shotsA: number;
   onTargetH: number; onTargetA: number;
   savesH: number; savesA: number;
+};
+// Fondos temáticos reales de estadio: sólo se aplican cuando ese equipo juega de LOCAL.
+// vAnchor = qué franja vertical de la foto se prioriza al recortar (0 = arriba, 1 = abajo).
+// shieldExclude = zona central a no tapar con la hinchada procedural (si la foto ya tiene
+// un escudo grande dibujado ahí, como en All Boys).
+const STADIUM_THEMES: Record<string, { img: string; vAnchor: number; shieldExclude?: { halfW: number; top: number; bottom: number } }> = {
+  allboys: { img: allBoysStandBg, vAnchor: 0.18, shieldExclude: { halfW: 130, top: 150, bottom: 330 } },
+  colon: { img: colonStandBg, vAnchor: 0.38 },
 };
 const ScoreColorBars = ({ team, reverse = false }: { team: Team; reverse?: boolean }) => (
   <div className="score-color-bars" aria-hidden="true">
@@ -195,13 +204,14 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
     const sparks: Spark[] = [];
     // Bengalas repartidas por TODA la tribuna, sostenidas por la gente (dentro del público).
     // Cantidad según el contexto: partido normal = ninguna, ascenso = normales, clásico = muchas.
-    const isAllBoysHome = home.id === "allboys";
-    const flareCount = isAllBoysHome
+    const stadiumTheme = STADIUM_THEMES[home.id];
+    const isThemedHome = !!stadiumTheme;
+    const flareCount = isThemedHome
       ? (isClasico ? 6 : crowdIntensity === "ascenso" ? 4 : 0) // menos cantidad, pero repartidas por TODO el ancho (no sólo un lado)
       : (isClasico ? 16 : crowdIntensity === "ascenso" ? 10 : 0);
     const flareSources = Array.from({ length: flareCount }, (_, i) => ({
       x: (W / (flareCount + 1)) * (i + 1),
-      y: isAllBoysHome ? 170 + (i % 3) * 90 : (i % 2 === 0 ? 300 : 210),
+      y: isThemedHome ? 170 + (i % 3) * 90 : (i % 2 === 0 ? 300 : 210),
       color: i % 3 === 0 ? "#ffffff" : (i % 2 === 0 ? home.primary : away.primary),
     }));
     const spawnSmoke = () => {
@@ -351,11 +361,11 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
     // BANNER_Y/FENCE_TOP/STAND_BOTTOM. Se dibuja la foto/ilustración real del estadio (sin
     // hinchas) como fondo, con la hinchada procedural existente superpuesta y semitransparente
     // encima para mantener el dinamismo de colores según el rival.
-    let allBoysStandImg: HTMLImageElement | null = null;
-    if (isAllBoysHome) {
-      allBoysStandImg = new Image();
-      allBoysStandImg.onload = () => buildCrowd();
-      allBoysStandImg.src = allBoysStandBg;
+    let themeStandImg: HTMLImageElement | null = null;
+    if (isThemedHome) {
+      themeStandImg = new Image();
+      themeStandImg.onload = () => buildCrowd();
+      themeStandImg.src = stadiumTheme.img;
     }
     const crowdLayer = document.createElement("canvas");
     crowdLayer.width = W;
@@ -431,20 +441,22 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
           c.fillStyle = sh; c.fillRect(0, top, W, bottom - top);
         }
       };
-      if (isAllBoysHome) {
-        // Fondo real: la ilustración del estadio (cartel "ISLAS MALVINAS", sponsors,
-        // "SECTOR CARLOS PATO SGARRA", escudo y valla de publicidad ya vienen en la imagen).
-        if (allBoysStandImg && allBoysStandImg.complete && allBoysStandImg.naturalWidth > 0) {
-          drawCover(allBoysStandImg, 0, STAND_TOP, W, STAND_BOTTOM - STAND_TOP, 0.18);
+      if (isThemedHome) {
+        // Fondo real: la foto/ilustración del estadio de local ya trae cartel, sponsors,
+        // escudo/letras y valla de publicidad — no se reconstruyen a mano.
+        if (themeStandImg && themeStandImg.complete && themeStandImg.naturalWidth > 0) {
+          drawCover(themeStandImg, 0, STAND_TOP, W, STAND_BOTTOM - STAND_TOP, stadiumTheme.vAnchor);
         } else {
           // Mientras carga la imagen: placeholder oscuro para no dejar el layer vacío
           c.fillStyle = "#0a0a0a"; c.fillRect(0, STAND_TOP, W, STAND_BOTTOM - STAND_TOP);
         }
         // Hinchada procedural superpuesta: más notoria (tamaño y opacidad reales) pero
-        // sin invadir la zona central donde la foto ya tiene el escudo de All Boys.
+        // sin invadir la zona central si la foto ya tiene ahí un escudo grande.
         c.save();
         c.globalAlpha = 0.62;
-        deck(150, 400, "", "", 9, 5, true, { cx: W / 2, halfW: 130, top: 150, bottom: 330 });
+        deck(150, 400, "", "", 9, 5, true, stadiumTheme.shieldExclude
+          ? { cx: W / 2, ...stadiumTheme.shieldExclude }
+          : undefined);
         c.restore();
         // Valla / borde inferior sutil para separar del césped (la foto ya trae sus propias
         // publicidades, no se agregan sintéticas encima)
@@ -922,11 +934,11 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
       ctx.drawImage(crowdLayer, 0, 0);
       // Banderas agitándose entre los hinchas (animadas sobre la tribuna)
       const flagCountBase = crowdIntensity === "ascenso" ? 26 : crowdIntensity === "clasico" ? 20 : 14;
-      const flagCount = isAllBoysHome ? Math.min(flagCountBase, 10) : flagCountBase;
+      const flagCount = isThemedHome ? Math.min(flagCountBase, 10) : flagCountBase;
       for (let i = 0; i < flagCount; i++) {
         const fx = (i * W / flagCount) + 20;
         const sway = Math.sin(Date.now() / 350 + i * 0.7) * 5;
-        const fy = (isAllBoysHome
+        const fy = (isThemedHome
           ? (i % 3 === 0 ? 190 : i % 3 === 1 ? 260 : 340) // dentro de la tribuna-foto, no sobre el cartel/cielo
           : (i % 3 === 0 ? 90 : i % 3 === 1 ? 160 : 300)) + sway;
         const useHome = fx < W / 2;
