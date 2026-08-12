@@ -19,6 +19,7 @@ type Props = {
   cancelOpponentGoals?: number;   // # de goles rivales a anular (Infinity = todos)
   doubleGoalChance?: number;      // 0..1 · probabilidad de que un gol propio cuente doble
   onEnd: (hg: number, ag: number, stats: MatchStats) => void;
+  onExit?: () => void; // "Salir del partido" desde el menú de pausa
 };
 export type MatchStats = {
   possessionH: number; // 0..100
@@ -33,7 +34,7 @@ const ScoreColorBars = ({ team, reverse = false }: { team: Team; reverse?: boole
   </div>
 );
 // Football Heads style arcade — sin poderes, físicas con postes y travesaño.
-export function Game({ home, away, duration = 60, weather = "clear", aiDifficulty = "normal", mode = "1vAI", sharedNarrator = false, crowdIntensity = "normal", matchLabel, startingScore, cancelOpponentGoals = 0, doubleGoalChance = 0, onEnd }: Props) {
+export function Game({ home, away, duration = 60, weather = "clear", aiDifficulty = "normal", mode = "1vAI", sharedNarrator = false, crowdIntensity = "normal", matchLabel, startingScore, cancelOpponentGoals = 0, doubleGoalChance = 0, onEnd, onExit }: Props) {
   const ref = useRef<HTMLCanvasElement>(null);
   const [score, setScore] = useState({ h: startingScore?.h ?? 0, a: startingScore?.a ?? 0 });
   const [time, setTime] = useState(duration);
@@ -43,6 +44,21 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
   const stateRef = useRef({ h: startingScore?.h ?? 0, a: startingScore?.a ?? 0, posH: 0, posA: 0, shotsH: 0, shotsA: 0, otH: 0, otA: 0, savH: 0, savA: 0 });
   const overRef = useRef(false);
   const pauseClockRef = useRef(false);
+  // Menú de pausa
+  const [paused, setPaused] = useState(false);
+  const pausedRef = useRef(false);
+  useEffect(() => { pausedRef.current = paused; }, [paused]);
+  useEffect(() => {
+    if (paused) {
+      narratorRef.current?.pause();
+      crowdRef.current?.pause();
+    } else {
+      narratorRef.current?.play().catch(() => {});
+      crowdRef.current?.play().catch(() => {});
+    }
+  }, [paused]);
+  const [showSettings, setShowSettings] = useState(false);
+  const [confirmExit, setConfirmExit] = useState(false);
   // Audio: relato + hinchada (volumen ajustable en vivo, refs evitan stale closures)
   const [narratorVol, setNarratorVol] = useState(0.9);
   const [crowdVol, setCrowdVol] = useState(0.35);
@@ -54,10 +70,16 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
   useEffect(() => { crowdVolRef.current = crowdVol; if (crowdRef.current) crowdRef.current.volume = crowdVol; }, [crowdVol]);
   // Relatores globales (Admin → Relatores): se ofrecen en cualquier partido, sin depender del equipo.
   const [globalNarrators, setGlobalNarrators] = useState<Narrator[]>([]);
+  // Audio de previa de clásico por relator (categoría propia, separada de los goles)
+  const previaAudioMapRef = useRef<Map<string, string[]>>(new Map());
   useEffect(() => {
     let active = true;
     (supabase.from("global_narrators" as any) as any).select("*").order("sort_order", { ascending: true }).then(({ data }: { data: any }) => {
-      if (active && data) setGlobalNarrators(data.map((n: any) => ({ id: n.id, name: n.name, urls: n.urls ?? [] })));
+      if (!active || !data) return;
+      setGlobalNarrators(data.map((n: any) => ({ id: n.id, name: n.name, urls: n.urls ?? [] })));
+      const map = new Map<string, string[]>();
+      data.forEach((n: any) => map.set(n.id, n.clasico_previa_urls ?? []));
+      previaAudioMapRef.current = map;
     });
     return () => { active = false; };
   }, []);
@@ -233,22 +255,28 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
       } catch {}
     };
     // Relato de previa: se dispara una sola vez al arrancar el recibimiento del
-    // clásico (mientras está el cartel "¡BIENVENIDOS AL CLÁSICO!"). Usa el mismo
-    // pool de relatores que los goles (el que ya se elige en Admin/el selector de
-    // abajo), pero no depende de qué equipo — es una sola voz para la previa.
+    // clásico (mientras está el cartel "¡BIENVENIDOS AL CLÁSICO!"). Usa un audio
+    // PROPIO por relator (categoría "Previa del Clásico" en Admin → Relatores),
+    // separado del pool de goles.
     const playPreviaAudio = () => {
       const homeList = homeNarratorsRef.current;
       const awayList = awayNarratorsRef.current;
-      let urls: string[];
+      let narratorId: string | undefined;
       if (sharedNarrator) {
         const name = sharedNameRef.current;
-        urls = [...homeList, ...awayList].filter(n => n.name === name).flatMap(n => n.urls ?? []);
-        if (urls.length === 0) urls = [...homeList, ...awayList].flatMap(n => n.urls ?? []);
+        narratorId = [...homeList, ...awayList].find(n => n.name === name)?.id;
       } else {
-        urls = [...homeList, ...awayList].flatMap(n => n.urls ?? []);
+        narratorId = homeNarratorRef.current || awayNarratorRef.current;
+      }
+      let urls = narratorId ? previaAudioMapRef.current.get(narratorId) ?? [] : [];
+      // Si el relator elegido no tiene previa cargada, probamos con cualquiera que sí tenga
+      if (urls.length === 0) {
+        for (const list of previaAudioMapRef.current.values()) {
+          if (list.length > 0) { urls = list; break; }
+        }
       }
       const url = pickAudio(urls);
-      if (!url) return;
+      if (!url) return; // sin audio de previa cargado en Admin: no suena nada (no recicla el de goles)
       try {
         if (narratorRef.current) { narratorRef.current.pause(); narratorRef.current.src = ""; }
         const a = new Audio(url);
@@ -402,6 +430,7 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
     const onKey = (e: KeyboardEvent, down: boolean) => {
       keys[e.key.toLowerCase()] = down;
       if ([" ", "arrowup", "arrowdown", "arrowleft", "arrowright"].includes(e.key.toLowerCase())) e.preventDefault();
+      if (down && e.key === "Escape" && !overRef.current) setPaused(p => !p);
     };
     const kd = (e: KeyboardEvent) => onKey(e, true);
     const ku = (e: KeyboardEvent) => onKey(e, false);
@@ -1153,6 +1182,7 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
     const stepMs = 1000 / 60;
     const loop = (now = performance.now()) => {
       if (overRef.current) return;
+      if (pausedRef.current) { raf = requestAnimationFrame(loop); return; }
       acc += Math.min(50, now - last);
       last = now;
       while (acc >= stepMs) { update(); acc -= stepMs; }
@@ -1163,7 +1193,7 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
     advanceCrowdSegment(duration);
     const tick = setInterval(() => {
       setTime(t => {
-        if (pauseClockRef.current) return t;
+        if (pauseClockRef.current || pausedRef.current) return t;
         const next = t - 1;
         advanceCrowdSegment(next);
         if (t <= 1) {
@@ -1235,6 +1265,97 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
             <div className="px-5 py-2 rounded-xl bg-black/85 border-2 border-accent text-accent font-display text-xl tracking-wider">
               {varMsg}
             </div>
+          </div>
+        )}
+
+        {/* Botón de pausa flotante */}
+        {!paused && (
+          <button
+            onClick={() => setPaused(true)}
+            aria-label="Pausar partido"
+            className="absolute top-3 right-3 w-9 h-9 rounded-lg bg-black/60 border border-white/20 text-white grid place-items-center hover:bg-black/80 hover:border-celeste/60 transition-colors"
+          >
+            ⏸️
+          </button>
+        )}
+
+        {/* Menú de pausa */}
+        {paused && (
+          <div className="absolute inset-0 rounded-2xl bg-black/80 backdrop-blur-sm flex items-center justify-center z-20 animate-fade-in">
+            {!showSettings && !confirmExit && (
+              <div className="text-center w-full max-w-xs px-4">
+                <div className="font-display text-2xl tracking-[0.25em] text-celeste mb-1">⏸️ PARTIDO PAUSADO</div>
+                <div className="text-xs text-muted-foreground mb-6">{home.short} {score.h} - {score.a} {away.short}</div>
+                <div className="flex flex-col gap-2.5">
+                  <button
+                    onClick={() => setPaused(false)}
+                    className="px-6 py-3 rounded-xl bg-celeste text-primary-foreground font-display tracking-widest hover:brightness-110 transition-all"
+                  >
+                    CONTINUAR
+                  </button>
+                  <button
+                    onClick={() => setShowSettings(true)}
+                    className="px-6 py-3 rounded-xl bg-card border border-border font-display tracking-widest hover:bg-secondary transition-all"
+                  >
+                    CONFIGURACIÓN
+                  </button>
+                  <button
+                    onClick={() => setConfirmExit(true)}
+                    className="px-6 py-3 rounded-xl bg-transparent border border-destructive/50 text-destructive font-display tracking-widest hover:bg-destructive/10 transition-all"
+                  >
+                    SALIR DEL PARTIDO
+                  </button>
+                </div>
+                <div className="text-[10px] text-muted-foreground mt-4">Tecla ESC: pausar / reanudar</div>
+              </div>
+            )}
+
+            {showSettings && (
+              <div className="text-center w-full max-w-xs px-4">
+                <div className="font-display text-xl tracking-widest text-celeste mb-4">CONFIGURACIÓN</div>
+                <div className="space-y-4 text-left">
+                  <label className="flex items-center gap-2 text-xs">
+                    <span className="w-16 uppercase tracking-wider text-muted-foreground shrink-0">Relato</span>
+                    <input type="range" min={0} max={1} step={0.05} value={narratorVol}
+                      onChange={e => setNarratorVol(Number(e.target.value))} className="flex-1" />
+                    <span className="w-8 text-right tabular-nums">{Math.round(narratorVol * 100)}</span>
+                  </label>
+                  <label className="flex items-center gap-2 text-xs">
+                    <span className="w-16 uppercase tracking-wider text-muted-foreground shrink-0">Hinchada</span>
+                    <input type="range" min={0} max={1} step={0.05} value={crowdVol}
+                      onChange={e => setCrowdVol(Number(e.target.value))} className="flex-1" />
+                    <span className="w-8 text-right tabular-nums">{Math.round(crowdVol * 100)}</span>
+                  </label>
+                </div>
+                <button
+                  onClick={() => setShowSettings(false)}
+                  className="mt-6 px-6 py-2.5 rounded-xl bg-card border border-border font-display tracking-widest hover:bg-secondary transition-all w-full"
+                >
+                  VOLVER
+                </button>
+              </div>
+            )}
+
+            {confirmExit && (
+              <div className="text-center w-full max-w-xs px-4">
+                <div className="font-display text-lg text-destructive mb-2">¿Salir del partido?</div>
+                <div className="text-xs text-muted-foreground mb-6">Vas a perder el progreso de este partido. No se puede deshacer.</div>
+                <div className="flex flex-col gap-2.5">
+                  <button
+                    onClick={() => { overRef.current = true; if (onExit) onExit(); else window.history.back(); }}
+                    className="px-6 py-3 rounded-xl bg-destructive text-white font-display tracking-widest hover:brightness-110 transition-all"
+                  >
+                    SÍ, SALIR
+                  </button>
+                  <button
+                    onClick={() => setConfirmExit(false)}
+                    className="px-6 py-3 rounded-xl bg-card border border-border font-display tracking-widest hover:bg-secondary transition-all"
+                  >
+                    CANCELAR
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
