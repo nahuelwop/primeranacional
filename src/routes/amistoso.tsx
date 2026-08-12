@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Nav } from "@/components/Nav";
-import { Shield, Jersey } from "@/components/Shield";
+import { Shield } from "@/components/Shield";
 import { TEAMS, Team } from "@/data/teams";
 import { useTeamsSync } from "@/lib/teams-sync";
 import { Game, type Weather, type Difficulty, type Mode, type MatchStats } from "@/components/Game";
@@ -122,10 +122,12 @@ function AmistosoPage() {
           </div>
         )}
 
-        <div className="grid md:grid-cols-2 gap-6 mt-6">
-          <Selector label="LOCAL" value={home} onChange={setHome} kit={homeKit} onKitChange={setHomeKit} />
-          <Selector label="VISITANTE" value={away} onChange={setAway} kit={awayKit} onKitChange={setAwayKit} />
-        </div>
+        <PesTeamSelect
+          home={home} away={away}
+          onHome={setHome} onAway={setAway}
+          homeKit={homeKit} awayKit={awayKit}
+          onHomeKit={setHomeKit} onAwayKit={setAwayKit}
+        />
 
         <div className="mt-6 rounded-2xl bg-card border border-border p-4">
           <div className="grid md:grid-cols-3 gap-4">
@@ -189,56 +191,158 @@ function AmistosoPage() {
   );
 }
 
-function Selector({ label, value, onChange, kit, onKitChange }: { label: string; value: Team | null; onChange: (t: Team) => void; kit: Kit; onKitChange: (k: Kit) => void }) {
-  const [zone, setZone] = useState<"A"|"B">(value?.zone ?? "A");
-  const displayed = value ? applyKit(value, kit) : null;
+// ===== Selector estilo PES 2013: dos paneles (LOCAL / VISITANTE) + fila de escudos =====
+type Side = "home" | "away";
+
+function PesTeamSelect({
+  home, away, onHome, onAway, homeKit, awayKit, onHomeKit, onAwayKit,
+}: {
+  home: Team | null; away: Team | null;
+  onHome: (t: Team) => void; onAway: (t: Team) => void;
+  homeKit: Kit; awayKit: Kit;
+  onHomeKit: (k: Kit) => void; onAwayKit: (k: Kit) => void;
+}) {
+  const [focus, setFocus] = useState<Side>("home");
+  const [zoneHome, setZoneHome] = useState<"A" | "B">(home?.zone ?? "A");
+  const [zoneAway, setZoneAway] = useState<"A" | "B">(away?.zone ?? "A");
+  const zone = focus === "home" ? zoneHome : zoneAway;
+  const setZone = focus === "home" ? setZoneHome : setZoneAway;
+  const selected = focus === "home" ? home : away;
+  const setSelected = focus === "home" ? onHome : onAway;
+
+  const list = useMemo(() => TEAMS.filter(t => t.zone === zone), [zone, TEAMS.length]);
+  const idx = Math.max(0, list.findIndex(t => t.id === selected?.id));
+  const stripRef = useRef<HTMLDivElement | null>(null);
+  const itemRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+
+  useEffect(() => {
+    const el = selected && itemRefs.current[selected.id];
+    el?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+  }, [selected?.id, zone]);
+
+  // Navegación con teclado (A/D o flechas para moverse, Enter/Espacio para confirmar)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const k = e.key.toLowerCase();
+      if (["a", "arrowleft", "d", "arrowright", "enter", " ", "backspace"].includes(k)) e.preventDefault();
+      if (k === "a" || k === "arrowleft") {
+        const next = list[Math.max(0, idx - 1)];
+        if (next) setSelected(next);
+      } else if (k === "d" || k === "arrowright") {
+        const next = list[Math.min(list.length - 1, idx + 1)];
+        if (next) setSelected(next);
+      } else if (k === "enter" || k === " ") {
+        setFocus(f => (f === "home" ? "away" : "home"));
+      } else if (k === "backspace" && focus === "away") {
+        setFocus("home");
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [idx, list, setSelected, focus]);
+
   return (
-    <div className="rounded-2xl bg-card border border-border p-4">
-      <div className="flex items-center justify-between mb-3">
-        <div className="font-display text-xl">{label}</div>
-        <div className="flex gap-1">
-          {(["A","B"] as const).map(z => (
-            <button key={z} onClick={() => setZone(z)}
-              className={`px-2 py-1 text-xs rounded ${zone===z ? "bg-celeste text-primary-foreground" : "bg-secondary"}`}>
-              Zona {z}
-            </button>
-          ))}
+    <div className="mt-6 rounded-2xl border border-border overflow-hidden bg-[radial-gradient(ellipse_at_top,_#123058_0%,_#070b14_75%)]">
+      <div className="grid md:grid-cols-2">
+        <PesPanel side="home" label="LOCAL" team={home} kit={homeKit} onKit={onHomeKit}
+          active={focus === "home"} onClick={() => setFocus("home")} align="left" />
+        <PesPanel side="away" label="VISITANTE" team={away} kit={awayKit} onKit={onAwayKit}
+          active={focus === "away"} onClick={() => setFocus("away")} align="right" />
+      </div>
+
+      {/* Fila horizontal de escudos del lado enfocado */}
+      <div className="border-t border-white/10 bg-black/40 px-4 py-3">
+        <div className="flex items-center justify-between mb-2">
+          <div className="text-[11px] uppercase tracking-[0.2em] text-white/50">
+            Eligiendo {focus === "home" ? "LOCAL" : "VISITANTE"}
+          </div>
+          <div className="flex gap-1">
+            {(["A", "B"] as const).map(z => (
+              <button key={z} onClick={() => setZone(z)}
+                className={`px-2 py-1 text-[11px] rounded transition ${zone === z ? "bg-celeste text-primary-foreground" : "bg-white/10 text-white/60 hover:bg-white/20"}`}>
+                Zona {z}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div ref={stripRef} className="flex items-end gap-2 overflow-x-auto pb-1 [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full">
+          {list.map((t, i) => {
+            const dist = Math.abs(i - idx);
+            const scale = dist === 0 ? "scale-125 opacity-100" : dist === 1 ? "scale-100 opacity-80" : "scale-90 opacity-50";
+            return (
+              <button
+                key={t.id}
+                ref={el => { itemRefs.current[t.id] = el; }}
+                onClick={() => setSelected(t)}
+                title={t.name}
+                className={`shrink-0 flex flex-col items-center gap-1 transition-transform duration-200 ease-out ${scale}`}
+              >
+                <div className={`rounded-full p-1 transition ${t.id === selected?.id ? "ring-2 ring-celeste bg-white/10" : ""}`}>
+                  <Shield team={t} size={40} />
+                </div>
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      {displayed && (
-        <div className="flex items-center gap-3 mb-3 p-3 rounded-xl bg-background border border-border">
-          <Shield team={displayed} size={48} />
-          <div className="flex-1">
-            <div className="font-display text-lg">{displayed.name}</div>
-            <div className="text-xs text-muted-foreground">{displayed.city}</div>
-            <div className="text-xs mt-1 grid grid-cols-4 gap-1">
+      {/* Confirmar / Atrás */}
+      <div className="border-t border-white/10 bg-black/50 px-4 py-3 flex items-center justify-center gap-3">
+        <button
+          onClick={() => setFocus("home")}
+          disabled={focus === "home"}
+          className="px-5 py-2 rounded-lg text-sm font-display tracking-wider bg-white/10 text-white/70 hover:bg-white/20 disabled:opacity-30 disabled:hover:bg-white/10 transition">
+          ATRÁS
+        </button>
+        <button
+          onClick={() => setFocus(focus === "home" ? "away" : "home")}
+          className="px-5 py-2 rounded-lg text-sm font-display tracking-wider bg-celeste text-primary-foreground hover:brightness-110 transition">
+          {focus === "home" ? "CONFIRMAR LOCAL" : "CONFIRMAR VISITANTE"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function PesPanel({ label, team, kit, onKit, active, onClick, align }: {
+  side: Side; label: string; team: Team | null; kit: Kit; onKit: (k: Kit) => void;
+  active: boolean; onClick: () => void; align: "left" | "right";
+}) {
+  const displayed = team ? applyKit(team, kit) : null;
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onClick}
+      onKeyDown={e => { if (e.key === "Enter" || e.key === " ") onClick(); }}
+      className={`text-left p-5 cursor-pointer transition-colors duration-200 ${align === "left" ? "md:border-r border-white/10" : ""} ${active ? "bg-white/[0.06]" : "bg-transparent hover:bg-white/[0.03]"}`}
+    >
+      <div className={`text-[11px] uppercase tracking-[0.3em] mb-3 ${active ? "text-celeste" : "text-white/40"}`}>{label}</div>
+      {displayed ? (
+        <div className={`flex items-center gap-4 ${align === "right" ? "md:flex-row-reverse md:text-right" : ""}`}>
+          <div className="transition-transform duration-200 ease-out" style={{ transform: active ? "scale(1.08)" : "scale(1)" }}>
+            <Shield team={displayed} size={72} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="font-display text-2xl text-white truncate">{displayed.name}</div>
+            <div className="text-xs text-white/50">{displayed.city}</div>
+            <div className={`text-[11px] mt-2 grid grid-cols-4 gap-1 text-white/70 ${align === "right" ? "md:justify-items-end" : ""}`}>
               <span>VEL {displayed.stats.speed}</span><span>SAL {displayed.stats.jump}</span>
               <span>POT {displayed.stats.power}</span><span>DEF {displayed.stats.defense}</span>
             </div>
-            <div className="mt-2 flex rounded-lg border border-border bg-background p-0.5">
-              {(["titular","alternativa"] as Kit[]).map(k => (
-                <button key={k} onClick={() => onKitChange(k)}
-                  className={`flex-1 px-2 py-1 rounded-md text-[11px] capitalize transition ${kit===k ? "bg-celeste text-primary-foreground" : "hover:bg-secondary"}`}>
+            <div className={`mt-2 flex rounded-lg border border-white/15 bg-black/30 p-0.5 max-w-[180px] ${align === "right" ? "md:ml-auto" : ""}`} onClick={e => e.stopPropagation()}>
+              {(["titular", "alternativa"] as Kit[]).map(k => (
+                <button key={k} onClick={() => onKit(k)}
+                  className={`flex-1 px-2 py-1 rounded-md text-[11px] capitalize transition ${kit === k ? "bg-celeste text-primary-foreground" : "text-white/60 hover:bg-white/10"}`}>
                   {k}
                 </button>
               ))}
             </div>
           </div>
-          <Jersey team={displayed} size={48} />
         </div>
+      ) : (
+        <div className="h-[72px] flex items-center text-white/30 text-sm">Elegí un equipo abajo</div>
       )}
-
-
-      <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-72 overflow-y-auto pr-1">
-        {TEAMS.filter(t => t.zone === zone).map(t => (
-          <button key={t.id} onClick={() => onChange(t)}
-            className={`p-2 rounded-lg border text-left transition ${value?.id===t.id ? "border-celeste bg-celeste/10" : "border-border bg-background hover:bg-secondary"}`}>
-            <Shield team={t} size={36} />
-            <div className="text-[10px] mt-1 truncate">{t.name}</div>
-          </button>
-        ))}
-      </div>
     </div>
   );
 }
