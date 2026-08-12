@@ -196,13 +196,12 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
     // Bengalas repartidas por TODA la tribuna, sostenidas por la gente (dentro del público).
     // Cantidad según el contexto: partido normal = ninguna, ascenso = normales, clásico = muchas.
     const isAllBoysHome = home.id === "allboys";
-    const flareCount = (isClasico ? 16 : crowdIntensity === "ascenso" ? 10 : 0) - (isAllBoysHome ? 0 : 0);
-    const allBoysFlareCount = Math.min(flareCount, 6); // menos bengalas y más contenidas en la tribuna foto
+    const flareCount = isAllBoysHome
+      ? (isClasico ? 6 : crowdIntensity === "ascenso" ? 4 : 0) // menos cantidad, pero repartidas por TODO el ancho (no sólo un lado)
+      : (isClasico ? 16 : crowdIntensity === "ascenso" ? 10 : 0);
     const flareSources = Array.from({ length: flareCount }, (_, i) => ({
       x: (W / (flareCount + 1)) * (i + 1),
-      y: isAllBoysHome
-        ? (i < allBoysFlareCount ? 190 + (i % 3) * 70 : -9999) // fuera de cámara si sobran: mantiene el conteo de humo/relato sin ensuciar la foto
-        : (i % 2 === 0 ? 300 : 210),
+      y: isAllBoysHome ? 170 + (i % 3) * 90 : (i % 2 === 0 ? 300 : 210),
       color: i % 3 === 0 ? "#ffffff" : (i % 2 === 0 ? home.primary : away.primary),
     }));
     const spawnSmoke = () => {
@@ -377,7 +376,7 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
       const skins = ["#f0c39a", "#d9a172", "#a9714a", "#f7d9b6"];
       const neutral = ["#e9e9e9", "#c9d2dd", "#2b3242", "#8a93a3"];
       const density = crowdIntensity === "normal" ? 1 : 1.15;
-      const deck = (top: number, bottom: number, bg1: string, bg2: string, step: number, size: number, figuresOnly = false) => {
+      const deck = (top: number, bottom: number, bg1: string, bg2: string, step: number, size: number, figuresOnly = false, exclude?: { cx: number; halfW: number; top: number; bottom: number }) => {
         if (!figuresOnly) {
           const g = c.createLinearGradient(0, top, 0, bottom);
           g.addColorStop(0, bg1); g.addColorStop(1, bg2);
@@ -396,17 +395,24 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
           for (let x = 4; x < W; x += gap) {
             const px = x + ((Math.round(y / step) % 2) * gap) / 2 + (Math.random() - 0.5) * 2;
             if (px % (W * 0.2) < 12) continue; // pasillo libre
+            if (exclude && px > exclude.cx - exclude.halfW && px < exclude.cx + exclude.halfW && y > exclude.top && y < exclude.bottom) continue; // no tapar el escudo
             const homeSide = px < W / 2;
             const base = homeSide ? [home.primary, home.secondary, home.primary] : [away.primary, away.secondary, away.primary];
             const shirt = Math.random() < 0.78
               ? base[Math.floor(Math.random() * base.length)]
               : neutral[Math.floor(Math.random() * neutral.length)];
+            // sombra de contacto (da algo de "peso"/realismo a cada cabeza)
+            c.fillStyle = "rgba(0,0,0,0.25)";
+            c.beginPath(); c.ellipse(px, y + s * 0.1, s * 0.55, s * 0.22, 0, 0, Math.PI * 2); c.fill();
             // torso
             c.fillStyle = shirt;
             c.fillRect(px - s * 0.5, y - s * 0.4, s, s * 1.15);
             // cabeza
             c.fillStyle = skins[Math.floor(Math.random() * skins.length)];
             c.beginPath(); c.arc(px, y - s * 0.75, s * 0.42, 0, Math.PI * 2); c.fill();
+            // contorno sutil para que se recorten mejor sobre la foto
+            c.strokeStyle = "rgba(0,0,0,0.35)"; c.lineWidth = Math.max(0.5, s * 0.08);
+            c.strokeRect(px - s * 0.5, y - s * 0.4, s, s * 1.15);
             // brazos en alto (algunos)
             if (Math.random() < 0.22) {
               c.strokeStyle = shirt; c.lineWidth = Math.max(1, s * 0.22);
@@ -434,12 +440,11 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
           // Mientras carga la imagen: placeholder oscuro para no dejar el layer vacío
           c.fillStyle = "#0a0a0a"; c.fillRect(0, STAND_TOP, W, STAND_BOTTOM - STAND_TOP);
         }
-        // Hinchada procedural superpuesta: figuras chicas y densas (textura, no bloques
-        // sueltos) para mezclarse con la platea real de la foto, sin escalones/pasillos
-        // sintéticos que no coinciden con la perspectiva de la imagen.
+        // Hinchada procedural superpuesta: más notoria (tamaño y opacidad reales) pero
+        // sin invadir la zona central donde la foto ya tiene el escudo de All Boys.
         c.save();
-        c.globalAlpha = 0.38;
-        deck(150, 400, "", "", 10, 3.2, true);
+        c.globalAlpha = 0.62;
+        deck(150, 400, "", "", 9, 5, true, { cx: W / 2, halfW: 130, top: 150, bottom: 330 });
         c.restore();
         // Valla / borde inferior sutil para separar del césped (la foto ya trae sus propias
         // publicidades, no se agregan sintéticas encima)
