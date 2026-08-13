@@ -128,9 +128,18 @@ function AmistosoPage() {
   return (
     <div className="min-h-screen flex flex-col">
       <Nav />
-      <main className="flex-1 max-w-6xl w-full mx-auto px-4 py-8">
-        <h1 className="font-display text-5xl">AMISTOSO</h1>
-        <p className="text-muted-foreground text-sm mt-1">Elegí los equipos y el modo. Partido de 60 segundos.</p>
+      {/* ===== Fondo de estadio nocturno (100% CSS, sin fotos: no depende de assets
+          que se puedan perder al revertir cambios) — sólo detrás de "Amistoso" ===== */}
+      <div className="relative flex-1 overflow-hidden bg-[#050810]">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_65%_45%_at_50%_-5%,rgba(56,140,255,0.4),transparent_65%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_45%_35%_at_12%_10%,rgba(120,180,255,0.16),transparent_60%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_45%_35%_at_88%_10%,rgba(120,180,255,0.16),transparent_60%)]" />
+        <div className="absolute inset-0 opacity-[0.035] bg-[repeating-linear-gradient(115deg,#fff_0px,#fff_1px,transparent_1px,transparent_4px)]" />
+        <div className="absolute inset-0 shadow-[inset_0_0_180px_70px_rgba(0,0,0,0.9)]" />
+
+        <main className="relative z-10 max-w-6xl w-full mx-auto px-4 py-8">
+        <h1 className="font-display text-5xl text-white">AMISTOSO</h1>
+        <p className="text-white/50 text-sm mt-1">Elegí los equipos y el modo. Partido de 60 segundos.</p>
 
         {result && (
           <div className="mt-4 p-4 rounded-xl bg-card border border-border">
@@ -182,9 +191,43 @@ function AmistosoPage() {
           onAllConfirmed={() => setScreen("confirm")}
         />
 
-      </main>
+        </main>
+      </div>
     </div>
   );
+}
+
+// ===== Sonido del menú: preparado para agregar audios propios más adelante =====
+// No incluye ningún audio de PES. Si en /public/sounds/ no existen los archivos
+// menu-move.mp3 / menu-select.mp3 / menu-confirm.mp3 / menu-back.mp3, falla en
+// silencio — el menú funciona igual, simplemente sin sonido hasta que los subas.
+function useMenuSfx() {
+  const cache = useRef<Record<string, HTMLAudioElement>>({});
+  return useMemo(() => {
+    const play = (name: "move" | "select" | "confirm" | "back") => {
+      try {
+        let a = cache.current[name];
+        if (!a) { a = new Audio(`/sounds/menu-${name}.mp3`); a.volume = 0.45; cache.current[name] = a; }
+        a.currentTime = 0;
+        void a.play().catch(() => {});
+      } catch { /* sin audio todavía: silencioso */ }
+    };
+    return {
+      move: () => play("move"),
+      select: () => play("select"),
+      confirm: () => play("confirm"),
+      back: () => play("back"),
+    };
+  }, []);
+}
+
+// Color de "grado" por valor de stat — puramente visual, calculado del número,
+// evoca los íconos de nivel de PES sin copiar su set de íconos.
+function statGrade(v: number) {
+  if (v >= 85) return "#facc15"; // dorado
+  if (v >= 78) return "#38bdf8"; // celeste
+  if (v >= 70) return "#4ade80"; // verde
+  return "#94a3b8"; // gris
 }
 
 // ===== Selector estilo PES 2013: dos paneles (LOCAL / VISITANTE) + fila de escudos =====
@@ -200,6 +243,7 @@ function PesTeamSelect({
   onHomeKit: (k: Kit) => void; onAwayKit: (k: Kit) => void;
   onAllConfirmed: () => void;
 }) {
+  const sfx = useMenuSfx();
   const [focus, setFocus] = useState<Side>("home");
   const [zoneHome, setZoneHome] = useState<"A" | "B">(home?.zone ?? "A");
   const [zoneAway, setZoneAway] = useState<"A" | "B">(away?.zone ?? "A");
@@ -213,12 +257,13 @@ function PesTeamSelect({
   const setPhase = focus === "home" ? setPhaseHome : setPhaseAway;
   const selected = focus === "home" ? home : away;
   const setSelected = focus === "home" ? onHome : onAway;
+  const sameTeam = !!home && !!away && home.id === away.id;
 
   const list = useMemo(() => TEAMS.filter(t => t.zone === zone), [zone, TEAMS.length]);
   const countA = useMemo(() => TEAMS.filter(t => t.zone === "A").length, [TEAMS.length]);
   const countB = useMemo(() => TEAMS.filter(t => t.zone === "B").length, [TEAMS.length]);
   const idx = Math.max(0, list.findIndex(t => t.id === selected?.id));
-  const stripRef = useRef<HTMLDivElement | null>(null);
+  const PAGE = 8; // ítems visibles aprox. por "página" del carrusel, sólo para los puntitos
   const itemRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   // Qué zona está resaltada en la pantalla de selección de zona (navegable con teclado)
   const [zoneHighlight, setZoneHighlight] = useState<"A" | "B">(zone);
@@ -230,47 +275,80 @@ function PesTeamSelect({
   }, [selected?.id, zone]);
 
   function pickZone(z: "A" | "B") {
+    sfx.confirm();
     setZone(z);
     setPhase("teams");
   }
 
-  // Navegación con teclado (A/D o flechas para moverse, Enter/Espacio para confirmar)
+  function goBack() {
+    sfx.back();
+    if (phase === "teams") { setPhase("zone"); return; }
+    if (focus === "away") { setFocus("home"); return; }
+  }
+
+  function advanceOrConfirm() {
+    if (focus === "home") { sfx.confirm(); setFocus("away"); return; }
+    if (sameTeam) return;
+    sfx.confirm();
+    onAllConfirmed();
+  }
+
+  function pickRandom() {
+    if (phase === "zone") { pickZone(Math.random() < 0.5 ? "A" : "B"); return; }
+    const other = focus === "home" ? away : home;
+    const pool = list.filter(t => t.id !== other?.id);
+    const pick = (pool.length ? pool : list)[Math.floor(Math.random() * (pool.length ? pool.length : list.length))];
+    if (pick) { sfx.select(); setSelected(pick); }
+  }
+
+  // Navegación con teclado: A/D o flechas para moverse dentro de la zona/equipo,
+  // ↑/↓ para saltar entre Local y Visitante, Enter/Espacio confirma, Backspace/Escape vuelve.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const k = e.key.toLowerCase();
-      if (["a", "arrowleft", "d", "arrowright", "enter", " ", "backspace"].includes(k)) e.preventDefault();
+      if (["a", "arrowleft", "d", "arrowright", "arrowup", "arrowdown", "enter", " ", "backspace", "escape"].includes(k)) e.preventDefault();
+      if (k === "arrowup" || k === "arrowdown") {
+        sfx.move();
+        setFocus(f => (f === "home" ? "away" : "home"));
+        return;
+      }
+      if (k === "escape") { goBack(); return; }
       if (phase === "zone") {
         if (k === "a" || k === "arrowleft" || k === "d" || k === "arrowright") {
+          sfx.move();
           setZoneHighlight(z => (z === "A" ? "B" : "A"));
         } else if (k === "enter" || k === " ") {
           pickZone(zoneHighlight);
         } else if (k === "backspace" && focus === "away") {
+          sfx.back();
           setFocus("home");
         }
         return;
       }
       if (k === "a" || k === "arrowleft") {
         const next = list[Math.max(0, idx - 1)];
-        if (next) setSelected(next);
+        if (next) { sfx.move(); setSelected(next); }
       } else if (k === "d" || k === "arrowright") {
         const next = list[Math.min(list.length - 1, idx + 1)];
-        if (next) setSelected(next);
+        if (next) { sfx.move(); setSelected(next); }
       } else if (k === "enter" || k === " ") {
-        setFocus(f => (f === "home" ? "away" : "home"));
+        advanceOrConfirm();
       } else if (k === "backspace") {
+        sfx.back();
         setPhase("zone");
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [idx, list, setSelected, focus, phase, zoneHighlight]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idx, list, setSelected, focus, phase, zoneHighlight, sameTeam]);
 
   return (
-    <div className="mt-6 rounded-2xl border border-border overflow-hidden bg-[radial-gradient(ellipse_at_top,_#123058_0%,_#070b14_75%)]">
+    <div className="mt-6 rounded-2xl border border-white/15 overflow-hidden bg-black/45 backdrop-blur-md shadow-[0_0_60px_-10px_rgba(56,189,248,0.25)]">
       <div className="grid md:grid-cols-2">
-        <PesPanel side="home" label="LOCAL" team={home} kit={homeKit} onKit={onHomeKit}
+        <PesPanel side="home" label="LOCAL" zone={zoneHome} team={home} kit={homeKit} onKit={onHomeKit}
           active={focus === "home"} onClick={() => setFocus("home")} align="left" />
-        <PesPanel side="away" label="VISITANTE" team={away} kit={awayKit} onKit={onAwayKit}
+        <PesPanel side="away" label="VISITANTE" zone={zoneAway} team={away} kit={awayKit} onKit={onAwayKit}
           active={focus === "away"} onClick={() => setFocus("away")} align="right" />
       </div>
 
@@ -314,7 +392,7 @@ function PesTeamSelect({
         /* ===== Fila horizontal de escudos de la zona elegida ===== */
         <div className="border-t border-white/10 bg-black/40 px-4 py-3">
           <div className="flex items-center justify-between mb-2">
-            <button onClick={() => setPhase("zone")} className="text-[11px] uppercase tracking-[0.2em] text-white/50 hover:text-celeste transition-colors flex items-center gap-1">
+            <button onClick={() => { sfx.back(); setPhase("zone"); }} className="text-[11px] uppercase tracking-[0.2em] text-white/50 hover:text-celeste transition-colors flex items-center gap-1">
               <span>‹</span> Zona {zone} — {focus === "home" ? "LOCAL" : "VISITANTE"}
             </button>
             <div className="flex gap-1">
@@ -326,7 +404,7 @@ function PesTeamSelect({
               ))}
             </div>
           </div>
-          <div ref={stripRef} className="flex items-end gap-2 overflow-x-auto pb-1 [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full">
+          <div className="flex items-end gap-2 overflow-x-auto pb-1 [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full">
             {list.map((t, i) => {
               const dist = Math.abs(i - idx);
               const scale = dist === 0 ? "scale-125 opacity-100" : dist === 1 ? "scale-100 opacity-80" : "scale-90 opacity-50";
@@ -334,55 +412,80 @@ function PesTeamSelect({
                 <button
                   key={t.id}
                   ref={el => { itemRefs.current[t.id] = el; }}
-                  onClick={() => setSelected(t)}
+                  onClick={() => { sfx.select(); setSelected(t); }}
                   title={t.name}
                   className={`shrink-0 flex flex-col items-center gap-1 transition-transform duration-200 ease-out ${scale}`}
                 >
-                  <div className={`rounded-full p-1 transition ${t.id === selected?.id ? "ring-2 ring-celeste bg-white/10" : ""}`}>
+                  <div className={`rounded-full p-1 transition ${t.id === selected?.id ? "ring-2 ring-celeste bg-white/10 shadow-[0_0_16px_-2px_rgba(56,189,248,0.8)]" : ""}`}>
                     <Shield team={t} size={40} />
                   </div>
                 </button>
               );
             })}
           </div>
+          {list.length > PAGE && (
+            <div className="flex justify-center gap-1.5 mt-2">
+              {Array.from({ length: Math.ceil(list.length / PAGE) }).map((_, p) => (
+                <span key={p} className={`w-1.5 h-1.5 rounded-full transition-colors ${Math.floor(idx / PAGE) === p ? "bg-celeste" : "bg-white/20"}`} />
+              ))}
+            </div>
+          )}
         </div>
       )}
 
-      {/* Confirmar / Atrás */}
-      <div className="border-t border-white/10 bg-black/50 px-4 py-3 flex items-center justify-center gap-3">
+      {/* Confirmar / Atrás / Aleatorio — orden y glifos inspirados en los botoneras de
+          consola de la referencia, sin usar sus íconos originales */}
+      <div className="border-t border-white/10 bg-black/60 px-4 py-3 flex items-center justify-center gap-2 sm:gap-4 flex-wrap">
         <button
-          onClick={() => (phase === "teams" ? setPhase("zone") : setFocus("home"))}
-          disabled={focus === "home" && phase === "zone"}
-          className="px-5 py-2 rounded-lg text-sm font-display tracking-wider bg-white/10 text-white/70 hover:bg-white/20 disabled:opacity-30 disabled:hover:bg-white/10 transition">
+          onClick={phase === "zone" ? () => pickZone(zoneHighlight) : advanceOrConfirm}
+          disabled={phase === "teams" && focus === "away" && sameTeam}
+          className="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-display tracking-wider bg-celeste text-primary-foreground hover:brightness-110 disabled:opacity-30 transition">
+          <span className="inline-block w-3.5 h-3.5 rounded-full bg-current opacity-80" />
+          {phase === "zone" ? "CONFIRMAR ZONA" : (focus === "home" ? "CONFIRMAR LOCAL" : "CONFIRMAR VISITANTE")}
+        </button>
+        <button
+          onClick={goBack}
+          disabled={phase === "zone" && focus === "home"}
+          className="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-display tracking-wider bg-white/10 text-white/70 hover:bg-white/20 disabled:opacity-30 disabled:hover:bg-white/10 transition">
+          <span className="inline-block w-3.5 h-3.5 rounded-full border-2 border-current" />
           ATRÁS
         </button>
         <button
-          onClick={() => {
-            if (focus === "home") { setFocus("away"); return; }
-            onAllConfirmed();
-          }}
-          disabled={phase === "zone" || (focus === "away" && !!home && !!away && home.id === away.id)}
-          className="px-5 py-2 rounded-lg text-sm font-display tracking-wider bg-celeste text-primary-foreground hover:brightness-110 disabled:opacity-30 transition">
-          {focus === "home" ? "CONFIRMAR LOCAL" : "CONFIRMAR VISITANTE"}
+          onClick={pickRandom}
+          className="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-display tracking-wider bg-white/10 text-white/70 hover:bg-white/20 transition">
+          <span className="inline-block w-3 h-3 border-2 border-current" />
+          ALEATORIO
         </button>
       </div>
     </div>
   );
 }
 
-function PesPanel({ label, team, kit, onKit, active, onClick, align }: {
-  side: Side; label: string; team: Team | null; kit: Kit; onKit: (k: Kit) => void;
+function PesPanel({ label, zone, team, kit, onKit, active, onClick, align }: {
+  side: Side; label: string; zone: "A" | "B"; team: Team | null; kit: Kit; onKit: (k: Kit) => void;
   active: boolean; onClick: () => void; align: "left" | "right";
 }) {
   const displayed = team ? applyKit(team, kit) : null;
+  // Mapeo de las 4 stats reales de Primera Heads a las etiquetas tipo PES (ATA/TEC/FIS/DEF).
+  const statRows: [string, number][] = displayed ? [
+    ["ATA", displayed.stats.power],
+    ["TEC", displayed.stats.speed],
+    ["FIS", displayed.stats.jump],
+    ["DEF", displayed.stats.defense],
+  ] : [];
   return (
     <div
       role="button"
       tabIndex={0}
       onClick={onClick}
       onKeyDown={e => { if (e.key === "Enter" || e.key === " ") onClick(); }}
-      className={`text-left p-5 cursor-pointer transition-colors duration-200 ${align === "left" ? "md:border-r border-white/10" : ""} ${active ? "bg-white/[0.06]" : "bg-transparent hover:bg-white/[0.03]"}`}
+      className={`text-left p-5 cursor-pointer transition-all duration-200 ${align === "left" ? "md:border-r border-white/10" : ""} ${active ? "bg-white/[0.07] shadow-[inset_0_0_50px_-14px_rgba(56,189,248,0.5)]" : "bg-transparent hover:bg-white/[0.03]"}`}
     >
+      {/* Barra tipo "liga" (acá: zona) — equivalente a la franja superior de la referencia */}
+      <div className={`flex items-center gap-2 px-2 py-1 mb-2 rounded bg-black/30 border border-white/10 ${align === "right" ? "md:flex-row-reverse" : ""}`}>
+        <span className="w-2 h-2 rounded-full shrink-0" style={{ background: zone === "A" ? "#38bdf8" : "#f5b400" }} />
+        <span className="text-[10px] uppercase tracking-[0.25em] text-white/55 truncate">Zona {zone} · Primera Nacional</span>
+      </div>
       <div className={`text-[11px] uppercase tracking-[0.3em] mb-3 ${active ? "text-celeste" : "text-white/40"}`}>{label}</div>
       {displayed ? (
         <div className={`flex items-center gap-4 ${align === "right" ? "md:flex-row-reverse md:text-right" : ""}`}>
@@ -392,9 +495,14 @@ function PesPanel({ label, team, kit, onKit, active, onClick, align }: {
           <div className="flex-1 min-w-0">
             <div className="font-display text-2xl text-white truncate">{displayed.name}</div>
             <div className="text-xs text-white/50">{displayed.city}</div>
-            <div className={`text-[11px] mt-2 grid grid-cols-4 gap-1 text-white/70 ${align === "right" ? "md:justify-items-end" : ""}`}>
-              <span>VEL {displayed.stats.speed}</span><span>SAL {displayed.stats.jump}</span>
-              <span>POT {displayed.stats.power}</span><span>DEF {displayed.stats.defense}</span>
+            <div className={`grid grid-cols-2 gap-x-4 gap-y-1 mt-2 max-w-[200px] ${align === "right" ? "md:ml-auto" : ""}`}>
+              {statRows.map(([lbl, val]) => (
+                <div key={lbl} className={`flex items-center gap-1.5 text-[11px] text-white/70 ${align === "right" ? "md:flex-row-reverse" : ""}`}>
+                  <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: statGrade(val) }} />
+                  <span className="text-white/50">{lbl}</span>
+                  <span className="text-white font-semibold tabular-nums ml-auto">{val}</span>
+                </div>
+              ))}
             </div>
             <div className={`mt-2 flex rounded-lg border border-white/15 bg-black/30 p-0.5 max-w-[180px] ${align === "right" ? "md:ml-auto" : ""}`} onClick={e => e.stopPropagation()}>
               {(["titular", "alternativa"] as Kit[]).map(k => (
