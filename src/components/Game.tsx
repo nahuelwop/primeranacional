@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Shield } from "@/components/Shield";
 import { Team, type Narrator } from "@/data/teams";
 import { supabase } from "@/integrations/supabase/client";
+import allBoysStandBg from "@/assets/allboys-islas-malvinas.png";
+import colonStandBg from "@/assets/colon-estadio.png";
 export type Weather = "clear" | "rain" | "wind" | "thunder" | "fog";
 export type Difficulty = "easy" | "normal" | "hard" | "expert";
 export type Mode = "1v1" | "1vAI";
@@ -32,6 +34,15 @@ export type MatchStats = {
   shotsH: number; shotsA: number;
   onTargetH: number; onTargetA: number;
   savesH: number; savesA: number;
+};
+// Fondos temáticos reales de estadio: sólo se aplican cuando ese equipo juega de LOCAL.
+// vAnchor = qué franja vertical de la foto se prioriza al recortar (0 = arriba, 1 = abajo).
+// crowdBand = franja vertical (en coords del canvas) donde va la hinchada procedural, si
+// corresponde (evita tapar letras/escudos ya dibujados en la foto).
+// crowdOverlay: false = la foto ya trae la multitud integrada, no se agrega nada encima.
+const STADIUM_THEMES: Record<string, { img: string; vAnchor: number; crowdBand: { top: number; bottom: number }; shieldExclude?: { halfW: number; top: number; bottom: number }; crowdOverlay?: boolean }> = {
+  allboys: { img: allBoysStandBg, vAnchor: 0.18, crowdBand: { top: 150, bottom: 400 }, shieldExclude: { halfW: 130, top: 150, bottom: 330 } },
+  colon: { img: colonStandBg, vAnchor: 0.38, crowdBand: { top: 265, bottom: 400 }, crowdOverlay: false },
 };
 const ScoreColorBars = ({ team, reverse = false }: { team: Team; reverse?: boolean }) => (
   <div className="score-color-bars" aria-hidden="true">
@@ -184,10 +195,16 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
     const sparks: Spark[] = [];
     // Bengalas repartidas por TODA la tribuna, sostenidas por la gente (dentro del público).
     // Cantidad según el contexto: partido normal = ninguna, ascenso = normales, clásico = muchas.
-    const flareCount = isClasico ? 16 : crowdIntensity === "ascenso" ? 10 : 0;
+    const stadiumTheme = STADIUM_THEMES[home.id];
+    const isThemedHome = !!stadiumTheme;
+    const flareCount = isThemedHome
+      ? (isClasico ? 6 : crowdIntensity === "ascenso" ? 4 : 0) // menos cantidad, pero repartidas por TODO el ancho (no sólo un lado)
+      : (isClasico ? 16 : crowdIntensity === "ascenso" ? 10 : 0);
     const flareSources = Array.from({ length: flareCount }, (_, i) => ({
       x: (W / (flareCount + 1)) * (i + 1),
-      y: i % 2 === 0 ? 300 : 210,
+      y: isThemedHome
+        ? stadiumTheme.crowdBand.top + (i % 3) * ((stadiumTheme.crowdBand.bottom - stadiumTheme.crowdBand.top) / 3)
+        : (i % 2 === 0 ? 300 : 210),
       color: i % 3 === 0 ? "#ffffff" : (i % 2 === 0 ? home.primary : away.primary),
     }));
     const spawnSmoke = () => {
@@ -326,6 +343,12 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
     const STAND_BOTTOM = ground - 22;   // justo donde arranca la valla LED
     const BANNER_Y = 232;               // franja de trapos entre bandeja alta y baja
     const FENCE_TOP = STAND_BOTTOM - 30;
+    let themeStandImg: HTMLImageElement | null = null;
+    if (isThemedHome) {
+      themeStandImg = new Image();
+      themeStandImg.onload = () => buildCrowd();
+      themeStandImg.src = stadiumTheme.img;
+    }
     const crowdLayer = document.createElement("canvas");
     crowdLayer.width = W;
     crowdLayer.height = STAND_BOTTOM;
@@ -333,19 +356,30 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
       const c = crowdLayer.getContext("2d");
       if (!c) return;
       c.clearRect(0, 0, W, STAND_BOTTOM);
+      // Dibuja una imagen cubriendo un rectángulo destino (recorte centrado, con anclaje
+      // vertical ajustable para priorizar qué franja de la foto se ve).
+      const drawCover = (img: HTMLImageElement, dx: number, dy: number, dw: number, dh: number, vAnchor = 0.5) => {
+        const scale = Math.max(dw / img.width, dh / img.height);
+        const sw = dw / scale, sh = dh / scale;
+        const sx = (img.width - sw) / 2;
+        const sy = Math.max(0, Math.min(img.height - sh, (img.height - sh) * vAnchor));
+        c.drawImage(img, sx, sy, sw, sh, dx, dy, dw, dh);
+      };
       const skins = ["#f0c39a", "#d9a172", "#a9714a", "#f7d9b6"];
       const neutral = ["#e9e9e9", "#c9d2dd", "#2b3242", "#8a93a3"];
       const density = crowdIntensity === "normal" ? 1 : 1.15;
-      const deck = (top: number, bottom: number, bg1: string, bg2: string, step: number, size: number) => {
-        const g = c.createLinearGradient(0, top, 0, bottom);
-        g.addColorStop(0, bg1); g.addColorStop(1, bg2);
-        c.fillStyle = g; c.fillRect(0, top, W, bottom - top);
-        // escalones
-        c.fillStyle = "rgba(0,0,0,0.18)";
-        for (let y = top; y < bottom; y += step) c.fillRect(0, y + step - 2, W, 2);
-        // pasillos
-        c.fillStyle = "rgba(0,0,0,0.28)";
-        for (let x = W * 0.2; x < W; x += W * 0.2) c.fillRect(x - 5, top, 10, bottom - top);
+      const deck = (top: number, bottom: number, bg1: string, bg2: string, step: number, size: number, figuresOnly = false, exclude?: { cx: number; halfW: number; top: number; bottom: number }) => {
+        if (!figuresOnly) {
+          const g = c.createLinearGradient(0, top, 0, bottom);
+          g.addColorStop(0, bg1); g.addColorStop(1, bg2);
+          c.fillStyle = g; c.fillRect(0, top, W, bottom - top);
+          // escalones
+          c.fillStyle = "rgba(0,0,0,0.18)";
+          for (let y = top; y < bottom; y += step) c.fillRect(0, y + step - 2, W, 2);
+          // pasillos
+          c.fillStyle = "rgba(0,0,0,0.28)";
+          for (let x = W * 0.2; x < W; x += W * 0.2) c.fillRect(x - 5, top, 10, bottom - top);
+        }
         const gap = Math.max(7, (size * 2.1) / density);
         for (let y = top + step; y < bottom - 2; y += step) {
           const depth = (y - top) / Math.max(1, bottom - top);
@@ -353,17 +387,24 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
           for (let x = 4; x < W; x += gap) {
             const px = x + ((Math.round(y / step) % 2) * gap) / 2 + (Math.random() - 0.5) * 2;
             if (px % (W * 0.2) < 12) continue; // pasillo libre
+            if (exclude && px > exclude.cx - exclude.halfW && px < exclude.cx + exclude.halfW && y > exclude.top && y < exclude.bottom) continue; // no tapar el escudo
             const homeSide = px < W / 2;
             const base = homeSide ? [home.primary, home.secondary, home.primary] : [away.primary, away.secondary, away.primary];
             const shirt = Math.random() < 0.78
               ? base[Math.floor(Math.random() * base.length)]
               : neutral[Math.floor(Math.random() * neutral.length)];
+            // sombra de contacto (da algo de "peso"/realismo a cada cabeza)
+            c.fillStyle = "rgba(0,0,0,0.25)";
+            c.beginPath(); c.ellipse(px, y + s * 0.1, s * 0.55, s * 0.22, 0, 0, Math.PI * 2); c.fill();
             // torso
             c.fillStyle = shirt;
             c.fillRect(px - s * 0.5, y - s * 0.4, s, s * 1.15);
             // cabeza
             c.fillStyle = skins[Math.floor(Math.random() * skins.length)];
             c.beginPath(); c.arc(px, y - s * 0.75, s * 0.42, 0, Math.PI * 2); c.fill();
+            // contorno sutil para que se recorten mejor sobre la foto
+            c.strokeStyle = "rgba(0,0,0,0.35)"; c.lineWidth = Math.max(0.5, s * 0.08);
+            c.strokeRect(px - s * 0.5, y - s * 0.4, s, s * 1.15);
             // brazos en alto (algunos)
             if (Math.random() < 0.22) {
               c.strokeStyle = shirt; c.lineWidth = Math.max(1, s * 0.22);
@@ -375,39 +416,66 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
           }
         }
         // sombra ambiente
-        const sh = c.createLinearGradient(0, top, 0, bottom);
-        sh.addColorStop(0, "rgba(0,0,0,0.35)");
-        sh.addColorStop(0.35, "rgba(0,0,0,0)");
-        c.fillStyle = sh; c.fillRect(0, top, W, bottom - top);
+        if (!figuresOnly) {
+          const sh = c.createLinearGradient(0, top, 0, bottom);
+          sh.addColorStop(0, "rgba(0,0,0,0.35)");
+          sh.addColorStop(0.35, "rgba(0,0,0,0)");
+          c.fillStyle = sh; c.fillRect(0, top, W, bottom - top);
+        }
       };
-      // Bandeja alta
-      deck(STAND_TOP, BANNER_Y, "#101c33", "#16243f", 15, 7);
-      // Franja de trapos/banderas colgadas entre bandejas
-      const banners = ["VAMOS " + home.short, "SIEMPRE A TU LADO", "LA BANDA DEL SUR", "ALENTAMOS DE CORAZÓN", "AGUANTE " + away.short];
-      c.fillStyle = "#060d1a"; c.fillRect(0, BANNER_Y, W, 30);
-      banners.forEach((txt, i) => {
-        const bw = 210, bx = 40 + i * ((W - 120) / banners.length);
-        const homeSide = bx + bw / 2 < W / 2;
-        c.fillStyle = "#f2f0e6";
-        c.fillRect(bx, BANNER_Y + 3, bw, 24);
-        c.strokeStyle = homeSide ? home.primary : away.primary; c.lineWidth = 3;
-        c.strokeRect(bx, BANNER_Y + 3, bw, 24);
-        c.fillStyle = "#12161f";
-        c.font = "bold 13px system-ui"; c.textAlign = "center";
-        c.fillText(txt.toUpperCase(), bx + bw / 2, BANNER_Y + 20);
-      });
-      c.textAlign = "start";
-      // Bandeja baja (popular, más cerca del campo → gente más grande)
-      deck(BANNER_Y + 30, FENCE_TOP, "#0c1729", "#122a4a", 18, 9);
-      // Valla / borde de tribuna que separa público y campo
-      const fg = c.createLinearGradient(0, FENCE_TOP, 0, STAND_BOTTOM);
-      fg.addColorStop(0, "#1a2740"); fg.addColorStop(1, "#0a1120");
-      c.fillStyle = fg; c.fillRect(0, FENCE_TOP, W, STAND_BOTTOM - FENCE_TOP);
-      c.strokeStyle = "rgba(180,205,255,0.25)"; c.lineWidth = 1;
-      for (let x = 0; x < W; x += 9) { c.beginPath(); c.moveTo(x, FENCE_TOP + 4); c.lineTo(x, STAND_BOTTOM - 4); c.stroke(); }
-      c.strokeStyle = "rgba(200,220,255,0.4)"; c.lineWidth = 2;
-      [FENCE_TOP + 4, STAND_BOTTOM - 6].forEach(y => { c.beginPath(); c.moveTo(0, y); c.lineTo(W, y); c.stroke(); });
-      c.fillStyle = "rgba(0,0,0,0.35)"; c.fillRect(0, STAND_BOTTOM - 4, W, 4);
+      if (isThemedHome) {
+        // Fondo real: la foto/ilustración del estadio de local ya trae cartel, sponsors,
+        // escudo/letras y valla de publicidad — no se reconstruyen a mano.
+        if (themeStandImg && themeStandImg.complete && themeStandImg.naturalWidth > 0) {
+          drawCover(themeStandImg, 0, STAND_TOP, W, STAND_BOTTOM - STAND_TOP, stadiumTheme.vAnchor);
+        } else {
+          // Mientras carga la imagen: placeholder oscuro para no dejar el layer vacío
+          c.fillStyle = "#0a0a0a"; c.fillRect(0, STAND_TOP, W, STAND_BOTTOM - STAND_TOP);
+        }
+        // Hinchada procedural superpuesta: sólo si el tema no trae ya la multitud
+        // integrada en la foto (crowdOverlay !== false). Colón usa una foto con la
+        // tribuna ya llena, así que no se agrega nada encima.
+        if (stadiumTheme.crowdOverlay !== false) {
+          c.save();
+          c.globalAlpha = 0.62;
+          deck(stadiumTheme.crowdBand.top, stadiumTheme.crowdBand.bottom, "", "", 9, 5, true, stadiumTheme.shieldExclude
+            ? { cx: W / 2, ...stadiumTheme.shieldExclude }
+            : undefined);
+          c.restore();
+        }
+        // Valla / borde inferior sutil para separar del césped (la foto ya trae sus propias
+        // publicidades, no se agregan sintéticas encima)
+        c.fillStyle = "rgba(0,0,0,0.35)"; c.fillRect(0, STAND_BOTTOM - 4, W, 4);
+      } else {
+        // Bandeja alta
+        deck(STAND_TOP, BANNER_Y, "#101c33", "#16243f", 15, 7);
+        // Franja de trapos/banderas colgadas entre bandejas
+        const banners = ["VAMOS " + home.short, "SIEMPRE A TU LADO", "LA BANDA DEL SUR", "ALENTAMOS DE CORAZÓN", "AGUANTE " + away.short];
+        c.fillStyle = "#060d1a"; c.fillRect(0, BANNER_Y, W, 30);
+        banners.forEach((txt, i) => {
+          const bw = 210, bx = 40 + i * ((W - 120) / banners.length);
+          const homeSide = bx + bw / 2 < W / 2;
+          c.fillStyle = "#f2f0e6";
+          c.fillRect(bx, BANNER_Y + 3, bw, 24);
+          c.strokeStyle = homeSide ? home.primary : away.primary; c.lineWidth = 3;
+          c.strokeRect(bx, BANNER_Y + 3, bw, 24);
+          c.fillStyle = "#12161f";
+          c.font = "bold 13px system-ui"; c.textAlign = "center";
+          c.fillText(txt.toUpperCase(), bx + bw / 2, BANNER_Y + 20);
+        });
+        c.textAlign = "start";
+        // Bandeja baja (popular, más cerca del campo → gente más grande)
+        deck(BANNER_Y + 30, FENCE_TOP, "#0c1729", "#122a4a", 18, 9);
+        // Valla / borde de tribuna que separa público y campo
+        const fg = c.createLinearGradient(0, FENCE_TOP, 0, STAND_BOTTOM);
+        fg.addColorStop(0, "#1a2740"); fg.addColorStop(1, "#0a1120");
+        c.fillStyle = fg; c.fillRect(0, FENCE_TOP, W, STAND_BOTTOM - FENCE_TOP);
+        c.strokeStyle = "rgba(180,205,255,0.25)"; c.lineWidth = 1;
+        for (let x = 0; x < W; x += 9) { c.beginPath(); c.moveTo(x, FENCE_TOP + 4); c.lineTo(x, STAND_BOTTOM - 4); c.stroke(); }
+        c.strokeStyle = "rgba(200,220,255,0.4)"; c.lineWidth = 2;
+        [FENCE_TOP + 4, STAND_BOTTOM - 6].forEach(y => { c.beginPath(); c.moveTo(0, y); c.lineTo(W, y); c.stroke(); });
+        c.fillStyle = "rgba(0,0,0,0.35)"; c.fillRect(0, STAND_BOTTOM - 4, W, 4);
+      }
     };
     buildCrowd();
     const keys: Record<string, boolean> = {};
@@ -848,12 +916,18 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
       ctx.lineTo(0, 40); ctx.closePath(); ctx.fill();
       // Tribuna completa (prerenderizada): bandeja alta → trapos → popular → valla
       ctx.drawImage(crowdLayer, 0, 0);
-      // Banderas agitándose entre los hinchas (animadas sobre la tribuna)
-      const flagCount = crowdIntensity === "ascenso" ? 26 : crowdIntensity === "clasico" ? 20 : 14;
+      // Banderas agitándose entre los hinchas (animadas sobre la tribuna) — se omiten en
+      // temas cuya foto ya trae banderas/trapos propios integrados (crowdOverlay: false),
+      // para no duplicarlas ni que floten sueltas encima de la multitud de la imagen.
+      const skipFlags = isThemedHome && stadiumTheme.crowdOverlay === false;
+      const flagCountBase = crowdIntensity === "ascenso" ? 26 : crowdIntensity === "clasico" ? 20 : 14;
+      const flagCount = skipFlags ? 0 : (isThemedHome ? Math.min(flagCountBase, 10) : flagCountBase);
       for (let i = 0; i < flagCount; i++) {
         const fx = (i * W / flagCount) + 20;
         const sway = Math.sin(Date.now() / 350 + i * 0.7) * 5;
-        const fy = (i % 3 === 0 ? 90 : i % 3 === 1 ? 160 : 300) + sway;
+        const fy = (isThemedHome
+          ? stadiumTheme.crowdBand.top + (i % 3) * ((stadiumTheme.crowdBand.bottom - stadiumTheme.crowdBand.top) / 3) // misma franja que la hinchada, sin invadir letras/escudo/cartel
+          : (i % 3 === 0 ? 90 : i % 3 === 1 ? 160 : 300)) + sway;
         const useHome = fx < W / 2;
         ctx.save();
         ctx.translate(fx, fy);
