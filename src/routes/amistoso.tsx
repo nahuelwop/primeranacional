@@ -7,6 +7,7 @@ import { useTeamsSync } from "@/lib/teams-sync";
 import { supabase } from "@/integrations/supabase/client";
 import { Game, type Weather, type Difficulty, type Mode, type MatchStats } from "@/components/Game";
 import { Penales } from "@/components/Penales";
+import stadiumBg from "@/assets/estadio-nocturno.jpg";
 
 export const Route = createFileRoute("/amistoso")({
   head: () => ({
@@ -128,14 +129,20 @@ function AmistosoPage() {
   return (
     <div className="min-h-screen flex flex-col">
       <Nav />
-      {/* ===== Fondo de estadio nocturno (100% CSS, sin fotos: no depende de assets
-          que se puedan perder al revertir cambios) — sólo detrás de "Amistoso" ===== */}
+      {/* ===== Fondo de estadio nocturno (foto real) — sólo detrás de "Amistoso" ===== */}
       <div className="relative flex-1 overflow-hidden bg-[#050810]">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_65%_45%_at_50%_-5%,rgba(56,140,255,0.4),transparent_65%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_45%_35%_at_12%_10%,rgba(120,180,255,0.16),transparent_60%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_45%_35%_at_88%_10%,rgba(120,180,255,0.16),transparent_60%)]" />
-        <div className="absolute inset-0 opacity-[0.035] bg-[repeating-linear-gradient(115deg,#fff_0px,#fff_1px,transparent_1px,transparent_4px)]" />
-        <div className="absolute inset-0 shadow-[inset_0_0_180px_70px_rgba(0,0,0,0.9)]" />
+        <img
+          src={stadiumBg}
+          alt=""
+          aria-hidden="true"
+          loading="eager"
+          fetchPriority="high"
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+        {/* Oscurecido/viñeta encima de la foto para que los paneles se sigan leyendo bien */}
+        <div className="absolute inset-0 bg-black/35" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_50%_at_50%_-10%,rgba(56,140,255,0.25),transparent_65%)]" />
+        <div className="absolute inset-0 shadow-[inset_0_0_200px_80px_rgba(0,0,0,0.85)]" />
 
         <main className="relative z-10 max-w-6xl w-full mx-auto px-4 py-8">
         <h1 className="font-display text-5xl text-white">AMISTOSO</h1>
