@@ -18,7 +18,7 @@ export const Route = createFileRoute("/admin")({
   component: AdminPage,
 });
 
-type Tab = "equipos" | "ajustes" | "relatores" | "patrocinadores";
+type Tab = "equipos" | "ajustes" | "relatores" | "patrocinadores" | "musica";
 
 function AdminPage() {
   const { isAdmin, loading, user } = useAuth();
@@ -50,6 +50,7 @@ function AdminPage() {
           {([
             { k: "equipos", label: "⚽ EQUIPOS" },
             { k: "relatores", label: "🎙️ RELATORES" },
+            { k: "musica", label: "🎵 MÚSICA" },
             { k: "patrocinadores", label: "🤝 PATROCINADORES" },
             { k: "ajustes", label: "⚙️ AJUSTES DEL JUEGO" },
           ] as { k: Tab; label: string }[]).map(t => (
@@ -64,6 +65,7 @@ function AdminPage() {
 
         {tab === "equipos" && <EquiposTab />}
         {tab === "relatores" && <RelatoresTab />}
+        {tab === "musica" && <MusicaTab />}
         {tab === "patrocinadores" && <SponsorsAdmin />}
         {tab === "ajustes" && <AjustesTab />}
       </main>
@@ -234,6 +236,117 @@ function RelatoresTab() {
   );
 }
 
+type MusicTrackRow = { id: string; title: string; artist: string; audio_url: string; cover_url: string | null; sort_order: number };
+function MusicaTab() {
+  const [tracks, setTracks] = useState<MusicTrackRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function load() {
+    setLoading(true);
+    const { data, error } = await (supabase.from("career_music_tracks" as any) as any).select("*").order("sort_order", { ascending: true });
+    if (error) setErr(error.message);
+    else setTracks((data ?? []) as MusicTrackRow[]);
+    setLoading(false);
+  }
+  useEffect(() => { load(); }, []);
+
+  async function addTrack() {
+    setErr(null);
+    const { data, error } = await (supabase.from("career_music_tracks" as any) as any)
+      .insert({ title: "Nueva canción", artist: "", audio_url: "", sort_order: tracks.length })
+      .select().single();
+    if (error) { setErr(error.message); return; }
+    setTracks(t => [...t, data as MusicTrackRow]);
+  }
+  async function updateField(id: string, patch: Partial<MusicTrackRow>) {
+    setTracks(t => t.map(x => x.id === id ? { ...x, ...patch } : x));
+    await (supabase.from("career_music_tracks" as any) as any).update(patch).eq("id", id);
+  }
+  async function deleteTrack(id: string) {
+    if (!confirm("¿Eliminar esta canción?")) return;
+    setErr(null);
+    const { error } = await (supabase.from("career_music_tracks" as any) as any).delete().eq("id", id);
+    if (error) { setErr(error.message); return; }
+    setTracks(t => t.filter(x => x.id !== id));
+  }
+  async function uploadAudio(id: string, file: File | undefined) {
+    if (!file) return;
+    setBusyId(id + "audio"); setErr(null);
+    try {
+      const ext = file.name.split(".").pop() || "mp3";
+      const path = `career-music/${id}/${Date.now()}.${ext}`;
+      const { error } = await supabase.storage.from("team-audios").upload(path, file, { upsert: true, contentType: file.type });
+      if (error) throw error;
+      const { data, error: sErr } = await supabase.storage.from("team-audios").createSignedUrl(path, 60 * 60 * 24 * 365 * 10);
+      if (sErr || !data) throw sErr ?? new Error("No se pudo firmar el audio");
+      await updateField(id, { audio_url: data.signedUrl });
+    } catch (e) { setErr((e as Error).message); }
+    finally { setBusyId(null); }
+  }
+  async function uploadCover(id: string, file: File | undefined) {
+    if (!file) return;
+    setBusyId(id + "cover"); setErr(null);
+    try {
+      const ext = file.name.split(".").pop() || "png";
+      const path = `career-music-covers/${id}-${Date.now()}.${ext}`;
+      const { error } = await supabase.storage.from("team-logos").upload(path, file, { upsert: true });
+      if (error) throw error;
+      const { data } = supabase.storage.from("team-logos").getPublicUrl(path);
+      await updateField(id, { cover_url: data.publicUrl });
+    } catch (e) { setErr((e as Error).message); }
+    finally { setBusyId(null); }
+  }
+
+  if (loading) return <div className="text-sm text-muted-foreground">Cargando música...</div>;
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground max-w-xl">
+          Música de fondo del <b>Modo Carrera</b> (no suena en otras pantallas). Se reproduce en orden al azar.
+          Cada jugador puede activarla/desactivarla, o silenciar canciones puntuales, desde Personalizar.
+        </p>
+        <Button onClick={addTrack}>+ Nueva canción</Button>
+      </div>
+      {err && <div className="text-xs text-destructive">{err}</div>}
+      {tracks.length === 0 && (
+        <div className="text-sm text-muted-foreground border border-dashed border-border rounded-lg p-6 text-center">
+          Todavía no hay canciones. Agregá una y subile el audio y la portada.
+        </div>
+      )}
+      <div className="grid gap-3">
+        {tracks.map(tr => (
+          <div key={tr.id} className="border border-border rounded-lg p-4 flex items-center gap-3">
+            {tr.cover_url ? (
+              <img src={tr.cover_url} alt="" className="w-14 h-14 rounded object-cover shrink-0" />
+            ) : (
+              <div className="w-14 h-14 rounded bg-muted grid place-items-center shrink-0 text-xs">sin portada</div>
+            )}
+            <div className="flex-1 grid sm:grid-cols-2 gap-2">
+              <Input value={tr.title} onChange={e => updateField(tr.id, { title: e.target.value })} placeholder="Nombre de la canción" />
+              <Input value={tr.artist} onChange={e => updateField(tr.id, { artist: e.target.value })} placeholder="Artista" />
+            </div>
+            <div className="flex flex-col gap-1 shrink-0 text-xs">
+              <label className="text-celeste underline cursor-pointer">
+                {busyId === tr.id + "audio" ? "Subiendo..." : tr.audio_url ? "Cambiar audio" : "+ Subir audio"}
+                <input type="file" accept="audio/*" hidden disabled={busyId === tr.id + "audio"}
+                  onChange={e => { uploadAudio(tr.id, e.target.files?.[0]); e.target.value = ""; }} />
+              </label>
+              <label className="text-celeste underline cursor-pointer">
+                {busyId === tr.id + "cover" ? "Subiendo..." : "+ Subir portada"}
+                <input type="file" accept="image/*" hidden disabled={busyId === tr.id + "cover"}
+                  onChange={e => { uploadCover(tr.id, e.target.files?.[0]); e.target.value = ""; }} />
+              </label>
+              {tr.audio_url && <audio src={tr.audio_url} controls className="h-7 mt-1" />}
+            </div>
+            <button onClick={() => deleteTrack(tr.id)} className="text-destructive text-xs hover:underline shrink-0">Eliminar</button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function EquiposTab() {
   const [editing, setEditing] = useState<Team | null>(null);
