@@ -31,6 +31,8 @@ import { SponsorsPanel } from "@/components/career/SponsorsPanel";
 import { buildCareerNews, nextRivals } from "@/lib/career-news";
 import { useTournament } from "@/store/tournament";
 import type { SponsorDeal } from "@/lib/sponsors";
+import { useCareerMusic, CareerMusicContext, useCareerMusicContext } from "@/lib/career-music";
+import { NowPlayingToast } from "@/components/career/NowPlayingToast";
 
 export const Route = createFileRoute("/carrera")({
   head: () => ({
@@ -1028,11 +1030,19 @@ function OficinaTab({ state, budget, season, onActivate, onAbandon, onSignSponso
 
 function PersonalizarTab({ teamId }: { teamId: string }) {
   const t = TEAMS_BY_ID[teamId];
+  const music = useCareerMusicContext();
   if (!t) return null;
   const kits = [
     { name: "Titular", primary: t.primary, secondary: t.secondary ?? "#111" },
     { name: "Alternativa", primary: t.secondary ?? "#111", secondary: t.primary },
   ];
+  const toggleTrack = (id: string) => {
+    if (!music) return;
+    const disabled = music.prefs.disabled_track_ids.includes(id)
+      ? music.prefs.disabled_track_ids.filter(x => x !== id)
+      : [...music.prefs.disabled_track_ids, id];
+    music.setPrefs({ ...music.prefs, disabled_track_ids: disabled });
+  };
   return (
     <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
       {kits.map((k, i) => (
@@ -1048,6 +1058,43 @@ function PersonalizarTab({ teamId }: { teamId: string }) {
         <div className="flex items-center gap-3"><Shield team={t} size={64} /><span className="font-display text-lg">{t.name}</span></div>
         <Link to="/equipos/$id" params={{ id: teamId }} className="mt-4 inline-block text-sm text-hud-green">Ver ficha del club →</Link>
       </div>
+
+      {/* Música de fondo del Modo Carrera */}
+      <div className="hud-rise hud-card p-5 sm:col-span-2 lg:col-span-3" style={{ animationDelay: "240ms" }}>
+        <div className="flex items-center justify-between mb-3">
+          <div className="text-[11px] uppercase tracking-[0.15em] text-muted-foreground">🎵 Música de fondo</div>
+          {music && (
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <span>{music.prefs.music_enabled ? "Activada" : "Desactivada"}</span>
+              <input type="checkbox" checked={music.prefs.music_enabled}
+                onChange={e => music.setPrefs({ ...music.prefs, music_enabled: e.target.checked })} />
+            </label>
+          )}
+        </div>
+        {!music || music.tracks.length === 0 ? (
+          <div className="text-xs text-muted-foreground">Todavía no hay canciones cargadas por el admin.</div>
+        ) : (
+          <div className={`grid sm:grid-cols-2 gap-2 ${!music.prefs.music_enabled ? "opacity-40 pointer-events-none" : ""}`}>
+            {music.tracks.map(track => {
+              const disabled = music.prefs.disabled_track_ids.includes(track.id);
+              return (
+                <label key={track.id} className="flex items-center gap-3 rounded-lg border border-border p-2 cursor-pointer hover:bg-secondary/40 transition">
+                  {track.cover_url ? (
+                    <img src={track.cover_url} alt="" className="w-9 h-9 rounded object-cover shrink-0" />
+                  ) : (
+                    <div className="w-9 h-9 rounded bg-secondary grid place-items-center shrink-0 text-sm">🎵</div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm truncate">{track.title}</div>
+                    <div className="text-xs text-muted-foreground truncate">{track.artist}</div>
+                  </div>
+                  <input type="checkbox" checked={!disabled} onChange={() => toggleTrack(track.id)} />
+                </label>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -1055,13 +1102,18 @@ function PersonalizarTab({ teamId }: { teamId: string }) {
 /* ============================ SHELL ============================ */
 
 function Shell({ children, hideNav }: { children: React.ReactNode; hideNav?: boolean }) {
+  // Música de fondo: solo se instancia acá, así que solo suena dentro de /carrera.
+  const music = useCareerMusic();
   return (
-    <div className="relative min-h-screen flex flex-col hud-shell" data-sfx-root>
-      <AmbientStadium />
-      <div className="relative z-10 flex flex-1 flex-col">
-        {!hideNav && <Nav />}
-        <main className="flex-1 w-full max-w-[1400px] mx-auto px-3 sm:px-6 py-5 hud-boot">{children}</main>
+    <CareerMusicContext.Provider value={music}>
+      <div className="relative min-h-screen flex flex-col hud-shell" data-sfx-root>
+        <AmbientStadium />
+        <div className="relative z-10 flex flex-1 flex-col">
+          {!hideNav && <Nav />}
+          <main className="flex-1 w-full max-w-[1400px] mx-auto px-3 sm:px-6 py-5 hud-boot">{children}</main>
+        </div>
+        <NowPlayingToast track={music.current} show={music.showToast} />
       </div>
-    </div>
+    </CareerMusicContext.Provider>
   );
 }
