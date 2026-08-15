@@ -440,7 +440,7 @@ function PesTeamSelect({
             <button
               onClick={() => itemRefs.current[list[Math.max(0, idx - 1)]?.id ?? ""]?.scrollIntoView({ behavior: "smooth", inline: "center" })}
               className="shrink-0 text-white/30 hover:text-celeste transition text-xl leading-none px-1">‹</button>
-            <div className="flex items-start gap-2 overflow-x-auto py-1 flex-1 [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:bg-white/15 [&::-webkit-scrollbar-thumb]:rounded-full">
+            <div className="flex items-start gap-2.5 overflow-x-auto py-1 flex-1 [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:bg-white/15 [&::-webkit-scrollbar-thumb]:rounded-full">
               {list.map((t, i) => {
                 const isSel = t.id === selected?.id;
                 return (
@@ -449,18 +449,18 @@ function PesTeamSelect({
                     ref={el => { itemRefs.current[t.id] = el; }}
                     onClick={() => { sfx.select(); setSelected(t); }}
                     title={t.name}
-                    className="shrink-0 w-20 flex flex-col items-center gap-1"
+                    className="shrink-0 w-24 flex flex-col items-center gap-1.5"
                   >
                     <div
-                      className={`w-16 h-16 flex items-center justify-center rounded transition-all duration-150 ease-out ${
+                      className={`w-24 h-24 flex items-center justify-center rounded transition-all duration-150 ease-out ${
                         isSel
                           ? "scale-105 bg-white/10 border-2 border-celeste shadow-[0_0_18px_-3px_rgba(56,189,248,0.9)]"
                           : "scale-90 bg-white/[0.03] border border-white/10 opacity-55 hover:opacity-90"
                       }`}
                     >
-                      <Shield team={t} size={isSel ? 40 : 30} />
+                      <Shield team={t} size={isSel ? 58 : 44} />
                     </div>
-                    <span className={`text-[9px] uppercase tracking-wide truncate w-full text-center ${isSel ? "text-celeste" : "text-white/35"}`}>{t.short}</span>
+                    <span className={`text-[10px] uppercase tracking-wide truncate w-full text-center ${isSel ? "text-celeste" : "text-white/35"}`}>{t.short}</span>
                   </button>
                 );
               })}
@@ -529,28 +529,28 @@ function PesPanel({ label, zone, team, kit, onKit, active, onClick }: {
       className={`cursor-pointer transition-all duration-200 ${active ? "bg-white/[0.05]" : "bg-transparent hover:bg-white/[0.02]"}`}
     >
       {/* Barra tipo "liga" (acá: zona) — equivalente a la franja superior de la referencia */}
-      <div className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#11151d] to-[#0a0c11] border-b border-white/10">
+      <div className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-[#11151d] to-[#0a0c11] border-b border-white/10">
         <span className="w-2 h-2 rounded-full shrink-0" style={{ background: zone === "A" ? "#38bdf8" : "#f5b400" }} />
         <span className="text-[11px] uppercase tracking-[0.2em] text-white/60 font-semibold truncate">Zona {zone} · Primera Nacional</span>
       </div>
       {/* Barra LOCAL/VISITANTE, se enciende cuando este panel tiene el foco */}
-      <div className={`px-4 py-1.5 text-[11px] uppercase tracking-[0.3em] border-b transition-colors ${active ? "text-celeste border-celeste/40 bg-celeste/[0.06]" : "text-white/35 border-white/10"}`}>
+      <div className={`px-5 py-2.5 text-[11px] uppercase tracking-[0.3em] border-b transition-colors ${active ? "text-celeste border-celeste/40 bg-celeste/[0.06]" : "text-white/35 border-white/10"}`}>
         {label}
       </div>
 
       {displayed ? (
-        <div key={displayed.id} className="pes-pop px-5 pt-5 pb-5 flex flex-col items-center text-center">
+        <div key={displayed.id} className="pes-pop px-6 pt-7 pb-7 flex flex-col items-center text-center">
           <div className="transition-transform duration-200 ease-out" style={{ transform: active ? "scale(1.06)" : "scale(1)" }}>
-            <Shield team={displayed} size={84} />
+            <Shield team={displayed} size={116} />
           </div>
-          <div className="font-display text-xl text-white mt-3 tracking-wide">{displayed.name.toUpperCase()}</div>
-          <div className="text-[11px] text-white/40 mt-0.5">{displayed.city}</div>
+          <div className="font-display text-2xl text-white mt-5 tracking-wide">{displayed.name.toUpperCase()}</div>
+          <div className="text-[11px] text-white/40 mt-1">{displayed.city}</div>
 
-          <div className="flex flex-col gap-1.5 mt-4 text-left w-full max-w-[260px]">
+          <div className="flex flex-col gap-2.5 mt-6 text-left w-full max-w-[260px]">
             {statRows.map(([lbl, val]) => {
               const g = statGrade(val);
               return (
-                <div key={lbl} className="flex items-center gap-2 text-[12px]">
+                <div key={lbl} className="flex items-center gap-3 text-[12px]">
                   <span className="text-white/45 w-7 shrink-0">{lbl}</span>
                   <span className="text-white font-semibold tabular-nums w-6 shrink-0">{val}</span>
                   <span className="font-display text-[11px] w-4 shrink-0 text-center" style={{ color: g.color }}>{g.letter}</span>
@@ -562,7 +562,7 @@ function PesPanel({ label, zone, team, kit, onKit, active, onClick }: {
             })}
           </div>
 
-          <div className="mt-4 flex rounded border border-white/15 bg-black/30 p-0.5 w-[180px]" onClick={e => e.stopPropagation()}>
+          <div className="mt-6 flex rounded border border-white/15 bg-black/30 p-0.5 w-[180px]" onClick={e => e.stopPropagation()}>
             {(["titular", "alternativa"] as Kit[]).map(k => (
               <button key={k} onClick={() => onKit(k)}
                 className={`flex-1 px-2 py-1 rounded-sm text-[11px] capitalize transition ${kit === k ? "bg-celeste text-primary-foreground" : "text-white/50 hover:bg-white/10"}`}>
