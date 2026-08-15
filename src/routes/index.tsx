@@ -150,57 +150,106 @@ function PesHub({ user, username, isAdmin }: { user: unknown; username: string |
         <TeamsMarquee />
       </div>
 
-      {/* ===== Cinta hub inferior: navegación fluida entre secciones ===== */}
+      {/* ===== Cinta hub inferior: navegación fluida entre secciones (grande, como la referencia) ===== */}
       <div className="relative z-10">
         <div className="border-t-2 border-celeste bg-gradient-to-r from-black via-[#050a14] to-black">
           <div className="flex items-stretch">
-            {/* Fila de íconos con indicador deslizante (sin "reflow" al cambiar selección) */}
-            <div className="relative flex-1 flex items-stretch px-2 py-2">
-              {/* Resaltado que se desliza suavemente hacia el ítem activo */}
-              <div
-                className="absolute inset-y-2 rounded-lg bg-celeste/15 border border-celeste/60 shadow-[0_0_22px_-4px_rgba(56,189,248,0.6)] transition-all duration-300 ease-out"
-                style={{ left: `${(selected / items.length) * 100}%`, width: `${100 / items.length}%` }}
-              />
-              {items.map((item, i) => {
-                const active = i === selected;
-                return (
-                  <button
-                    key={item.id}
-                    onMouseEnter={() => setSelected(i)}
-                    onClick={() => { setSelected(i); go(item); }}
-                    className="relative z-10 flex-1 flex flex-col items-center justify-center gap-1.5 px-2 py-3 transition-all duration-300"
-                  >
-                    <item.icon
-                      size={active ? 24 : 18}
-                      className={`transition-all duration-300 ${active ? "text-celeste drop-shadow-[0_0_8px_rgba(56,189,248,0.8)]" : "text-white/50"}`}
-                    />
-                    <span className={`text-[9px] md:text-[10px] tracking-wide whitespace-nowrap transition-colors duration-300 ${active ? "text-celeste" : "text-white/40"}`}>
-                      {item.label}
-                    </span>
-                  </button>
-                );
-              })}
+            {/* Panel grande a la izquierda: pelota con estela + nombre del modo activo */}
+            <div
+              className="relative shrink-0 w-[210px] md:w-[260px] flex flex-col items-center justify-center gap-3 py-8 overflow-hidden"
+              style={{ clipPath: "polygon(0 0, 88% 0, 100% 50%, 88% 100%, 0 100%)" }}
+            >
+              <span className="absolute inset-0 bg-celeste/10" />
+              <span className="absolute inset-0 border-2 border-r-0 border-celeste/70 shadow-[0_0_30px_-6px_rgba(56,189,248,0.7)]" />
+              <div key={current.id} className="hud-rise relative flex flex-col items-center gap-2">
+                <BallIcon size={56} />
+                <span className="font-display text-lg md:text-xl tracking-wide text-celeste text-center px-2">{current.label}</span>
+              </div>
             </div>
 
-            {/* Config + sonido */}
-            <div className="hidden md:flex items-center gap-2 pl-2 pr-6 border-l border-white/10">
-              <button className="hud-card flex items-center gap-2 px-3 py-2 rounded-lg border border-white/15 hover:border-celeste/50 hover:bg-white/5 transition-colors text-left">
-                <Settings size={16} className="text-celeste" />
+            {/* Título + fila de íconos con indicador deslizante */}
+            <div className="flex-1 flex flex-col justify-center py-4 md:py-5 pl-6 md:pl-10 pr-4 border-l border-white/10">
+              <div key={`${current.id}-title`} className="hud-rise">
+                <div className="font-display text-2xl md:text-3xl tracking-wide">{current.label}</div>
+                <div className="h-px w-24 bg-celeste/70 mt-1 mb-4" />
+              </div>
+              <div className="relative flex items-stretch">
+                <div
+                  className="absolute inset-y-1 rounded-lg bg-celeste/15 border border-celeste/50 shadow-[0_0_20px_-4px_rgba(56,189,248,0.55)] transition-all duration-300 ease-out"
+                  style={{ left: `${(selected / items.length) * 100}%`, width: `${100 / items.length}%` }}
+                />
+                {items.map((item, i) => {
+                  const active = i === selected;
+                  return (
+                    <button
+                      key={item.id}
+                      onMouseEnter={() => setSelected(i)}
+                      onClick={() => { setSelected(i); go(item); }}
+                      className="relative z-10 flex-1 flex flex-col items-center justify-center gap-2 px-2 py-3 transition-all duration-300"
+                    >
+                      <item.icon
+                        size={active ? 30 : 24}
+                        className={`transition-all duration-300 ${active ? "text-celeste drop-shadow-[0_0_10px_rgba(56,189,248,0.8)]" : "text-white/60"}`}
+                      />
+                      <span className={`text-[10px] md:text-xs tracking-wide whitespace-nowrap transition-colors duration-300 ${active ? "text-celeste" : "text-white/50"}`}>
+                        {item.label}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Descripción + config/sonido, en una franja propia más alta */}
+          <div className="bg-black px-6 md:px-10 py-4 md:py-5 flex items-center justify-between gap-4 border-t border-white/10">
+            <span key={`${current.id}-desc`} className="hud-rise text-sm md:text-base text-white/70">{current.desc}</span>
+            <div className="hidden md:flex items-center gap-2 shrink-0">
+              <button className="hud-card flex items-center gap-2 px-4 py-2.5 rounded-lg border border-white/15 hover:border-celeste/50 hover:bg-white/5 transition-colors text-left">
+                <Settings size={18} className="text-celeste" />
                 <span className="leading-tight">
                   <span className="block text-xs font-semibold">Configuración</span>
                   <span className="block text-[10px] text-white/50">Ajustes del juego</span>
                 </span>
               </button>
-              <button aria-label="Música" className="w-9 h-9 rounded-lg border border-white/15 hover:border-celeste/50 hover:bg-white/5 transition-colors grid place-items-center">
-                <Music size={16} className="text-white/80" />
+              <button aria-label="Música" className="w-10 h-10 rounded-lg border border-white/15 hover:border-celeste/50 hover:bg-white/5 transition-colors grid place-items-center">
+                <Music size={18} className="text-white/80" />
               </button>
-              <button aria-label="Sonido" className="w-9 h-9 rounded-lg border border-white/15 hover:border-celeste/50 hover:bg-white/5 transition-colors grid place-items-center">
-                <Volume2 size={16} className="text-white/80" />
+              <button aria-label="Sonido" className="w-10 h-10 rounded-lg border border-white/15 hover:border-celeste/50 hover:bg-white/5 transition-colors grid place-items-center">
+                <Volume2 size={18} className="text-white/80" />
               </button>
             </div>
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// Pelota con estela celeste, como el ícono grande del panel activo en la referencia.
+function BallIcon({ size = 56 }: { size?: number }) {
+  return (
+    <div className="relative" style={{ width: size, height: size }}>
+      <svg viewBox="0 0 100 140" className="absolute -left-[70%] top-0 w-[170%] h-full opacity-80" style={{ filter: "blur(1px)" }}>
+        <path d="M100 20 C 60 40, 40 60, 20 70 C 40 80, 60 100, 100 120" fill="none" stroke="url(#ballTrail)" strokeWidth="14" strokeLinecap="round" />
+        <defs>
+          <linearGradient id="ballTrail" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor="#38bdf8" stopOpacity="0" />
+            <stop offset="100%" stopColor="#38bdf8" stopOpacity="0.85" />
+          </linearGradient>
+        </defs>
+      </svg>
+      <div className="absolute inset-0 rounded-full bg-celeste/40 blur-xl" />
+      <svg viewBox="0 0 100 100" className="relative w-full h-full drop-shadow-[0_0_16px_rgba(56,189,248,0.75)]">
+        <circle cx="50" cy="50" r="46" fill="#f3f3f3" stroke="#141414" strokeWidth="3" />
+        <circle cx="50" cy="50" r="14" fill="#141414" />
+        {[0, 72, 144, 216, 288].map((deg, i) => {
+          const rad = (deg * Math.PI) / 180;
+          const cx = 50 + Math.cos(rad) * 27;
+          const cy = 50 + Math.sin(rad) * 27;
+          return <circle key={i} cx={cx} cy={cy} r="9" fill="#1a1a1a" />;
+        })}
+      </svg>
     </div>
   );
 }
