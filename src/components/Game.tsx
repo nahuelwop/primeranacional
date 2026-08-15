@@ -28,6 +28,7 @@ type Props = {
   initialNarratorVol?: number;
   initialCrowdVol?: number;
   onEnd: (hg: number, ag: number, stats: MatchStats) => void;
+  onExit?: () => void; // "Salir del partido" desde el menú de pausa
 };
 export type MatchStats = {
   possessionH: number; // 0..100
@@ -51,7 +52,7 @@ const ScoreColorBars = ({ team, reverse = false }: { team: Team; reverse?: boole
   </div>
 );
 // Football Heads style arcade — sin poderes, físicas con postes y travesaño.
-export function Game({ home, away, duration = 60, weather = "clear", aiDifficulty = "normal", mode = "1vAI", sharedNarrator = false, crowdIntensity = "normal", matchLabel, startingScore, cancelOpponentGoals = 0, doubleGoalChance = 0, initialSharedName, initialHomeNarratorId, initialAwayNarratorId, initialNarratorVol, initialCrowdVol, onEnd }: Props) {
+export function Game({ home, away, duration = 60, weather = "clear", aiDifficulty = "normal", mode = "1vAI", sharedNarrator = false, crowdIntensity = "normal", matchLabel, startingScore, cancelOpponentGoals = 0, doubleGoalChance = 0, initialSharedName, initialHomeNarratorId, initialAwayNarratorId, initialNarratorVol, initialCrowdVol, onEnd, onExit }: Props) {
   const ref = useRef<HTMLCanvasElement>(null);
   const [score, setScore] = useState({ h: startingScore?.h ?? 0, a: startingScore?.a ?? 0 });
   const [time, setTime] = useState(duration);
@@ -61,6 +62,21 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
   const stateRef = useRef({ h: startingScore?.h ?? 0, a: startingScore?.a ?? 0, posH: 0, posA: 0, shotsH: 0, shotsA: 0, otH: 0, otA: 0, savH: 0, savA: 0 });
   const overRef = useRef(false);
   const pauseClockRef = useRef(false);
+  // Menú de pausa
+  const [paused, setPaused] = useState(false);
+  const pausedRef = useRef(false);
+  useEffect(() => { pausedRef.current = paused; }, [paused]);
+  const [showSettings, setShowSettings] = useState(false);
+  const [confirmExit, setConfirmExit] = useState(false);
+  useEffect(() => {
+    if (paused) {
+      narratorRef.current?.pause();
+      crowdRef.current?.pause();
+    } else {
+      narratorRef.current?.play().catch(() => {});
+      crowdRef.current?.play().catch(() => {});
+    }
+  }, [paused]);
   // Audio: relato + hinchada (volumen ajustable en vivo, refs evitan stale closures)
   const [narratorVol, setNarratorVol] = useState(initialNarratorVol ?? 0.9);
   const [crowdVol, setCrowdVol] = useState(initialCrowdVol ?? 0.35);
@@ -482,6 +498,7 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
     const onKey = (e: KeyboardEvent, down: boolean) => {
       keys[e.key.toLowerCase()] = down;
       if ([" ", "arrowup", "arrowdown", "arrowleft", "arrowright"].includes(e.key.toLowerCase())) e.preventDefault();
+      if (down && e.key === "Escape" && !overRef.current) setPaused(p => !p);
     };
     const kd = (e: KeyboardEvent) => onKey(e, true);
     const ku = (e: KeyboardEvent) => onKey(e, false);
@@ -1239,6 +1256,7 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
     const stepMs = 1000 / 60;
     const loop = (now = performance.now()) => {
       if (overRef.current) return;
+      if (pausedRef.current) { raf = requestAnimationFrame(loop); return; }
       acc += Math.min(50, now - last);
       last = now;
       while (acc >= stepMs) { update(); acc -= stepMs; }
@@ -1249,7 +1267,7 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
     advanceCrowdSegment(duration);
     const tick = setInterval(() => {
       setTime(t => {
-        if (pauseClockRef.current) return t;
+        if (pauseClockRef.current || pausedRef.current) return t;
         const next = t - 1;
         advanceCrowdSegment(next);
         if (t <= 1) {
@@ -1321,6 +1339,84 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
             <div className="px-5 py-2 rounded-xl bg-black/85 border-2 border-accent text-accent font-display text-xl tracking-wider">
               {varMsg}
             </div>
+          </div>
+        )}
+
+        {!paused && (
+          <button
+            onClick={() => setPaused(true)}
+            aria-label="Pausar partido"
+            className="absolute top-3 right-3 w-9 h-9 rounded-lg bg-black/60 border border-white/20 text-white grid place-items-center hover:bg-black/80 hover:border-celeste/60 transition-colors"
+          >
+            ⏸️
+          </button>
+        )}
+
+        {paused && (
+          <div className="absolute inset-0 rounded-2xl bg-black/80 backdrop-blur-sm flex items-center justify-center z-20 animate-fade-in">
+            {!showSettings && !confirmExit && (
+              <div className="text-center w-full max-w-xs px-4">
+                <div className="font-display text-2xl tracking-[0.25em] text-celeste mb-1">⏸️ PARTIDO PAUSADO</div>
+                <div className="text-xs text-muted-foreground mb-6">{home.short} {score.h} - {score.a} {away.short}</div>
+                <div className="flex flex-col gap-2.5">
+                  <button onClick={() => setPaused(false)}
+                    className="px-6 py-3 rounded-xl bg-celeste text-primary-foreground font-display tracking-widest hover:brightness-110 transition-all">
+                    CONTINUAR
+                  </button>
+                  <button onClick={() => setShowSettings(true)}
+                    className="px-6 py-3 rounded-xl bg-card border border-border font-display tracking-widest hover:bg-secondary transition-all">
+                    CONFIGURACIÓN
+                  </button>
+                  <button onClick={() => setConfirmExit(true)}
+                    className="px-6 py-3 rounded-xl bg-transparent border border-destructive/50 text-destructive font-display tracking-widest hover:bg-destructive/10 transition-all">
+                    SALIR DEL PARTIDO
+                  </button>
+                </div>
+                <div className="text-[10px] text-muted-foreground mt-4">Tecla ESC: pausar / reanudar</div>
+              </div>
+            )}
+
+            {showSettings && (
+              <div className="text-center w-full max-w-xs px-4">
+                <div className="font-display text-xl tracking-widest text-celeste mb-4">CONFIGURACIÓN</div>
+                <div className="space-y-4 text-left">
+                  <label className="flex items-center gap-2 text-xs">
+                    <span className="w-16 uppercase tracking-wider text-muted-foreground shrink-0">Relato</span>
+                    <input type="range" min={0} max={1} step={0.05} value={narratorVol}
+                      onChange={e => setNarratorVol(Number(e.target.value))} className="flex-1" />
+                    <span className="w-8 text-right tabular-nums">{Math.round(narratorVol * 100)}</span>
+                  </label>
+                  <label className="flex items-center gap-2 text-xs">
+                    <span className="w-16 uppercase tracking-wider text-muted-foreground shrink-0">Hinchada</span>
+                    <input type="range" min={0} max={1} step={0.05} value={crowdVol}
+                      onChange={e => setCrowdVol(Number(e.target.value))} className="flex-1" />
+                    <span className="w-8 text-right tabular-nums">{Math.round(crowdVol * 100)}</span>
+                  </label>
+                </div>
+                <button onClick={() => setShowSettings(false)}
+                  className="mt-6 px-6 py-2.5 rounded-xl bg-card border border-border font-display tracking-widest hover:bg-secondary transition-all w-full">
+                  VOLVER
+                </button>
+              </div>
+            )}
+
+            {confirmExit && (
+              <div className="text-center w-full max-w-xs px-4">
+                <div className="font-display text-lg text-destructive mb-2">¿Salir del partido?</div>
+                <div className="text-xs text-muted-foreground mb-6">Vas a perder el progreso de este partido. No se puede deshacer.</div>
+                <div className="flex flex-col gap-2.5">
+                  <button
+                    onClick={() => { overRef.current = true; if (onExit) onExit(); else window.history.back(); }}
+                    className="px-6 py-3 rounded-xl bg-destructive text-white font-display tracking-widest hover:brightness-110 transition-all">
+                    SÍ, SALIR
+                  </button>
+                  <button onClick={() => setConfirmExit(false)}
+                    className="px-6 py-3 rounded-xl bg-card border border-border font-display tracking-widest hover:bg-secondary transition-all">
+                    CANCELAR
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
