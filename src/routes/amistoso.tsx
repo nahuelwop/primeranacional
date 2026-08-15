@@ -155,8 +155,10 @@ function AmistosoPage() {
         <div className="absolute inset-0 shadow-[inset_0_0_200px_80px_rgba(0,0,0,0.85)]" />
 
         <main className="relative z-10 max-w-6xl w-full mx-auto px-4 py-8">
-        <h1 className="font-display text-5xl text-white">AMISTOSO</h1>
-        <p className="text-white/50 text-sm mt-1">Elegí los equipos y el modo. Partido de 60 segundos.</p>
+        <div className="text-center mb-2">
+          <div className="font-display text-2xl text-white tracking-wide">PRIMERA <span className="text-celeste">HEADS</span></div>
+          <div className="text-[11px] uppercase tracking-[0.35em] text-white/40 mt-0.5">Amistoso</div>
+        </div>
 
         {result && (
           <div className="mt-4 p-4 rounded-xl bg-card border border-border">
@@ -369,9 +371,21 @@ function PesTeamSelect({
 
       {phase === "zone" ? (
         /* ===== Pantalla de selección de ZONA (equivalente a elegir liga) ===== */
-        <div className="border-t border-white/10 bg-[#07080c] px-4 py-5">
-          <div className="text-[11px] uppercase tracking-[0.2em] text-white/40 text-center mb-3">
-            Eligiendo {focus === "home" ? "LOCAL" : "VISITANTE"} · elegí la zona
+        <div className="border-t border-white/10 bg-[#07080c] px-4 py-6">
+          <div className="text-center mb-1">
+            <div className="font-display text-2xl text-white tracking-wide">ELEGIR ZONA</div>
+            <div className="text-xs text-white/40 mt-0.5">
+              Seleccioná la zona donde querés jugar · {focus === "home" ? "LOCAL" : "VISITANTE"}
+            </div>
+          </div>
+          {/* Emblema central, como el escudo de liga en la referencia */}
+          <div className="flex justify-center my-3">
+            <div className="relative w-14 h-14 shrink-0">
+              <div className="absolute inset-0 rounded-lg bg-celeste blur-md opacity-50" />
+              <div className="relative w-14 h-14 rounded-lg bg-gradient-to-br from-celeste via-celeste to-white grid place-items-center font-display text-lg text-primary-foreground shadow-lg">
+                PN
+              </div>
+            </div>
           </div>
           <div className="grid sm:grid-cols-2 gap-3 max-w-xl mx-auto">
             {([
