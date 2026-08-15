@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Shield } from "@/components/Shield";
 import { Team, type Narrator } from "@/data/teams";
 import { supabase } from "@/integrations/supabase/client";
+import { useGameSettings } from "@/lib/game-settings";
 import allBoysStandBg from "@/assets/allboys-islas-malvinas.png";
 import colonStandBg from "@/assets/colon-estadio.png";
 import quilmesStandBg from "@/assets/quilmes-centenario-lleno.jpg";
@@ -86,6 +87,11 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
   useEffect(() => { pausedRef.current = paused; }, [paused]);
   const [showSettings, setShowSettings] = useState(false);
   const [confirmExit, setConfirmExit] = useState(false);
+  // Pantalla de resultado final (pitido + fundido a negro con escudos y marcador)
+  const [finalScreen, setFinalScreen] = useState<{ h: number; a: number } | null>(null);
+  const { settings: gameSettings } = useGameSettings();
+  const whistleUrlRef = useRef<string | null>(gameSettings.whistle_audio_url);
+  useEffect(() => { whistleUrlRef.current = gameSettings.whistle_audio_url; }, [gameSettings.whistle_audio_url]);
   useEffect(() => {
     if (paused) {
       narratorRef.current?.pause();
@@ -1311,7 +1317,29 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
             onTargetH: stateRef.current.otH, onTargetA: stateRef.current.otA,
             savesH: stateRef.current.savH, savesA: stateRef.current.savA,
           };
-          onEnd(stateRef.current.h, stateRef.current.a, finalStats);
+          const finalH = stateRef.current.h, finalA = stateRef.current.a;
+          // Pitido del árbitro (si hay uno subido desde el admin) y recién después,
+          // pantalla negra con escudos + resultado, que se queda ~2.2s antes de avisar
+          // al resto de la app. Sin pitido cargado, va directo a la pantalla negra.
+          // (nunca se corta en seco el marcador de la cancha)
+          const whistleUrl = whistleUrlRef.current;
+          let finalTriggered = false;
+          const showFinalScreenThenEnd = () => {
+            if (finalTriggered) return;
+            finalTriggered = true;
+            setFinalScreen({ h: finalH, a: finalA });
+            setTimeout(() => onEnd(finalH, finalA, finalStats), 2200);
+          };
+          if (whistleUrl) {
+            const whistle = new Audio(whistleUrl);
+            whistle.volume = 0.9;
+            whistle.addEventListener("ended", showFinalScreenThenEnd, { once: true });
+            whistle.play().catch(() => showFinalScreenThenEnd());
+            // Por si el navegador no dispara "ended" (archivo raro, etc.), red de seguridad.
+            setTimeout(showFinalScreenThenEnd, 4000);
+          } else {
+            showFinalScreenThenEnd();
+          }
           return 0;
         }
         return next;
@@ -1362,6 +1390,24 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
       </div>
       <div className="relative w-full max-w-6xl">
         <canvas ref={ref} width={1400} height={520} className="w-full rounded-2xl border-2 border-border bg-black" />
+
+        {finalScreen && (
+          <div className="absolute inset-0 rounded-2xl bg-black z-30 flex items-center justify-center animate-fade-in">
+            <div className="flex items-center gap-6 sm:gap-12 px-4">
+              <div className="flex flex-col items-center gap-3">
+                <Shield team={home} size={72} />
+                <span className="font-display text-sm sm:text-base tracking-widest text-muted-foreground uppercase">{home.short}</span>
+              </div>
+              <div className="font-display text-5xl sm:text-7xl tracking-widest text-white tabular-nums">
+                {finalScreen.h} <span className="text-muted-foreground text-3xl sm:text-5xl">-</span> {finalScreen.a}
+              </div>
+              <div className="flex flex-col items-center gap-3">
+                <Shield team={away} size={72} />
+                <span className="font-display text-sm sm:text-base tracking-widest text-muted-foreground uppercase">{away.short}</span>
+              </div>
+            </div>
+          </div>
+        )}
         {varMsg && (
           <div className="absolute inset-x-0 top-4 flex justify-center pointer-events-none animate-fade-in">
             <div className="px-5 py-2 rounded-xl bg-black/85 border-2 border-accent text-accent font-display text-xl tracking-wider">
