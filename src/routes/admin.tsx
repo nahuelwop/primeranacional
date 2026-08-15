@@ -444,11 +444,27 @@ function AjustesTab() {
     finally { setBusy(false); }
   }
 
+  async function uploadWhistleFile(file: File) {
+    setBusy(true); setErr(null); setMsg(null);
+    try {
+      const ext = file.name.split(".").pop() || "mp3";
+      const path = `whistle/final-whistle-${Date.now()}.${ext}`;
+      const { error } = await supabase.storage.from("team-audios").upload(path, file, { upsert: true, contentType: file.type });
+      if (error) throw error;
+      const { data, error: sErr } = await supabase.storage.from("team-audios").createSignedUrl(path, 60 * 60 * 24 * 365 * 10);
+      if (sErr || !data) throw sErr ?? new Error("No se pudo firmar el audio");
+      set("whistle_audio_url", data.signedUrl);
+      setMsg("Pitido subido. Recordá guardar los cambios.");
+    } catch (e) { setErr((e as Error).message); }
+    finally { setBusy(false); }
+  }
+
   async function save() {
     setBusy(true); setErr(null); setMsg(null);
     try {
       await saveGameSettings({
         intro_video_url: settings.intro_video_url,
+        whistle_audio_url: settings.whistle_audio_url,
         coimas_enabled: settings.coimas_enabled,
         coimas_flags: settings.coimas_flags,
         anular_goles_ratio: settings.anular_goles_ratio,
@@ -481,6 +497,29 @@ function AjustesTab() {
           </div>
           {settings.intro_video_url && (
             <video src={settings.intro_video_url} controls className="w-full max-h-64 rounded-lg border border-border mt-2" />
+          )}
+        </div>
+      </section>
+
+      {/* Pitido final */}
+      <section className="rounded-2xl bg-card border border-border p-5">
+        <h2 className="font-display text-xl mb-1">🟡 Pitido final del árbitro</h2>
+        <p className="text-xs text-muted-foreground mb-3">Sonido que se escucha al terminar cada partido, justo antes de que aparezca la pantalla de resultado. Si está vacío, no suena nada (queda como antes).</p>
+        <div className="space-y-2">
+          <label className="text-xs text-muted-foreground uppercase">URL del audio (MP3/WAV)</label>
+          <Input value={settings.whistle_audio_url ?? ""} onChange={e => set("whistle_audio_url", e.target.value || null)} placeholder="https://..." />
+          <div className="flex items-center gap-3">
+            <label className="text-xs text-celeste underline inline-block cursor-pointer">
+              o subir archivo desde tu PC
+              <input type="file" accept="audio/*" hidden
+                onChange={e => e.target.files?.[0] && uploadWhistleFile(e.target.files[0])} />
+            </label>
+            {settings.whistle_audio_url && (
+              <button onClick={() => set("whistle_audio_url", null)} className="text-xs text-destructive hover:underline">Quitar audio</button>
+            )}
+          </div>
+          {settings.whistle_audio_url && (
+            <audio src={settings.whistle_audio_url} controls className="w-full mt-2" />
           )}
         </div>
       </section>
