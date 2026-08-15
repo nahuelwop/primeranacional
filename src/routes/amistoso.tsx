@@ -358,9 +358,7 @@ function PesTeamSelect({
         @keyframes pes-pop { 0% { transform: scale(0.93); opacity: 0.4; filter: brightness(1.6); } 100% { transform: scale(1); opacity: 1; filter: brightness(1); } }
         .pes-pop { animation: pes-pop 220ms cubic-bezier(.2,.9,.25,1); }
       `}</style>
-      <div className="grid md:grid-cols-2 relative">
-        {/* línea divisoria central, como en la referencia */}
-        <div className="hidden md:block absolute left-1/2 top-0 bottom-0 w-px bg-white/10" />
+      <div className="grid md:grid-cols-2 gap-2 md:gap-3 p-2 md:p-3 pb-0 md:pb-0">
         <PesPanel label="LOCAL" zone={zoneHome} team={home} kit={homeKit} onKit={onHomeKit}
           active={focus === "home"} onClick={() => setFocus("home")} />
         <PesPanel label="VISITANTE" zone={zoneAway} team={away} kit={awayKit} onKit={onAwayKit}
@@ -526,7 +524,7 @@ function PesPanel({ label, zone, team, kit, onKit, active, onClick }: {
       tabIndex={0}
       onClick={onClick}
       onKeyDown={e => { if (e.key === "Enter" || e.key === " ") onClick(); }}
-      className={`cursor-pointer transition-all duration-200 ${active ? "bg-white/[0.05]" : "bg-transparent hover:bg-white/[0.02]"}`}
+      className={`cursor-pointer transition-all duration-200 rounded-md border overflow-hidden ${active ? "bg-white/[0.05] border-celeste/30" : "bg-white/[0.015] border-white/10 hover:border-white/20"}`}
     >
       {/* Barra tipo "liga" (acá: zona) — equivalente a la franja superior de la referencia */}
       <div className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-[#11151d] to-[#0a0c11] border-b border-white/10">
