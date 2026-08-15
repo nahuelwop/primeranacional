@@ -4,6 +4,7 @@ import { Team, type Narrator } from "@/data/teams";
 import { supabase } from "@/integrations/supabase/client";
 import allBoysStandBg from "@/assets/allboys-islas-malvinas.png";
 import colonStandBg from "@/assets/colon-estadio.png";
+import quilmesStandBg from "@/assets/quilmes-centenario-lleno.jpg";
 export type Weather = "clear" | "rain" | "wind" | "thunder" | "fog";
 export type Difficulty = "easy" | "normal" | "hard" | "expert";
 export type Mode = "1v1" | "1vAI";
@@ -44,6 +45,11 @@ export type MatchStats = {
 const STADIUM_THEMES: Record<string, { img: string; vAnchor: number; crowdBand: { top: number; bottom: number }; shieldExclude?: { halfW: number; top: number; bottom: number }; crowdOverlay?: boolean }> = {
   allboys: { img: allBoysStandBg, vAnchor: 0.18, crowdBand: { top: 150, bottom: 400 }, shieldExclude: { halfW: 130, top: 150, bottom: 330 } },
   colon: { img: colonStandBg, vAnchor: 0.38, crowdBand: { top: 265, bottom: 400 }, crowdOverlay: false },
+  // Estadio Centenario de Quilmes (tribuna "El Tigre del Sur"): foto real a pleno, con el
+  // cartel "QUILMES AC", sponsors, la hinchada y los trapos de La Barra de Quilmes ya
+  // integrados en la propia foto. crowdOverlay: false -> no se dibuja nada encima (igual
+  // que Colón), para no ensuciar la foto con las figuras genéricas del motor.
+  quilmes: { img: quilmesStandBg, vAnchor: 0.18, crowdBand: { top: 180, bottom: 400 }, crowdOverlay: false },
 };
 const ScoreColorBars = ({ team, reverse = false }: { team: Team; reverse?: boolean }) => (
   <div className="score-color-bars" aria-hidden="true">
