@@ -77,6 +77,7 @@ export type Database = {
           id: string
           intro_video_url: string | null
           updated_at: string
+          whistle_audio_url: string | null
         }
         Insert: {
           anular_goles_ratio?: number
@@ -86,6 +87,7 @@ export type Database = {
           id?: string
           intro_video_url?: string | null
           updated_at?: string
+          whistle_audio_url?: string | null
         }
         Update: {
           anular_goles_ratio?: number
@@ -95,6 +97,7 @@ export type Database = {
           id?: string
           intro_video_url?: string | null
           updated_at?: string
+          whistle_audio_url?: string | null
         }
         Relationships: []
       }
