@@ -155,10 +155,8 @@ function AmistosoPage() {
         <div className="absolute inset-0 shadow-[inset_0_0_200px_80px_rgba(0,0,0,0.85)]" />
 
         <main className="relative z-10 max-w-6xl w-full mx-auto px-4 py-8">
-        <div className="text-center mb-2">
-          <div className="font-display text-2xl text-white tracking-wide">PRIMERA <span className="text-celeste">HEADS</span></div>
-          <div className="text-[11px] uppercase tracking-[0.35em] text-white/40 mt-0.5">Amistoso</div>
-        </div>
+        <h1 className="font-display text-5xl text-white">AMISTOSO</h1>
+        <p className="text-white/50 text-sm mt-1">Elegí los equipos y el modo. Partido de 60 segundos.</p>
 
         {result && (
           <div className="mt-4 p-4 rounded-xl bg-card border border-border">
@@ -240,13 +238,13 @@ function useMenuSfx() {
   }, []);
 }
 
-// Color de "grado" por valor de stat — puramente visual, calculado del número,
-// evoca los íconos de nivel de PES sin copiar su set de íconos.
-function statGrade(v: number) {
-  if (v >= 85) return "#facc15"; // dorado
-  if (v >= 78) return "#38bdf8"; // celeste
-  if (v >= 70) return "#4ade80"; // verde
-  return "#94a3b8"; // gris
+// Grado tipo PES calculado a partir del valor real del stat — puramente visual/derivado,
+// no inventa datos: A/B/C/D con su color, más el % para la barra de progreso.
+function statGrade(v: number): { letter: string; color: string; pct: number } {
+  if (v >= 85) return { letter: "A", color: "#38bdf8", pct: v };
+  if (v >= 78) return { letter: "B", color: "#4ade80", pct: v };
+  if (v >= 70) return { letter: "C", color: "#facc15", pct: v };
+  return { letter: "D", color: "#94a3b8", pct: v };
 }
 
 // ===== Selector estilo PES 2013: dos paneles (LOCAL / VISITANTE) + fila de escudos =====
@@ -372,22 +370,18 @@ function PesTeamSelect({
       {phase === "zone" ? (
         /* ===== Pantalla de selección de ZONA (equivalente a elegir liga) ===== */
         <div className="border-t border-white/10 bg-[#07080c] px-4 py-6">
-          <div className="text-center mb-1">
-            <div className="font-display text-2xl text-white tracking-wide">ELEGIR ZONA</div>
-            <div className="text-xs text-white/40 mt-0.5">
-              Seleccioná la zona donde querés jugar · {focus === "home" ? "LOCAL" : "VISITANTE"}
+          <div className="text-[11px] uppercase tracking-[0.2em] text-white/40 text-center mb-1">
+            Eligiendo {focus === "home" ? "LOCAL" : "VISITANTE"}
+          </div>
+          <div className="text-center font-display text-lg text-white mb-1">ELEGIR ZONA</div>
+          <div className="text-center text-xs text-white/40 mb-4">Seleccioná la zona donde querés jugar</div>
+          {/* Insignia central, como el escudo de liga en la referencia */}
+          <div className="flex justify-center mb-4">
+            <div className="w-14 h-14 rounded-full bg-[#0b1220] border-2 border-celeste/40 flex items-center justify-center shadow-[0_0_20px_-4px_rgba(56,189,248,0.6)]">
+              <span className="font-display text-celeste text-xs">PN</span>
             </div>
           </div>
-          {/* Emblema central, como el escudo de liga en la referencia */}
-          <div className="flex justify-center my-3">
-            <div className="relative w-14 h-14 shrink-0">
-              <div className="absolute inset-0 rounded-lg bg-celeste blur-md opacity-50" />
-              <div className="relative w-14 h-14 rounded-lg bg-gradient-to-br from-celeste via-celeste to-white grid place-items-center font-display text-lg text-primary-foreground shadow-lg">
-                PN
-              </div>
-            </div>
-          </div>
-          <div className="grid sm:grid-cols-2 gap-3 max-w-xl mx-auto">
+          <div className="grid sm:grid-cols-2 gap-3 max-w-2xl mx-auto">
             {([
               { z: "A" as const, count: countA },
               { z: "B" as const, count: countB },
@@ -403,65 +397,89 @@ function PesTeamSelect({
                 }`}
               >
                 <div className="text-[11px] uppercase tracking-[0.25em] text-white/40 mb-2">Primera Nacional</div>
-                <div className="font-display text-3xl text-white mb-3">ZONA {z}</div>
-                {/* Mini-collage de 4 escudos como vista previa de la zona */}
-                <div className="flex justify-center -space-x-2 mb-3">
+                <div className="font-display text-3xl text-white mb-4">ZONA {z}</div>
+                {/* Vista previa de escudos de la zona, en fila pareja (sin superponer) */}
+                <div className="flex justify-center items-center gap-3 mb-4">
                   {TEAMS.filter(t => t.zone === z).slice(0, 4).map(t => (
-                    <div key={t.id} className="rounded-full bg-[#0b1220] border border-white/15 p-1">
-                      <Shield team={t} size={28} />
-                    </div>
+                    <Shield key={t.id} team={t} size={34} />
                   ))}
                 </div>
                 <div className="text-xs text-white/40">{count} equipos</div>
               </button>
             ))}
           </div>
+          <div className="max-w-2xl mx-auto mt-4 text-center text-[11px] text-white/35 border border-white/10 rounded-full py-2 px-4">
+            ⓘ Cada zona tiene {countA} equipos. Elegí la zona donde querés jugar tu partido amistoso.
+          </div>
         </div>
       ) : (
         /* ===== Fila horizontal de escudos de la zona elegida ===== */
-        <div className="border-t border-white/10 bg-[#07080c] px-4 py-3">
-          <div className="flex items-center justify-between mb-2">
-            <button onClick={() => { sfx.back(); setPhase("zone"); }} className="text-[11px] uppercase tracking-[0.2em] text-white/40 hover:text-celeste transition-colors flex items-center gap-1">
-              <span>‹</span> Zona {zone} — {focus === "home" ? "LOCAL" : "VISITANTE"}
-            </button>
-            <div className="flex gap-1">
+        <div className="border-t border-white/10 bg-[#07080c] px-4 py-4">
+          {/* Selector de zona centrado, tipo "‹ ZONA A ›" con la insignia debajo */}
+          <div className="flex flex-col items-center mb-3">
+            <div className="flex items-center gap-3">
+              <button onClick={() => { sfx.move(); setZone(zone === "A" ? "B" : "A"); }} className="text-white/30 hover:text-celeste transition text-lg leading-none px-1">‹</button>
+              <div className="text-center">
+                <div className="text-[10px] uppercase tracking-[0.2em] text-white/35">{focus === "home" ? "LOCAL" : "VISITANTE"}</div>
+                <div className="font-display text-sm text-white tracking-wider">ZONA {zone}</div>
+              </div>
+              <button onClick={() => { sfx.move(); setZone(zone === "A" ? "B" : "A"); }} className="text-white/30 hover:text-celeste transition text-lg leading-none px-1">›</button>
+            </div>
+            <div className="flex gap-1 mt-1.5">
               {(["A", "B"] as const).map(z => (
-                <button key={z} onClick={() => setZone(z)}
-                  className={`px-2 py-1 text-[11px] rounded transition ${zone === z ? "bg-celeste text-primary-foreground" : "bg-white/10 text-white/50 hover:bg-white/20"}`}>
-                  Zona {z}
-                </button>
+                <span key={z} className={`w-1.5 h-1.5 rounded-full ${zone === z ? "bg-celeste" : "bg-white/15"}`} />
               ))}
             </div>
+            <button onClick={() => { sfx.back(); setPhase("zone"); }} className="mt-2 w-9 h-9 rounded-full bg-[#0b1220] border border-celeste/30 flex items-center justify-center hover:border-celeste/60 transition">
+              <span className="font-display text-celeste text-[10px]">PN</span>
+            </button>
           </div>
-          {/* Carrusel: cada casillero tiene ancho fijo (no reflowea al escalar → más fluido) */}
-          <div className="flex items-center gap-1.5 overflow-x-auto py-1 [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:bg-white/15 [&::-webkit-scrollbar-thumb]:rounded-full">
-            {list.map((t, i) => {
-              const isSel = t.id === selected?.id;
-              return (
-                <button
-                  key={t.id}
-                  ref={el => { itemRefs.current[t.id] = el; }}
-                  onClick={() => { sfx.select(); setSelected(t); }}
-                  title={t.name}
-                  className="shrink-0 w-14 h-14 flex items-center justify-center"
-                >
-                  <div
-                    className={`w-full h-full rounded flex items-center justify-center transition-all duration-150 ease-out ${
-                      isSel
-                        ? "scale-110 bg-white/10 border-2 border-celeste shadow-[0_0_18px_-3px_rgba(56,189,248,0.9)]"
-                        : "scale-90 bg-white/[0.03] border border-white/10 opacity-60 hover:opacity-90"
-                    }`}
+
+          {/* Carrusel: escudo + nombre, con flechas laterales para desplazar */}
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => itemRefs.current[list[Math.max(0, idx - 1)]?.id ?? ""]?.scrollIntoView({ behavior: "smooth", inline: "center" })}
+              className="shrink-0 text-white/30 hover:text-celeste transition text-xl leading-none px-1">‹</button>
+            <div className="flex items-start gap-2 overflow-x-auto py-1 flex-1 [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:bg-white/15 [&::-webkit-scrollbar-thumb]:rounded-full">
+              {list.map((t, i) => {
+                const isSel = t.id === selected?.id;
+                return (
+                  <button
+                    key={t.id}
+                    ref={el => { itemRefs.current[t.id] = el; }}
+                    onClick={() => { sfx.select(); setSelected(t); }}
+                    title={t.name}
+                    className="shrink-0 w-20 flex flex-col items-center gap-1"
                   >
-                    <Shield team={t} size={isSel ? 34 : 26} />
-                  </div>
-                </button>
-              );
-            })}
+                    <div
+                      className={`w-16 h-16 flex items-center justify-center rounded transition-all duration-150 ease-out ${
+                        isSel
+                          ? "scale-105 bg-white/10 border-2 border-celeste shadow-[0_0_18px_-3px_rgba(56,189,248,0.9)]"
+                          : "scale-90 bg-white/[0.03] border border-white/10 opacity-55 hover:opacity-90"
+                      }`}
+                    >
+                      <Shield team={t} size={isSel ? 40 : 30} />
+                    </div>
+                    <span className={`text-[9px] uppercase tracking-wide truncate w-full text-center ${isSel ? "text-celeste" : "text-white/35"}`}>{t.short}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <button
+              onClick={() => itemRefs.current[list[Math.min(list.length - 1, idx + 1)]?.id ?? ""]?.scrollIntoView({ behavior: "smooth", inline: "center" })}
+              className="shrink-0 text-white/30 hover:text-celeste transition text-xl leading-none px-1">›</button>
           </div>
+          {list.length > 10 && (
+            <div className="flex justify-center gap-1.5 mt-2">
+              {Array.from({ length: Math.ceil(list.length / 10) }).map((_, p) => (
+                <span key={p} className={`w-1.5 h-1.5 rounded-full transition-colors ${Math.floor(idx / 10) === p ? "bg-celeste" : "bg-white/15"}`} />
+              ))}
+            </div>
+          )}
         </div>
       )}
 
-      {/* Confirmar / Atrás — texto simple, sin iconografía de consola */}
+      {/* Confirmar / Atrás / Aleatorio — texto simple, sin iconografía de consola */}
       <div className="border-t border-white/10 bg-[#050609] px-4 py-2.5 flex items-center justify-center gap-6">
         <button
           onClick={goBack}
@@ -469,6 +487,18 @@ function PesTeamSelect({
           className="text-xs uppercase tracking-[0.2em] text-white/40 hover:text-white/70 disabled:opacity-20 disabled:hover:text-white/40 transition">
           Atrás
         </button>
+        {phase === "teams" && (
+          <button
+            onClick={() => {
+              const other = focus === "home" ? away : home;
+              const pool = list.filter(t => t.id !== other?.id);
+              const pick = (pool.length ? pool : list)[Math.floor(Math.random() * (pool.length ? pool.length : list.length))];
+              if (pick) { sfx.select(); setSelected(pick); }
+            }}
+            className="text-xs uppercase tracking-[0.2em] text-white/40 hover:text-white/70 transition">
+            Aleatorio
+          </button>
+        )}
         <button
           onClick={phase === "zone" ? () => pickZone(zoneHighlight) : advanceOrConfirm}
           disabled={phase === "teams" && focus === "away" && sameTeam}
@@ -516,14 +546,20 @@ function PesPanel({ label, zone, team, kit, onKit, active, onClick }: {
           <div className="font-display text-xl text-white mt-3 tracking-wide">{displayed.name.toUpperCase()}</div>
           <div className="text-[11px] text-white/40 mt-0.5">{displayed.city}</div>
 
-          <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 mt-4 text-left">
-            {statRows.map(([lbl, val]) => (
-              <div key={lbl} className="flex items-center gap-2 text-[12px]">
-                <span className="text-white/45 w-7">{lbl}</span>
-                <span className="text-white font-semibold tabular-nums w-6">{val}</span>
-                <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: statGrade(val) }} />
-              </div>
-            ))}
+          <div className="flex flex-col gap-1.5 mt-4 text-left w-full max-w-[260px]">
+            {statRows.map(([lbl, val]) => {
+              const g = statGrade(val);
+              return (
+                <div key={lbl} className="flex items-center gap-2 text-[12px]">
+                  <span className="text-white/45 w-7 shrink-0">{lbl}</span>
+                  <span className="text-white font-semibold tabular-nums w-6 shrink-0">{val}</span>
+                  <span className="font-display text-[11px] w-4 shrink-0 text-center" style={{ color: g.color }}>{g.letter}</span>
+                  <span className="flex-1 h-1.5 rounded-full bg-white/10 overflow-hidden">
+                    <span className="block h-full rounded-full" style={{ width: `${g.pct}%`, background: g.color }} />
+                  </span>
+                </div>
+              );
+            })}
           </div>
 
           <div className="mt-4 flex rounded border border-white/15 bg-black/30 p-0.5 w-[180px]" onClick={e => e.stopPropagation()}>
