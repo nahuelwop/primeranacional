@@ -1,6 +1,7 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState, type ComponentType } from "react";
-import { Nav } from "@/components/Nav";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useEffect, useMemo, useState, type ComponentType } from "react";
+import { Shield } from "@/components/Shield";
+import { ZONE_A, ZONE_B, type Team } from "@/data/teams";
 import { hydrateTeamsFromDbRows, useTeamsSync, type DbTeam } from "@/lib/teams-sync";
 import { getTeamsForBoot } from "@/lib/teams.functions";
 import { useAuth } from "@/lib/auth";
@@ -24,13 +25,20 @@ export const Route = createFileRoute("/")({
   component: Home,
 });
 
+// Los equipos se leen siempre desde ZONE_A/ZONE_B, que teams-sync reemplaza
+// con los datos de Supabase (o mantiene locales si la base está vacía).
+function useAllTeams(): Team[] {
+  const version = useTeamsSync();
+  return useMemo(() => [...ZONE_A, ...ZONE_B], [version]);
+}
+
 function Home() {
   const { teams } = Route.useLoaderData();
   useState(() => hydrateTeamsFromDbRows(teams as unknown as DbTeam[]));
   useTeamsSync();
-  const { isAdmin } = useAuth();
+  const { user, username, isAdmin } = useAuth();
 
-  return <PesHub isAdmin={isAdmin} />;
+  return <PesHub user={user} username={username} isAdmin={isAdmin} />;
 }
 
 // ===================== MENÚ PRINCIPAL ESTILO CONSOLA =====================
@@ -52,15 +60,13 @@ const HUB_ITEMS: HubItem[] = [
   { id: "logros", label: "LOGROS", desc: "Desafíos y objetivos para desbloquear jugando.", to: "/logros", icon: Award },
 ];
 
-function PesHub({ isAdmin }: { isAdmin: boolean }) {
+function PesHub({ user, username, isAdmin }: { user: unknown; username: string | null; isAdmin: boolean }) {
   const navigate = useNavigate();
   const items: HubItem[] = isAdmin
     ? [...HUB_ITEMS, { id: "admin", label: "ADMIN", desc: "Panel de administración del juego.", to: "/admin", icon: Star }]
     : HUB_ITEMS;
   const [selected, setSelected] = useState(1); // arranca en "Amistoso"
   const current = items[Math.min(selected, items.length - 1)];
-  // La fila de íconos chicos muestra todo MENOS el ítem que está en el panel grande.
-  const rowItems = items.filter((_, i) => i !== selected);
 
   const go = (item: HubItem) => navigate({ to: item.to });
 
@@ -77,7 +83,7 @@ function PesHub({ isAdmin }: { isAdmin: boolean }) {
 
   return (
     <div className="relative min-h-screen bg-black text-white overflow-hidden flex flex-col">
-      {/* ===== Fondo: estadio a pantalla completa + patrón hexagonal ===== */}
+      {/* ===== Fondo: estadio a pantalla completa + patrón hexagonal + reflectores ambiente ===== */}
       <div className="absolute inset-0">
         <img src={stadiumHero} alt="" className="w-full h-full object-cover" />
         <div className="absolute inset-0 bg-gradient-to-b from-black/55 via-black/25 to-black" />
@@ -87,53 +93,98 @@ function PesHub({ isAdmin }: { isAdmin: boolean }) {
           backgroundSize: "72px 126px",
           backgroundPosition: "0 0, 0 0, 36px 63px, 36px 63px",
         }} />
+        {/* Reflectores + partículas de polvo, ya usados en el resto del juego */}
+        <div className="ambient-beam ambient-beam-a opacity-60" />
+        <div className="ambient-beam ambient-beam-b opacity-50" />
+        <AmbientDust />
       </div>
 
-      {/* ===== Header: barra real de navegación, con "Amistoso" resaltado según selección ===== */}
-      <div className="relative z-10">
-        <Nav />
+      {/* ===== Header mínimo: sólo marca + sesión/admin (la navegación va en el hub de abajo) ===== */}
+      <div className="relative z-10 flex items-center justify-between px-6 md:px-12 pt-6">
+        <Link to="/" className="flex items-center gap-2 group">
+          <div className="relative w-9 h-9 shrink-0">
+            <div className="absolute inset-0 rounded-lg bg-celeste blur-md opacity-50 group-hover:opacity-80 transition-opacity" />
+            <div className="relative w-9 h-9 rounded-lg bg-gradient-to-br from-celeste via-celeste to-white grid place-items-center font-display text-primary-foreground shadow-lg">
+              PN
+            </div>
+          </div>
+          <div className="font-display text-xl md:text-2xl tracking-wide">
+            PRIMERA <span className="text-celeste text-glow-celeste">HEADS</span>
+          </div>
+        </Link>
+        <div className="flex items-center gap-2 text-xs md:text-sm">
+          {isAdmin && (
+            <Link to="/admin" className="px-3 py-1.5 rounded-md hover:bg-white/5 transition-all font-medium text-gold">
+              ⭐ Admin
+            </Link>
+          )}
+          <Link to="/auth"
+            className="btn-glow px-4 py-1.5 rounded-md border border-white/15 hover:bg-white/5 transition-all font-medium">
+            {user ? `👤 ${username ?? "cuenta"}` : "Iniciar sesión"}
+          </Link>
+        </div>
       </div>
 
-      {/* Espaciador flexible: deja ver la foto del estadio arriba, como la referencia */}
-      <div className="relative z-10 flex-1" />
+      {/* ===== Centro: sección activa (crossfade fluido) + cinta de escudos ===== */}
+      <div className="relative z-10 flex-1 flex flex-col items-center justify-center gap-8 px-6 py-8">
+        <div key={current.id} className="hud-rise text-center max-w-2xl">
+          <div className="flex items-center justify-center gap-3 mb-3">
+            <current.icon size={34} className="text-celeste drop-shadow-[0_0_14px_rgba(56,189,248,0.7)]" />
+          </div>
+          <div className="font-display text-4xl md:text-6xl tracking-wide text-white drop-shadow-[0_0_30px_rgba(0,0,0,0.8)]">
+            {current.label}
+          </div>
+          <p className="mt-3 text-sm md:text-base text-white/70 max-w-lg mx-auto">{current.desc}</p>
+        </div>
 
-      {/* ===== Cinta hub inferior, estilo consola ===== */}
+        {/* Chips rápidos, siempre visibles */}
+        <div className="flex flex-wrap items-center justify-center gap-2 md:gap-3">
+          {["36 CLUBES", "3 MODOS DE JUEGO", "TEMPORADA 2026"].map(chip => (
+            <span key={chip} className="hud-card px-3 py-1.5 rounded-full border border-white/15 bg-black/40 text-[10px] md:text-xs tracking-widest text-white/70">
+              {chip}
+            </span>
+          ))}
+        </div>
+
+        {/* Cinta de escudos de los 36 clubes, deslizándose sin parar */}
+        <TeamsMarquee />
+      </div>
+
+      {/* ===== Cinta hub inferior: navegación fluida entre secciones ===== */}
       <div className="relative z-10">
         <div className="border-t-2 border-celeste bg-gradient-to-r from-black via-[#050a14] to-black">
-          <div className="flex items-stretch flex-wrap md:flex-nowrap">
-            {/* Panel grande: sección activa, con clip hexagonal y borde luminoso */}
-            <button
-              onClick={() => go(current)}
-              className="group relative flex items-center gap-3 md:gap-4 pl-6 pr-8 md:pl-10 md:pr-12 py-5 md:py-6 min-w-[220px] md:min-w-[280px] text-left overflow-hidden"
-              style={{ clipPath: "polygon(0 0, 92% 0, 100% 50%, 92% 100%, 0 100%)" }}
-            >
-              <span className="absolute inset-0 bg-celeste/15 group-hover:bg-celeste/25 transition-colors" />
-              <span className="absolute inset-0 border-2 border-celeste/70 shadow-[0_0_28px_-4px_rgba(56,189,248,0.7)]" style={{ clipPath: "polygon(0 0, 92% 0, 100% 50%, 92% 100%, 0 100%)" }} />
-              <current.icon size={30} className="relative text-celeste shrink-0 drop-shadow-[0_0_8px_rgba(56,189,248,0.8)]" />
-              <span className="relative font-display text-xl md:text-2xl tracking-wide truncate">{current.label}</span>
-            </button>
-
-            {/* Íconos navegables (todo el resto de las secciones) */}
-            <div className="flex-1 flex items-center gap-1 overflow-x-auto px-2 py-2 [&::-webkit-scrollbar]:h-1 [&::-webkit-scrollbar-thumb]:bg-white/15">
-              {rowItems.map(item => {
-                const realIndex = items.indexOf(item);
+          <div className="flex items-stretch">
+            {/* Fila de íconos con indicador deslizante (sin "reflow" al cambiar selección) */}
+            <div className="relative flex-1 flex items-stretch px-2 py-2">
+              {/* Resaltado que se desliza suavemente hacia el ítem activo */}
+              <div
+                className="absolute inset-y-2 rounded-lg bg-celeste/15 border border-celeste/60 shadow-[0_0_22px_-4px_rgba(56,189,248,0.6)] transition-all duration-300 ease-out"
+                style={{ left: `${(selected / items.length) * 100}%`, width: `${100 / items.length}%` }}
+              />
+              {items.map((item, i) => {
+                const active = i === selected;
                 return (
                   <button
                     key={item.id}
-                    onMouseEnter={() => setSelected(realIndex)}
-                    onClick={() => setSelected(realIndex)}
-                    className="shrink-0 flex flex-col items-center gap-1.5 px-4 md:px-5 py-3 opacity-55 hover:opacity-100 transition-all duration-150"
+                    onMouseEnter={() => setSelected(i)}
+                    onClick={() => { setSelected(i); go(item); }}
+                    className="relative z-10 flex-1 flex flex-col items-center justify-center gap-1.5 px-2 py-3 transition-all duration-300"
                   >
-                    <item.icon size={20} className="text-white" />
-                    <span className="text-[10px] tracking-wide whitespace-nowrap text-white/70">{item.label}</span>
+                    <item.icon
+                      size={active ? 24 : 18}
+                      className={`transition-all duration-300 ${active ? "text-celeste drop-shadow-[0_0_8px_rgba(56,189,248,0.8)]" : "text-white/50"}`}
+                    />
+                    <span className={`text-[9px] md:text-[10px] tracking-wide whitespace-nowrap transition-colors duration-300 ${active ? "text-celeste" : "text-white/40"}`}>
+                      {item.label}
+                    </span>
                   </button>
                 );
               })}
             </div>
 
-            {/* Config + sonido, como el pie de pantalla de consola */}
-            <div className="hidden md:flex items-center gap-2 pr-6">
-              <button className="flex items-center gap-2 px-3 py-2 rounded-lg border border-white/15 hover:border-celeste/50 hover:bg-white/5 transition-colors text-left">
+            {/* Config + sonido */}
+            <div className="hidden md:flex items-center gap-2 pl-2 pr-6 border-l border-white/10">
+              <button className="hud-card flex items-center gap-2 px-3 py-2 rounded-lg border border-white/15 hover:border-celeste/50 hover:bg-white/5 transition-colors text-left">
                 <Settings size={16} className="text-celeste" />
                 <span className="leading-tight">
                   <span className="block text-xs font-semibold">Configuración</span>
@@ -149,22 +200,58 @@ function PesHub({ isAdmin }: { isAdmin: boolean }) {
             </div>
           </div>
         </div>
-
-        {/* Descripción + controles tipo gamepad, como el pie de pantalla de consola */}
-        <div className="bg-black px-6 py-3 flex items-center justify-between text-xs md:text-sm gap-4">
-          <span className="text-white/70 truncate">{current.desc}</span>
-          <span className="hidden sm:flex items-center gap-4 shrink-0 text-white/60">
-            <span className="flex items-center gap-1.5">
-              <span className="w-5 h-5 rounded-full bg-green-500/90 text-black text-[11px] font-bold grid place-items-center">A</span>
-              Seleccionar
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-5 h-5 rounded-full bg-red-500/90 text-black text-[11px] font-bold grid place-items-center">B</span>
-              Volver
-            </span>
-          </span>
-        </div>
       </div>
+    </div>
+  );
+}
+
+// Reflectores y polvo ambiente ya usados en el resto del juego (Modo Carrera),
+// acá sin el fondo desenfocado propio: sólo el efecto, sobre nuestra foto nítida.
+function AmbientDust() {
+  const [dust, setDust] = useState<{ l: number; t: number; d: number; s: number; o: number }[]>([]);
+  useEffect(() => {
+    setDust(Array.from({ length: 18 }, () => ({
+      l: Math.random() * 100,
+      t: Math.random() * 100,
+      d: 10 + Math.random() * 18,
+      s: 1 + Math.random() * 2.2,
+      o: 0.1 + Math.random() * 0.22,
+    })));
+  }, []);
+  return (
+    <div className="ambient-dust">
+      {dust.map((p, i) => (
+        <span key={i} style={{
+          left: `${p.l}%`, top: `${p.t}%`,
+          width: p.s, height: p.s, opacity: p.o,
+          animationDuration: `${p.d}s`, animationDelay: `${-p.d * Math.random()}s`,
+        }} />
+      ))}
+    </div>
+  );
+}
+
+// Cinta de escudos de los 36 clubes desplazándose sin parar (loop sin cortes),
+// para que el menú se sienta vivo aunque no se esté navegando.
+function TeamsMarquee() {
+  const teams = useAllTeams();
+  if (teams.length === 0) return null;
+  const loop = [...teams, ...teams]; // se duplica para que el scroll sea continuo
+  return (
+    <div className="w-full max-w-5xl overflow-hidden [mask-image:linear-gradient(90deg,transparent,black_10%,black_90%,transparent)]">
+      <div className="flex items-center gap-4 md:gap-6 w-max animate-[teamsMarquee_50s_linear_infinite]">
+        {loop.map((t, i) => (
+          <div key={`${t.id}-${i}`} className="shrink-0 opacity-70 hover:opacity-100 transition-opacity" title={t.name}>
+            <Shield team={t} size={34} />
+          </div>
+        ))}
+      </div>
+      <style>{`
+        @keyframes teamsMarquee {
+          from { transform: translateX(0); }
+          to { transform: translateX(-50%); }
+        }
+      `}</style>
     </div>
   );
 }
