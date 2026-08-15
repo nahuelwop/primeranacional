@@ -51,6 +51,18 @@ const STADIUM_THEMES: Record<string, { img: string; vAnchor: number; crowdBand: 
   // que Colón), para no ensuciar la foto con las figuras genéricas del motor.
   quilmes: { img: quilmesStandBg, vAnchor: 0.18, crowdBand: { top: 180, bottom: 400 }, crowdOverlay: false },
 };
+// Caché de imágenes de estadio a nivel módulo: se decodifican una única vez por sesión
+// y se reutilizan entre partidos (evita el delay de recarga cada vez que se juega de local).
+const themeImgCache = new Map<string, HTMLImageElement>();
+if (typeof window !== "undefined") {
+  // Precarga apenas se importa el módulo, para que la foto ya esté lista/decodificada
+  // antes de que arranque el primer partido con ese equipo de local.
+  Object.values(STADIUM_THEMES).forEach(theme => {
+    const img = new Image();
+    img.src = theme.img;
+    themeImgCache.set(theme.img, img);
+  });
+}
 const ScoreColorBars = ({ team, reverse = false }: { team: Team; reverse?: boolean }) => (
   <div className="score-color-bars" aria-hidden="true">
     <span style={{ backgroundColor: reverse ? team.secondary : team.primary }} />
@@ -367,9 +379,19 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
     const FENCE_TOP = STAND_BOTTOM - 30;
     let themeStandImg: HTMLImageElement | null = null;
     if (isThemedHome) {
-      themeStandImg = new Image();
-      themeStandImg.onload = () => buildCrowd();
-      themeStandImg.src = stadiumTheme.img;
+      // Caché a nivel módulo: la foto del estadio se decodifica una sola vez en total y
+      // se reutiliza en todos los partidos siguientes (evita el delay de carga repetido).
+      const cached = themeImgCache.get(stadiumTheme.img);
+      if (cached && cached.complete && cached.naturalWidth > 0) {
+        themeStandImg = cached;
+      } else {
+        themeStandImg = cached ?? new Image();
+        themeStandImg.onload = () => buildCrowd();
+        if (!cached) {
+          themeStandImg.src = stadiumTheme.img;
+          themeImgCache.set(stadiumTheme.img, themeStandImg);
+        }
+      }
     }
     const crowdLayer = document.createElement("canvas");
     crowdLayer.width = W;
