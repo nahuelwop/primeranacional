@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Nav } from "@/components/Nav";
 import { Shield } from "@/components/Shield";
 import { TEAMS, Team, type Narrator } from "@/data/teams";
@@ -7,6 +7,7 @@ import { useTeamsSync } from "@/lib/teams-sync";
 import { supabase } from "@/integrations/supabase/client";
 import { Game, type Weather, type Difficulty, type Mode, type MatchStats } from "@/components/Game";
 import { Penales } from "@/components/Penales";
+import { Mic, Cloud, Volume2, Users, Gauge, Timer } from "lucide-react";
 import stadiumBg from "@/assets/estadio-nocturno.jpg";
 
 export const Route = createFileRoute("/amistoso")({
@@ -63,6 +64,7 @@ function AmistosoPage() {
   const [activeWeather, setActiveWeather] = useState<Weather>("clear");
   const [difficulty, setDifficulty] = useState<Difficulty>("normal");
   const [mode, setMode] = useState<Mode>("1vAI");
+  const [duration, setDuration] = useState(60);
   const [result, setResult] = useState<{ h: number; a: number; stats: MatchStats } | null>(null);
   const [showPenales, setShowPenales] = useState(false);
   const [penalesResult, setPenalesResult] = useState<{ winner: "H" | "A"; h: number; a: number } | null>(null);
@@ -92,7 +94,7 @@ function AmistosoPage() {
       <div className="min-h-screen flex flex-col">
         <Nav />
         <main className="flex-1 max-w-5xl w-full mx-auto px-4 py-6">
-          <Game home={homeKitted} away={awayKitted} duration={60} weather={activeWeather} aiDifficulty={difficulty} mode={mode} sharedNarrator
+          <Game home={homeKitted} away={awayKitted} duration={duration} weather={activeWeather} aiDifficulty={difficulty} mode={mode} sharedNarrator
             crowdIntensity={(home?.rivals?.includes(away?.id ?? "") || away?.rivals?.includes(home?.id ?? "")) ? "clasico" : "normal"}
             initialSharedName={narratorName || undefined}
             initialNarratorVol={narratorVol}
@@ -109,19 +111,27 @@ function AmistosoPage() {
     return (
       <div className="min-h-screen flex flex-col">
         <Nav />
-        <main className="flex-1 max-w-5xl w-full mx-auto px-4 py-8">
+        <div className="relative flex-1 overflow-hidden bg-[#050810]">
+          <img src={stadiumBg} alt="" aria-hidden="true" loading="eager" fetchPriority="high"
+            className="absolute inset-0 w-full h-full object-cover" />
+          <div className="absolute inset-0 bg-black/35" />
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_50%_at_50%_-10%,rgba(56,140,255,0.25),transparent_65%)]" />
+          <div className="absolute inset-0 shadow-[inset_0_0_200px_80px_rgba(0,0,0,0.85)]" />
+          <main className="relative z-10 max-w-5xl w-full mx-auto px-4 py-8">
           <PreMatchScreen
             home={home} away={away}
             mode={mode} onMode={setMode}
             difficulty={difficulty} onDifficulty={setDifficulty}
             weather={weather} onWeather={setWeather}
+            duration={duration} onDuration={setDuration}
             narratorOptions={narratorOptions} narratorName={narratorName} onNarratorName={setNarratorName}
             narratorVol={narratorVol} onNarratorVol={setNarratorVol}
             crowdVol={crowdVol} onCrowdVol={setCrowdVol}
             onBack={() => setScreen("select")}
             onKickOff={() => { setResult(null); setActiveWeather(resolveWeather(weather)); setPlaying(true); }}
           />
-        </main>
+          </main>
+        </div>
       </div>
     );
   }
@@ -520,9 +530,55 @@ function PesPanel({ label, zone, team, kit, onKit, active, onClick }: {
 
 // ===== Pantalla previa (VS): sin plantel, solo escudos + nombre. Acá se
 // terminan de fijar modo/dificultad/clima/relator/volumen antes del kick-off. =====
+function ConfigRow<T extends string>({ icon, label, value, options, onChange }: {
+  icon: ReactNode; label: string; value: T; options: [T, string][]; onChange: (v: T) => void;
+}) {
+  const idx = Math.max(0, options.findIndex(([v]) => v === value));
+  const go = (d: number) => onChange(options[(idx + d + options.length) % options.length][0]);
+  return (
+    <div className="flex items-center gap-3 py-3 border-b border-white/10 last:border-b-0">
+      <div className="w-7 text-celeste shrink-0 flex justify-center">{icon}</div>
+      <div className="w-40 shrink-0 text-[13px] uppercase tracking-wider text-white/75 font-display">{label}</div>
+      <button type="button" onClick={() => go(-1)} className="text-white/30 hover:text-celeste px-1.5 transition text-lg leading-none">‹</button>
+      <div className="flex-1 text-center min-w-0">
+        <div className="text-sm font-semibold text-white truncate">{options[idx]?.[1]}</div>
+        {options.length > 1 && (
+          <div className="flex justify-center gap-1 mt-1.5">
+            {options.map(([v]) => (
+              <span key={v} className={`w-1.5 h-1.5 rounded-full transition-colors ${v === value ? "bg-celeste" : "bg-white/15"}`} />
+            ))}
+          </div>
+        )}
+      </div>
+      <button type="button" onClick={() => go(1)} className="text-white/30 hover:text-celeste px-1.5 transition text-lg leading-none">›</button>
+    </div>
+  );
+}
+
+function VolumeRow({ icon, label, value, onChange }: { icon: ReactNode; label: string; value: number; onChange: (v: number) => void }) {
+  const segs = 10;
+  const filled = Math.round(value * segs);
+  return (
+    <div className="flex items-center gap-3 py-3 border-b border-white/10 last:border-b-0">
+      <div className="w-7 text-celeste shrink-0 flex justify-center">{icon}</div>
+      <div className="w-40 shrink-0 text-[13px] uppercase tracking-wider text-white/75 font-display">{label}</div>
+      <div className="flex-1 flex items-center gap-2 min-w-0">
+        <div className="flex gap-1 flex-1">
+          {Array.from({ length: segs }).map((_, i) => (
+            <button key={i} type="button" onClick={() => onChange((i + 1) / segs)}
+              aria-label={`${label} ${i + 1}/${segs}`}
+              className={`h-3.5 flex-1 rounded-[2px] transition-colors ${i < filled ? "bg-celeste" : "bg-white/10 hover:bg-white/20"}`} />
+          ))}
+        </div>
+        <span className="w-5 text-right text-xs tabular-nums text-white/50">{filled}</span>
+      </div>
+    </div>
+  );
+}
+
 function PreMatchScreen({
   home, away,
-  mode, onMode, difficulty, onDifficulty, weather, onWeather,
+  mode, onMode, difficulty, onDifficulty, weather, onWeather, duration, onDuration,
   narratorOptions, narratorName, onNarratorName,
   narratorVol, onNarratorVol, crowdVol, onCrowdVol,
   onBack, onKickOff,
@@ -531,6 +587,7 @@ function PreMatchScreen({
   mode: Mode; onMode: (m: Mode) => void;
   difficulty: Difficulty; onDifficulty: (d: Difficulty) => void;
   weather: WeatherChoice; onWeather: (w: WeatherChoice) => void;
+  duration: number; onDuration: (d: number) => void;
   narratorOptions: string[]; narratorName: string; onNarratorName: (n: string) => void;
   narratorVol: number; onNarratorVol: (v: number) => void;
   crowdVol: number; onCrowdVol: (v: number) => void;
@@ -538,119 +595,83 @@ function PreMatchScreen({
   onKickOff: () => void;
 }) {
   const sameTeam = home.id === away.id;
+  const weatherOptions: [WeatherChoice, string][] = [
+    ["clear", "Despejado"], ["rain", "Lluvia"], ["wind", "Viento"],
+    ["fog", "Niebla"], ["thunder", "Tormenta"], ["random", "Aleatorio"],
+  ];
+  const modeOptions: [Mode, string][] = [["1vAI", "1 vs IA"], ["1v1", "1 vs 1"]];
+  const difficultyOptions: [Difficulty, string][] = [["easy", "Fácil"], ["normal", "Normal"], ["hard", "Difícil"]];
+  const durationOptions: [string, string][] = [["45", "45 segundos"], ["60", "1 minuto"], ["90", "1:30"], ["120", "2 minutos"]];
+  const narratorAsOptions: [string, string][] = narratorOptions.map(n => [n, n]);
+
   return (
     <div>
-      <h1 className="font-display text-5xl">AMISTOSO</h1>
-      <p className="text-muted-foreground text-sm mt-1">Todo listo. Ajustá el partido y arrancá cuando quieras.</p>
+      {/* Encabezado tipo menú de consola: marca / sección / título de pantalla */}
+      <div className="text-center mb-6">
+        <div className="font-display text-2xl text-white tracking-wide">PRIMERA <span className="text-celeste">HEADS</span></div>
+        <div className="text-[11px] uppercase tracking-[0.35em] text-white/40 mt-0.5">Amistoso</div>
+      </div>
 
-      {/* VS: solo escudos y nombres, sin plantel */}
-      <div className="mt-6 rounded-2xl border border-border overflow-hidden bg-[radial-gradient(ellipse_at_top,_#123058_0%,_#070b14_75%)] p-8">
-        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
+      {/* VS: escudos y nombres, con "ANTES DEL PARTIDO" centrado arriba */}
+      <div className="rounded-lg border border-white/10 bg-black/50 backdrop-blur-md overflow-hidden">
+        <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-4 p-6 sm:p-8">
           <div className="text-center">
             <div className="text-[11px] uppercase tracking-[0.3em] text-celeste mb-3">Local</div>
-            <div className="flex justify-center"><Shield team={home} size={96} /></div>
-            <div className="font-display text-2xl text-white mt-3">{home.name}</div>
-            <div className="text-xs text-white/50">{home.city}</div>
+            <div className="flex justify-center"><Shield team={home} size={88} /></div>
+            <div className="font-display text-xl text-white mt-3">{home.name.toUpperCase()}</div>
+            <div className="text-xs text-white/40">{home.city}</div>
           </div>
-          <div className="font-display text-3xl text-white/30 px-2">VS</div>
+          <div className="pt-10 text-center">
+            <div className="inline-block px-3 py-1 rounded border border-white/15 text-[11px] uppercase tracking-[0.25em] text-white/60 mb-3">
+              Antes del partido
+            </div>
+            <div className="font-display text-2xl text-white/25">VS.</div>
+          </div>
           <div className="text-center">
             <div className="text-[11px] uppercase tracking-[0.3em] text-celeste mb-3">Visitante</div>
-            <div className="flex justify-center"><Shield team={away} size={96} /></div>
-            <div className="font-display text-2xl text-white mt-3">{away.name}</div>
-            <div className="text-xs text-white/50">{away.city}</div>
+            <div className="flex justify-center"><Shield team={away} size={88} /></div>
+            <div className="font-display text-xl text-white mt-3">{away.name.toUpperCase()}</div>
+            <div className="text-xs text-white/40">{away.city}</div>
           </div>
         </div>
         {sameTeam && (
-          <div className="text-center text-xs text-destructive mt-4">Elegiste el mismo equipo para los dos lados. Volvé y cambiá uno.</div>
+          <div className="text-center text-xs text-destructive pb-4">Elegiste el mismo equipo para los dos lados. Volvé y cambiá uno.</div>
         )}
-      </div>
 
-      {/* Ajustes del partido */}
-      <div className="mt-6 rounded-2xl bg-card border border-border p-4">
-        <div className="grid md:grid-cols-3 gap-4">
-          <div>
-            <div className="font-display text-lg mb-2">MODO</div>
-            <div className="flex rounded-xl border border-border bg-background p-1">
-              {([["1vAI", "1 vs IA"], ["1v1", "1 vs 1"]] as [Mode, string][]).map(([m, l]) => (
-                <button key={m} onClick={() => onMode(m)}
-                  className={`flex-1 px-3 py-2 rounded-lg text-sm transition ${mode === m ? "bg-celeste text-primary-foreground" : "hover:bg-secondary"}`}>
-                  {l}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {mode === "1vAI" && (
-            <div>
-              <div className="font-display text-lg mb-2">DIFICULTAD IA</div>
-              <div className="flex rounded-xl border border-border bg-background p-1">
-                {([["easy", "Fácil"], ["normal", "Normal"], ["hard", "Difícil"]] as [Difficulty, string][]).map(([level, label]) => (
-                  <button key={level} type="button" onClick={() => onDifficulty(level)}
-                    className={`flex-1 px-3 py-2 rounded-lg text-sm transition ${difficulty === level ? "bg-celeste text-primary-foreground" : "hover:bg-secondary"}`}>
-                    {label}
-                  </button>
-                ))}
-              </div>
+        {/* Panel de configuración: filas con flechas ‹ › (mouse/teclado, sin botones de consola) */}
+        <div className="border-t border-white/10 bg-black/30 px-5 sm:px-8 py-2">
+          {modeOptions.length > 1 && (
+            <ConfigRow icon={<Gauge size={17} />} label="Modo" value={mode} options={modeOptions} onChange={onMode} />
+          )}
+          {narratorAsOptions.length > 0 ? (
+            <ConfigRow icon={<Mic size={17} />} label="Narrador" value={narratorName} options={narratorAsOptions} onChange={onNarratorName} />
+          ) : (
+            <div className="flex items-center gap-3 py-3 border-b border-white/10 text-xs text-white/35">
+              <div className="w-7 flex justify-center"><Mic size={17} /></div>
+              Ninguno de los dos equipos tiene relator cargado.
             </div>
           )}
-
-          <div>
-            <div className="font-display text-lg mb-2">CLIMA</div>
-            <div className="flex flex-wrap gap-2">
-              {([
-                ["clear", "☀️ Despejado"], ["rain", "🌧️ Lluvia"],
-                ["wind", "💨 Viento"], ["fog", "🌫️ Niebla"],
-                ["thunder", "⚡ Tormenta"], ["random", "🎲 Aleatorio"],
-              ] as [WeatherChoice, string][]).map(([w, l]) => (
-                <button key={w} onClick={() => onWeather(w)}
-                  className={`px-3 py-2 rounded-lg text-sm border transition ${weather === w ? "bg-celeste text-primary-foreground border-celeste" : "bg-background border-border hover:bg-secondary"}`}>
-                  {l}
-                </button>
-              ))}
-            </div>
-          </div>
+          <ConfigRow icon={<Cloud size={17} />} label="Clima" value={weather} options={weatherOptions} onChange={onWeather} />
+          <VolumeRow icon={<Volume2 size={17} />} label="Volumen narración" value={narratorVol} onChange={onNarratorVol} />
+          <VolumeRow icon={<Users size={17} />} label="Volumen hinchada" value={crowdVol} onChange={onCrowdVol} />
+          {mode === "1vAI" && (
+            <ConfigRow icon={<Gauge size={17} />} label="Dificultad" value={difficulty} options={difficultyOptions} onChange={onDifficulty} />
+          )}
+          <ConfigRow icon={<Timer size={17} />} label="Duración" value={String(duration)} options={durationOptions} onChange={v => onDuration(Number(v))} />
         </div>
 
-        <div className="border-t border-border mt-4 pt-4 grid sm:grid-cols-2 gap-4">
-          <div>
-            <div className="font-display text-lg mb-2">RELATOR</div>
-            {narratorOptions.length > 0 ? (
-              <select
-                value={narratorName}
-                onChange={e => onNarratorName(e.target.value)}
-                className="w-full h-10 rounded-lg border border-border bg-background px-3 text-sm"
-              >
-                {narratorOptions.map(n => <option key={n} value={n}>{n}</option>)}
-              </select>
-            ) : (
-              <div className="text-xs text-muted-foreground">Ninguno de los dos equipos tiene relator cargado.</div>
-            )}
-          </div>
-          <div className="space-y-2">
-            <label className="flex items-center gap-2 text-sm">
-              <span className="w-20 uppercase tracking-wider text-muted-foreground text-xs">Relato</span>
-              <input type="range" min={0} max={1} step={0.05} value={narratorVol}
-                onChange={e => onNarratorVol(Number(e.target.value))} className="flex-1" />
-              <span className="w-8 text-right tabular-nums text-xs">{Math.round(narratorVol * 100)}</span>
-            </label>
-            <label className="flex items-center gap-2 text-sm">
-              <span className="w-20 uppercase tracking-wider text-muted-foreground text-xs">Hinchada</span>
-              <input type="range" min={0} max={1} step={0.05} value={crowdVol}
-                onChange={e => onCrowdVol(Number(e.target.value))} className="flex-1" />
-              <span className="w-8 text-right tabular-nums text-xs">{Math.round(crowdVol * 100)}</span>
-            </label>
-          </div>
+        {/* Iniciar partido */}
+        <div className="border-t border-white/10 bg-black/40 p-5 sm:p-6">
+          <button disabled={sameTeam} onClick={onKickOff}
+            className="w-full py-3.5 rounded border border-celeste/50 bg-celeste/15 hover:bg-celeste/25 text-celeste font-display text-lg tracking-[0.15em] uppercase transition disabled:opacity-30 disabled:hover:bg-celeste/15">
+            Iniciar partido
+          </button>
         </div>
       </div>
 
-      <div className="mt-6 flex justify-center gap-3">
-        <button onClick={onBack}
-          className="px-5 py-4 rounded-xl bg-card border border-border font-display tracking-wider hover:bg-secondary transition">
-          ‹ EDITAR EQUIPOS
-        </button>
-        <button disabled={sameTeam} onClick={onKickOff}
-          className="px-8 py-4 rounded-xl bg-celeste text-primary-foreground font-display text-2xl tracking-wider glow-celeste disabled:opacity-40">
-          KICK OFF
+      <div className="mt-4 text-center">
+        <button onClick={onBack} className="text-xs uppercase tracking-[0.2em] text-white/40 hover:text-white/70 transition">
+          ‹ Editar equipos
         </button>
       </div>
     </div>
