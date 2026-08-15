@@ -11,6 +11,7 @@ import {
 import appCss from "../styles.css?url";
 import { AuthProvider } from "@/lib/auth";
 import { useTeamsSync } from "@/lib/teams-sync";
+import { GameIntro } from "@/components/GameIntro";
 
 function TeamsBoot() { useTeamsSync(); return null; }
 
@@ -124,6 +125,7 @@ function RootComponent() {
       <AuthProvider>
         <TeamsBoot />
         <div className="ambient-orbs" aria-hidden="true" />
+        <GameIntro />
         <Outlet />
       </AuthProvider>
     </QueryClientProvider>
