@@ -155,10 +155,8 @@ function AmistosoPage() {
         <div className="absolute inset-0 shadow-[inset_0_0_200px_80px_rgba(0,0,0,0.85)]" />
 
         <main className="relative z-10 max-w-6xl w-full mx-auto px-4 py-8">
-        <div className="text-center mb-2">
-          <div className="font-display text-2xl text-white tracking-wide">PRIMERA <span className="text-celeste">HEADS</span></div>
-          <div className="text-[11px] uppercase tracking-[0.35em] text-white/40 mt-0.5">Amistoso</div>
-        </div>
+        <h1 className="font-display text-5xl text-white">AMISTOSO</h1>
+        <p className="text-white/50 text-sm mt-1">Elegí los equipos y el modo. Partido de 60 segundos.</p>
 
         {result && (
           <div className="mt-4 p-4 rounded-xl bg-card border border-border">
@@ -240,13 +238,13 @@ function useMenuSfx() {
   }, []);
 }
 
-// Color de "grado" por valor de stat — puramente visual, calculado del número,
-// evoca los íconos de nivel de PES sin copiar su set de íconos.
-function statGrade(v: number) {
-  if (v >= 85) return "#facc15"; // dorado
-  if (v >= 78) return "#38bdf8"; // celeste
-  if (v >= 70) return "#4ade80"; // verde
-  return "#94a3b8"; // gris
+// Grado tipo PES calculado a partir del valor real del stat — puramente visual/derivado,
+// no inventa datos: A/B/C/D con su color, más el % para la barra de progreso.
+function statGrade(v: number): { letter: string; color: string; pct: number } {
+  if (v >= 85) return { letter: "A", color: "#38bdf8", pct: v };
+  if (v >= 78) return { letter: "B", color: "#4ade80", pct: v };
+  if (v >= 70) return { letter: "C", color: "#facc15", pct: v };
+  return { letter: "D", color: "#94a3b8", pct: v };
 }
 
 // ===== Selector estilo PES 2013: dos paneles (LOCAL / VISITANTE) + fila de escudos =====
@@ -360,9 +358,7 @@ function PesTeamSelect({
         @keyframes pes-pop { 0% { transform: scale(0.93); opacity: 0.4; filter: brightness(1.6); } 100% { transform: scale(1); opacity: 1; filter: brightness(1); } }
         .pes-pop { animation: pes-pop 220ms cubic-bezier(.2,.9,.25,1); }
       `}</style>
-      <div className="grid md:grid-cols-2 relative">
-        {/* línea divisoria central, como en la referencia */}
-        <div className="hidden md:block absolute left-1/2 top-0 bottom-0 w-px bg-white/10" />
+      <div className="grid md:grid-cols-2 gap-2 md:gap-3 p-2 md:p-3 pb-0 md:pb-0">
         <PesPanel label="LOCAL" zone={zoneHome} team={home} kit={homeKit} onKit={onHomeKit}
           active={focus === "home"} onClick={() => setFocus("home")} />
         <PesPanel label="VISITANTE" zone={zoneAway} team={away} kit={awayKit} onKit={onAwayKit}
@@ -372,22 +368,18 @@ function PesTeamSelect({
       {phase === "zone" ? (
         /* ===== Pantalla de selección de ZONA (equivalente a elegir liga) ===== */
         <div className="border-t border-white/10 bg-[#07080c] px-4 py-6">
-          <div className="text-center mb-1">
-            <div className="font-display text-2xl text-white tracking-wide">ELEGIR ZONA</div>
-            <div className="text-xs text-white/40 mt-0.5">
-              Seleccioná la zona donde querés jugar · {focus === "home" ? "LOCAL" : "VISITANTE"}
+          <div className="text-[11px] uppercase tracking-[0.2em] text-white/40 text-center mb-1">
+            Eligiendo {focus === "home" ? "LOCAL" : "VISITANTE"}
+          </div>
+          <div className="text-center font-display text-lg text-white mb-1">ELEGIR ZONA</div>
+          <div className="text-center text-xs text-white/40 mb-4">Seleccioná la zona donde querés jugar</div>
+          {/* Insignia central, como el escudo de liga en la referencia */}
+          <div className="flex justify-center mb-4">
+            <div className="w-14 h-14 rounded-full bg-[#0b1220] border-2 border-celeste/40 flex items-center justify-center shadow-[0_0_20px_-4px_rgba(56,189,248,0.6)]">
+              <span className="font-display text-celeste text-xs">PN</span>
             </div>
           </div>
-          {/* Emblema central, como el escudo de liga en la referencia */}
-          <div className="flex justify-center my-3">
-            <div className="relative w-14 h-14 shrink-0">
-              <div className="absolute inset-0 rounded-lg bg-celeste blur-md opacity-50" />
-              <div className="relative w-14 h-14 rounded-lg bg-gradient-to-br from-celeste via-celeste to-white grid place-items-center font-display text-lg text-primary-foreground shadow-lg">
-                PN
-              </div>
-            </div>
-          </div>
-          <div className="grid sm:grid-cols-2 gap-3 max-w-xl mx-auto">
+          <div className="grid sm:grid-cols-2 gap-3 max-w-2xl mx-auto">
             {([
               { z: "A" as const, count: countA },
               { z: "B" as const, count: countB },
@@ -403,68 +395,89 @@ function PesTeamSelect({
                 }`}
               >
                 <div className="text-[11px] uppercase tracking-[0.25em] text-white/40 mb-2">Primera Nacional</div>
-                <div className="font-display text-3xl text-white mb-3">ZONA {z}</div>
-                {/* Mini-collage de 4 escudos como vista previa de la zona */}
-                <div className="flex justify-center -space-x-2 mb-3">
+                <div className="font-display text-3xl text-white mb-4">ZONA {z}</div>
+                {/* Vista previa de escudos de la zona, en fila pareja (sin superponer) */}
+                <div className="flex justify-center items-center gap-3 mb-4">
                   {TEAMS.filter(t => t.zone === z).slice(0, 4).map(t => (
-                    <div key={t.id} className="rounded-full bg-[#0b1220] border border-white/15 p-1">
-                      <Shield team={t} size={36} />
-                    </div>
+                    <Shield key={t.id} team={t} size={34} />
                   ))}
                 </div>
                 <div className="text-xs text-white/40">{count} equipos</div>
               </button>
             ))}
           </div>
+          <div className="max-w-2xl mx-auto mt-4 text-center text-[11px] text-white/35 border border-white/10 rounded-full py-2 px-4">
+            ⓘ Cada zona tiene {countA} equipos. Elegí la zona donde querés jugar tu partido amistoso.
+          </div>
         </div>
       ) : (
         /* ===== Fila horizontal de escudos de la zona elegida ===== */
-        <div className="border-t border-white/10 bg-[#07080c] px-4 py-3">
-          <div className="flex items-center justify-between mb-2">
-            <button onClick={() => { sfx.back(); setPhase("zone"); }} className="text-[11px] uppercase tracking-[0.2em] text-white/40 hover:text-celeste transition-colors flex items-center gap-1">
-              <span>‹</span> Zona {zone} — {focus === "home" ? "LOCAL" : "VISITANTE"}
-            </button>
-            <div className="flex gap-1">
+        <div className="border-t border-white/10 bg-[#07080c] px-4 py-4">
+          {/* Selector de zona centrado, tipo "‹ ZONA A ›" con la insignia debajo */}
+          <div className="flex flex-col items-center mb-3">
+            <div className="flex items-center gap-3">
+              <button onClick={() => { sfx.move(); setZone(zone === "A" ? "B" : "A"); }} className="text-white/30 hover:text-celeste transition text-lg leading-none px-1">‹</button>
+              <div className="text-center">
+                <div className="text-[10px] uppercase tracking-[0.2em] text-white/35">{focus === "home" ? "LOCAL" : "VISITANTE"}</div>
+                <div className="font-display text-sm text-white tracking-wider">ZONA {zone}</div>
+              </div>
+              <button onClick={() => { sfx.move(); setZone(zone === "A" ? "B" : "A"); }} className="text-white/30 hover:text-celeste transition text-lg leading-none px-1">›</button>
+            </div>
+            <div className="flex gap-1 mt-1.5">
               {(["A", "B"] as const).map(z => (
-                <button key={z} onClick={() => setZone(z)}
-                  className={`px-2 py-1 text-[11px] rounded transition ${zone === z ? "bg-celeste text-primary-foreground" : "bg-white/10 text-white/50 hover:bg-white/20"}`}>
-                  Zona {z}
-                </button>
+                <span key={z} className={`w-1.5 h-1.5 rounded-full ${zone === z ? "bg-celeste" : "bg-white/15"}`} />
               ))}
             </div>
+            <button onClick={() => { sfx.back(); setPhase("zone"); }} className="mt-2 w-9 h-9 rounded-full bg-[#0b1220] border border-celeste/30 flex items-center justify-center hover:border-celeste/60 transition">
+              <span className="font-display text-celeste text-[10px]">PN</span>
+            </button>
           </div>
-          {/* Carrusel: cada casillero tiene ancho fijo (no reflowea al escalar → más fluido) */}
-          <div className="flex items-end gap-2.5 overflow-x-auto py-2 [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:bg-white/15 [&::-webkit-scrollbar-thumb]:rounded-full">
-            {list.map((t, i) => {
-              const isSel = t.id === selected?.id;
-              return (
-                <button
-                  key={t.id}
-                  ref={el => { itemRefs.current[t.id] = el; }}
-                  onClick={() => { sfx.select(); setSelected(t); }}
-                  title={t.name}
-                  className="shrink-0 w-24 h-24 flex flex-col items-center justify-center gap-1"
-                >
-                  <div
-                    className={`w-full flex-1 rounded flex items-center justify-center transition-all duration-150 ease-out ${
-                      isSel
-                        ? "scale-105 bg-white/10 border-2 border-celeste shadow-[0_0_22px_-2px_rgba(56,189,248,0.9)]"
-                        : "scale-90 bg-white/[0.03] border border-white/10 opacity-60 hover:opacity-90"
-                    }`}
+
+          {/* Carrusel: escudo + nombre, con flechas laterales para desplazar */}
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => itemRefs.current[list[Math.max(0, idx - 1)]?.id ?? ""]?.scrollIntoView({ behavior: "smooth", inline: "center" })}
+              className="shrink-0 text-white/30 hover:text-celeste transition text-xl leading-none px-1">‹</button>
+            <div className="flex items-start gap-2.5 overflow-x-auto py-1 flex-1 [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:bg-white/15 [&::-webkit-scrollbar-thumb]:rounded-full">
+              {list.map((t, i) => {
+                const isSel = t.id === selected?.id;
+                return (
+                  <button
+                    key={t.id}
+                    ref={el => { itemRefs.current[t.id] = el; }}
+                    onClick={() => { sfx.select(); setSelected(t); }}
+                    title={t.name}
+                    className="shrink-0 w-24 flex flex-col items-center gap-1.5"
                   >
-                    <Shield team={t} size={isSel ? 60 : 46} />
-                  </div>
-                  <span className={`text-[9px] uppercase tracking-wide truncate max-w-full ${isSel ? "text-celeste" : "text-white/40"}`}>
-                    {t.short}
-                  </span>
-                </button>
-              );
-            })}
+                    <div
+                      className={`w-24 h-24 flex items-center justify-center rounded transition-all duration-150 ease-out ${
+                        isSel
+                          ? "scale-105 bg-white/10 border-2 border-celeste shadow-[0_0_18px_-3px_rgba(56,189,248,0.9)]"
+                          : "scale-90 bg-white/[0.03] border border-white/10 opacity-55 hover:opacity-90"
+                      }`}
+                    >
+                      <Shield team={t} size={isSel ? 58 : 44} />
+                    </div>
+                    <span className={`text-[10px] uppercase tracking-wide truncate w-full text-center ${isSel ? "text-celeste" : "text-white/35"}`}>{t.short}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <button
+              onClick={() => itemRefs.current[list[Math.min(list.length - 1, idx + 1)]?.id ?? ""]?.scrollIntoView({ behavior: "smooth", inline: "center" })}
+              className="shrink-0 text-white/30 hover:text-celeste transition text-xl leading-none px-1">›</button>
           </div>
+          {list.length > 10 && (
+            <div className="flex justify-center gap-1.5 mt-2">
+              {Array.from({ length: Math.ceil(list.length / 10) }).map((_, p) => (
+                <span key={p} className={`w-1.5 h-1.5 rounded-full transition-colors ${Math.floor(idx / 10) === p ? "bg-celeste" : "bg-white/15"}`} />
+              ))}
+            </div>
+          )}
         </div>
       )}
 
-      {/* Confirmar / Atrás — texto simple, sin iconografía de consola */}
+      {/* Confirmar / Atrás / Aleatorio — texto simple, sin iconografía de consola */}
       <div className="border-t border-white/10 bg-[#050609] px-4 py-2.5 flex items-center justify-center gap-6">
         <button
           onClick={goBack}
@@ -472,6 +485,18 @@ function PesTeamSelect({
           className="text-xs uppercase tracking-[0.2em] text-white/40 hover:text-white/70 disabled:opacity-20 disabled:hover:text-white/40 transition">
           Atrás
         </button>
+        {phase === "teams" && (
+          <button
+            onClick={() => {
+              const other = focus === "home" ? away : home;
+              const pool = list.filter(t => t.id !== other?.id);
+              const pick = (pool.length ? pool : list)[Math.floor(Math.random() * (pool.length ? pool.length : list.length))];
+              if (pick) { sfx.select(); setSelected(pick); }
+            }}
+            className="text-xs uppercase tracking-[0.2em] text-white/40 hover:text-white/70 transition">
+            Aleatorio
+          </button>
+        )}
         <button
           onClick={phase === "zone" ? () => pickZone(zoneHighlight) : advanceOrConfirm}
           disabled={phase === "teams" && focus === "away" && sameTeam}
@@ -499,37 +524,43 @@ function PesPanel({ label, zone, team, kit, onKit, active, onClick }: {
       tabIndex={0}
       onClick={onClick}
       onKeyDown={e => { if (e.key === "Enter" || e.key === " ") onClick(); }}
-      className={`cursor-pointer transition-all duration-200 ${active ? "bg-white/[0.05]" : "bg-transparent hover:bg-white/[0.02]"}`}
+      className={`cursor-pointer transition-all duration-200 rounded-md border overflow-hidden ${active ? "bg-white/[0.05] border-celeste/30" : "bg-white/[0.015] border-white/10 hover:border-white/20"}`}
     >
       {/* Barra tipo "liga" (acá: zona) — equivalente a la franja superior de la referencia */}
-      <div className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#11151d] to-[#0a0c11] border-b border-white/10">
+      <div className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-[#11151d] to-[#0a0c11] border-b border-white/10">
         <span className="w-2 h-2 rounded-full shrink-0" style={{ background: zone === "A" ? "#38bdf8" : "#f5b400" }} />
         <span className="text-[11px] uppercase tracking-[0.2em] text-white/60 font-semibold truncate">Zona {zone} · Primera Nacional</span>
       </div>
       {/* Barra LOCAL/VISITANTE, se enciende cuando este panel tiene el foco */}
-      <div className={`px-4 py-1.5 text-[11px] uppercase tracking-[0.3em] border-b transition-colors ${active ? "text-celeste border-celeste/40 bg-celeste/[0.06]" : "text-white/35 border-white/10"}`}>
+      <div className={`px-5 py-2.5 text-[11px] uppercase tracking-[0.3em] border-b transition-colors ${active ? "text-celeste border-celeste/40 bg-celeste/[0.06]" : "text-white/35 border-white/10"}`}>
         {label}
       </div>
 
       {displayed ? (
-        <div key={displayed.id} className="pes-pop px-5 pt-5 pb-5 flex flex-col items-center text-center">
+        <div key={displayed.id} className="pes-pop px-6 pt-7 pb-7 flex flex-col items-center text-center">
           <div className="transition-transform duration-200 ease-out" style={{ transform: active ? "scale(1.06)" : "scale(1)" }}>
-            <Shield team={displayed} size={84} />
+            <Shield team={displayed} size={116} />
           </div>
-          <div className="font-display text-xl text-white mt-3 tracking-wide">{displayed.name.toUpperCase()}</div>
-          <div className="text-[11px] text-white/40 mt-0.5">{displayed.city}</div>
+          <div className="font-display text-2xl text-white mt-5 tracking-wide">{displayed.name.toUpperCase()}</div>
+          <div className="text-[11px] text-white/40 mt-1">{displayed.city}</div>
 
-          <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 mt-4 text-left">
-            {statRows.map(([lbl, val]) => (
-              <div key={lbl} className="flex items-center gap-2 text-[12px]">
-                <span className="text-white/45 w-7">{lbl}</span>
-                <span className="text-white font-semibold tabular-nums w-6">{val}</span>
-                <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: statGrade(val) }} />
-              </div>
-            ))}
+          <div className="flex flex-col gap-2.5 mt-6 text-left w-full max-w-[260px]">
+            {statRows.map(([lbl, val]) => {
+              const g = statGrade(val);
+              return (
+                <div key={lbl} className="flex items-center gap-3 text-[12px]">
+                  <span className="text-white/45 w-7 shrink-0">{lbl}</span>
+                  <span className="text-white font-semibold tabular-nums w-6 shrink-0">{val}</span>
+                  <span className="font-display text-[11px] w-4 shrink-0 text-center" style={{ color: g.color }}>{g.letter}</span>
+                  <span className="flex-1 h-1.5 rounded-full bg-white/10 overflow-hidden">
+                    <span className="block h-full rounded-full" style={{ width: `${g.pct}%`, background: g.color }} />
+                  </span>
+                </div>
+              );
+            })}
           </div>
 
-          <div className="mt-4 flex rounded border border-white/15 bg-black/30 p-0.5 w-[180px]" onClick={e => e.stopPropagation()}>
+          <div className="mt-6 flex rounded border border-white/15 bg-black/30 p-0.5 w-[180px]" onClick={e => e.stopPropagation()}>
             {(["titular", "alternativa"] as Kit[]).map(k => (
               <button key={k} onClick={() => onKit(k)}
                 className={`flex-1 px-2 py-1 rounded-sm text-[11px] capitalize transition ${kit === k ? "bg-celeste text-primary-foreground" : "text-white/50 hover:bg-white/10"}`}>
