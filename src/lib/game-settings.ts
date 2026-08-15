@@ -25,6 +25,7 @@ export type CoimasFlags = {
 export type GameSettings = {
   id: string;
   intro_video_url: string | null;
+  whistle_audio_url: string | null;
   coimas_enabled: boolean;
   coimas_flags: CoimasFlags;
   anular_goles_ratio: number;
@@ -33,6 +34,7 @@ export type GameSettings = {
 export const DEFAULT_SETTINGS: GameSettings = {
   id: "global",
   intro_video_url: null,
+  whistle_audio_url: null,
   coimas_enabled: false,
   coimas_flags: {},
   anular_goles_ratio: 3,
@@ -44,6 +46,7 @@ export async function fetchGameSettings(): Promise<GameSettings> {
   return {
     id: data.id,
     intro_video_url: data.intro_video_url,
+    whistle_audio_url: data.whistle_audio_url ?? null,
     coimas_enabled: data.coimas_enabled,
     coimas_flags: (data.coimas_flags as CoimasFlags) ?? {},
     anular_goles_ratio: data.anular_goles_ratio ?? 3,
