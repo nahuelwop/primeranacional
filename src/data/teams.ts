@@ -13,6 +13,13 @@ export type Team = {
   short: string;
   city: string;
   zone: "A" | "B";
+  // División a la que pertenece hoy el club dentro del organigrama del fútbol
+  // argentino (ver src/data/competitions.ts). Opcional y con default a
+  // "primera_nacional" en el constructor `t()` de abajo — así los 32 equipos
+  // existentes (y cualquier código que ya use Team) siguen funcionando sin
+  // tocar una sola línea más. `zone` sigue siendo específicamente la zona
+  // A/B de Primera Nacional (no se toca su significado).
+  division?: import("./competitions").DivisionId;
   primary: string;
   secondary: string;
   stripe?: "vertical" | "horizontal" | "sash" | "solid";
@@ -38,7 +45,7 @@ const t = (
   id: string, name: string, short: string, city: string, zone: "A" | "B",
   primary: string, secondary: string, stripe: Team["stripe"],
   s: Stats, rivals: string[] = [], logoUrl: string | null = null,
-): Team => ({ id, name, short, city, zone, primary, secondary, stripe, stats: s, rivals, logoUrl });
+): Team => ({ id, name, short, city, zone, division: "primera_nacional", primary, secondary, stripe, stats: s, rivals, logoUrl });
 
 // Datos iniciales / fallback. La fuente de verdad en runtime es la base de datos
 // (ver `src/lib/teams-sync.ts`); los cambios del admin se aplican mutando estos
