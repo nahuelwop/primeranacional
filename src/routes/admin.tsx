@@ -9,6 +9,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { SponsorsAdmin } from "@/components/admin/SponsorsAdmin";
 import { useAuth } from "@/lib/auth";
 import { TEAMS, type Team, type Narrator } from "@/data/teams";
+import { getTeamsByDivision } from "@/data/teams-catalog";
+import { COMPETITIONS, DIVISION_ORDER, type DivisionId } from "@/data/competitions";
 import { useTeamsSync, reloadTeams, syncTeamsFromDbRows, type DbTeam } from "@/lib/teams-sync";
 import { SquadStadiumEditor } from "@/components/SquadStadiumEditor";
 import { fetchGameSettings, saveGameSettings, type CoimasFlags, type GameSettings, DEFAULT_SETTINGS } from "@/lib/game-settings";
@@ -352,27 +354,55 @@ function EquiposTab() {
   const [editing, setEditing] = useState<Team | null>(null);
   const [creating, setCreating] = useState(false);
   const [filter, setFilter] = useState("");
+  // Primera Nacional por default: mantiene el comportamiento de siempre para
+  // quien no toque el selector de división.
+  const [division, setDivision] = useState<DivisionId>("primera_nacional");
+  const isEditable = division === "primera_nacional";
 
   const list = useMemo(() => {
     const q = filter.toLowerCase();
-    return TEAMS.filter(t => !q || t.name.toLowerCase().includes(q) || t.short.toLowerCase().includes(q));
-  }, [filter, TEAMS.length]);
+    const source = isEditable ? TEAMS : getTeamsByDivision(division);
+    return source.filter(t => !q || t.name.toLowerCase().includes(q) || t.short.toLowerCase().includes(q));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filter, division, TEAMS.length]);
 
   return (
     <div>
+      {/* Selector de división — Primera Nacional es la única conectada a la base
+          hoy; el resto se puede ver pero todavía no editar (ver nota abajo). */}
+      <div className="flex items-center gap-2 flex-wrap mb-3">
+        {DIVISION_ORDER.map(d => (
+          <button key={d} onClick={() => { setDivision(d); setEditing(null); setCreating(false); }}
+            className={`px-3 py-1.5 rounded-lg text-xs font-display tracking-wide transition ${d === division ? "bg-celeste text-primary-foreground" : "bg-secondary hover:bg-secondary/70"}`}>
+            {COMPETITIONS[d].shortName}
+          </button>
+        ))}
+      </div>
+
       <div className="flex items-center gap-3 flex-wrap">
         <Input className="max-w-sm" placeholder="Buscar equipo..." value={filter} onChange={e => setFilter(e.target.value)} />
-        <Button onClick={() => { setCreating(true); setEditing(null); }}>+ Nuevo equipo</Button>
+        {isEditable && <Button onClick={() => { setCreating(true); setEditing(null); }}>+ Nuevo equipo</Button>}
       </div>
+
+      {!isEditable && (
+        <div className="mt-3 text-xs text-muted-foreground rounded-lg border border-border bg-secondary/40 p-3">
+          Los clubes de {COMPETITIONS[division].name} todavía no tienen su propia tabla en la base de datos
+          (hoy sólo existe para Primera Nacional). Se pueden ver, pero cargar escudo/colores/edición acá
+          requiere primero crear esa tabla — decime y lo hacemos como siguiente paso.
+        </div>
+      )}
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-4">
         {list.map(t => (
-          <button key={t.id} onClick={() => { setEditing(t); setCreating(false); }}
-            className="text-left rounded-xl bg-card border border-border p-3 flex items-center gap-3 hover:border-celeste transition">
+          <button key={t.id} onClick={() => { if (isEditable) { setEditing(t); setCreating(false); } }}
+            disabled={!isEditable}
+            className={`text-left rounded-xl bg-card border border-border p-3 flex items-center gap-3 transition ${isEditable ? "hover:border-celeste" : "opacity-70 cursor-default"}`}>
             <Shield team={t} size={48} />
             <div className="flex-1 min-w-0">
               <div className="font-display text-lg truncate">{t.name}</div>
-              <div className="text-xs text-muted-foreground">Zona {t.zone} · {t.city}</div>
+              <div className="text-xs text-muted-foreground">
+                {COMPETITIONS[t.division ?? "primera_nacional"].hasZones ? `Zona ${t.zone} · ` : ""}{t.city}
+              </div>
               <div className="text-[10px] text-muted-foreground">VEL {t.stats.speed} · SAL {t.stats.jump} · POT {t.stats.power} · DEF {t.stats.defense}</div>
             </div>
           </button>
