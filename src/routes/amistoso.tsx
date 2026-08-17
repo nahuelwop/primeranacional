@@ -3,6 +3,8 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Nav } from "@/components/Nav";
 import { Shield } from "@/components/Shield";
 import { TEAMS, Team, type Narrator } from "@/data/teams";
+import { getTeamsByDivision, getTeamsByZone } from "@/data/teams-catalog";
+import { COMPETITIONS, DIVISION_ORDER, type DivisionId } from "@/data/competitions";
 import { useTeamsSync } from "@/lib/teams-sync";
 import { supabase } from "@/integrations/supabase/client";
 import { Game, type Weather, type Difficulty, type Mode, type MatchStats } from "@/components/Game";
@@ -249,7 +251,7 @@ function statGrade(v: number): { letter: string; color: string; pct: number } {
 
 // ===== Selector estilo PES 2013: dos paneles (LOCAL / VISITANTE) + fila de escudos =====
 type Side = "home" | "away";
-type Phase = "zone" | "teams";
+type Phase = "division" | "zone" | "teams";
 
 function PesTeamSelect({
   home, away, onHome, onAway, homeKit, awayKit, onHomeKit, onAwayKit, onAllConfirmed,
@@ -262,12 +264,16 @@ function PesTeamSelect({
 }) {
   const sfx = useMenuSfx();
   const [focus, setFocus] = useState<Side>("home");
-  const [zoneHome, setZoneHome] = useState<"A" | "B">(home?.zone ?? "A");
-  const [zoneAway, setZoneAway] = useState<"A" | "B">(away?.zone ?? "A");
-  // Paso previo, tipo selección de liga en PES: primero elegís la zona,
-  // recién ahí aparece la fila de escudos de esa zona.
-  const [phaseHome, setPhaseHome] = useState<Phase>("zone");
-  const [phaseAway, setPhaseAway] = useState<Phase>("zone");
+  const [divisionHome, setDivisionHome] = useState<DivisionId>(home?.division ?? "primera_nacional");
+  const [divisionAway, setDivisionAway] = useState<DivisionId>(away?.division ?? "primera_nacional");
+  const [zoneHome, setZoneHome] = useState<string>(home?.zone ?? "A");
+  const [zoneAway, setZoneAway] = useState<string>(away?.zone ?? "A");
+  // Paso previo, tipo selección de liga en PES: primero elegís la división,
+  // después la zona (si esa división tiene), recién ahí aparece la fila de escudos.
+  const [phaseHome, setPhaseHome] = useState<Phase>("division");
+  const [phaseAway, setPhaseAway] = useState<Phase>("division");
+  const division = focus === "home" ? divisionHome : divisionAway;
+  const setDivision = focus === "home" ? setDivisionHome : setDivisionAway;
   const zone = focus === "home" ? zoneHome : zoneAway;
   const setZone = focus === "home" ? setZoneHome : setZoneAway;
   const phase = focus === "home" ? phaseHome : phaseAway;
@@ -275,22 +281,38 @@ function PesTeamSelect({
   const selected = focus === "home" ? home : away;
   const setSelected = focus === "home" ? onHome : onAway;
   const sameTeam = !!home && !!away && home.id === away.id;
+  const competition = COMPETITIONS[division];
 
-  const list = useMemo(() => TEAMS.filter(t => t.zone === zone), [zone, TEAMS.length]);
-  const countA = useMemo(() => TEAMS.filter(t => t.zone === "A").length, [TEAMS.length]);
-  const countB = useMemo(() => TEAMS.filter(t => t.zone === "B").length, [TEAMS.length]);
+  const list = useMemo(
+    () => (competition.hasZones ? getTeamsByZone(division, zone) : getTeamsByDivision(division)),
+    [division, zone, competition.hasZones, TEAMS.length],
+  );
   const idx = Math.max(0, list.findIndex(t => t.id === selected?.id));
   const itemRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   // Qué zona está resaltada en la pantalla de selección de zona (navegable con teclado)
-  const [zoneHighlight, setZoneHighlight] = useState<"A" | "B">(zone);
-  useEffect(() => { setZoneHighlight(zone); }, [focus]);
+  const [zoneHighlight, setZoneHighlight] = useState<string>(zone);
+  useEffect(() => { setZoneHighlight(zone); }, [focus, division]);
 
   useEffect(() => {
     const el = selected && itemRefs.current[selected.id];
     el?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
   }, [selected?.id, zone]);
 
-  function pickZone(z: "A" | "B") {
+  function pickDivision(d: DivisionId) {
+    sfx.confirm();
+    setDivision(d);
+    const comp = COMPETITIONS[d];
+    if (comp.hasZones) {
+      const firstZone = comp.zones[0] ?? "A";
+      setZone(firstZone);
+      setZoneHighlight(firstZone);
+      setPhase("zone");
+    } else {
+      setPhase("teams");
+    }
+  }
+
+  function pickZone(z: string) {
     sfx.confirm();
     setZone(z);
     setPhase("teams");
@@ -298,7 +320,8 @@ function PesTeamSelect({
 
   function goBack() {
     sfx.back();
-    if (phase === "teams") { setPhase("zone"); return; }
+    if (phase === "teams") { setPhase(competition.hasZones ? "zone" : "division"); return; }
+    if (phase === "zone") { setPhase("division"); return; }
     if (focus === "away") { setFocus("home"); return; }
   }
 
@@ -309,7 +332,7 @@ function PesTeamSelect({
     onAllConfirmed();
   }
 
-  // Navegación con teclado: A/D o flechas para moverse dentro de la zona/equipo,
+  // Navegación con teclado: A/D o flechas para moverse dentro de división/zona/equipo,
   // ↑/↓ para saltar entre Local y Visitante, Enter/Espacio confirma, Backspace/Escape vuelve.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -321,15 +344,31 @@ function PesTeamSelect({
         return;
       }
       if (k === "escape") { goBack(); return; }
-      if (phase === "zone") {
+      if (phase === "division") {
         if (k === "a" || k === "arrowleft" || k === "d" || k === "arrowright") {
           sfx.move();
-          setZoneHighlight(z => (z === "A" ? "B" : "A"));
+          const i = DIVISION_ORDER.indexOf(division);
+          const dir = (k === "a" || k === "arrowleft") ? -1 : 1;
+          setDivision(DIVISION_ORDER[(i + dir + DIVISION_ORDER.length) % DIVISION_ORDER.length]);
         } else if (k === "enter" || k === " ") {
-          pickZone(zoneHighlight);
+          pickDivision(division);
         } else if (k === "backspace" && focus === "away") {
           sfx.back();
           setFocus("home");
+        }
+        return;
+      }
+      if (phase === "zone") {
+        if (k === "a" || k === "arrowleft" || k === "d" || k === "arrowright") {
+          sfx.move();
+          const zi = competition.zones.indexOf(zoneHighlight);
+          const dir = (k === "a" || k === "arrowleft") ? -1 : 1;
+          setZoneHighlight(competition.zones[(zi + dir + competition.zones.length) % competition.zones.length]);
+        } else if (k === "enter" || k === " ") {
+          pickZone(zoneHighlight);
+        } else if (k === "backspace") {
+          sfx.back();
+          setPhase("division");
         }
         return;
       }
@@ -343,13 +382,13 @@ function PesTeamSelect({
         advanceOrConfirm();
       } else if (k === "backspace") {
         sfx.back();
-        setPhase("zone");
+        setPhase(competition.hasZones ? "zone" : "division");
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [idx, list, setSelected, focus, phase, zoneHighlight, sameTeam]);
+  }, [idx, list, setSelected, focus, phase, zoneHighlight, sameTeam, division, competition]);
 
   return (
     <div className="mt-6 rounded-lg border border-white/10 overflow-hidden bg-[#0b0d12]/90 backdrop-blur-md shadow-[0_20px_60px_-15px_rgba(0,0,0,0.8)]">
@@ -359,77 +398,116 @@ function PesTeamSelect({
         .pes-pop { animation: pes-pop 220ms cubic-bezier(.2,.9,.25,1); }
       `}</style>
       <div className="grid md:grid-cols-2 gap-2 md:gap-3 p-2 md:p-3 pb-0 md:pb-0">
-        <PesPanel label="LOCAL" zone={zoneHome} team={home} kit={homeKit} onKit={onHomeKit}
+        <PesPanel label="LOCAL" division={divisionHome} zone={zoneHome} team={home} kit={homeKit} onKit={onHomeKit}
           active={focus === "home"} onClick={() => setFocus("home")} />
-        <PesPanel label="VISITANTE" zone={zoneAway} team={away} kit={awayKit} onKit={onAwayKit}
+        <PesPanel label="VISITANTE" division={divisionAway} zone={zoneAway} team={away} kit={awayKit} onKit={onAwayKit}
           active={focus === "away"} onClick={() => setFocus("away")} />
       </div>
 
-      {phase === "zone" ? (
-        /* ===== Pantalla de selección de ZONA (equivalente a elegir liga) ===== */
+      {phase === "division" ? (
+        /* ===== Pantalla de selección de DIVISIÓN (primer paso) ===== */
         <div className="border-t border-white/10 bg-[#07080c] px-4 py-6">
           <div className="text-[11px] uppercase tracking-[0.2em] text-white/40 text-center mb-1">
             Eligiendo {focus === "home" ? "LOCAL" : "VISITANTE"}
           </div>
+          <div className="text-center font-display text-lg text-white mb-1">ELEGIR DIVISIÓN</div>
+          <div className="text-center text-xs text-white/40 mb-4">Seleccioná la categoría donde querés jugar</div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 max-w-3xl mx-auto">
+            {DIVISION_ORDER.map(d => {
+              const comp = COMPETITIONS[d];
+              const count = getTeamsByDivision(d).length;
+              const empty = count === 0;
+              return (
+                <button
+                  key={d}
+                  onClick={() => !empty && pickDivision(d)}
+                  onMouseEnter={() => !empty && setDivision(d)}
+                  disabled={empty}
+                  className={`rounded border p-4 text-center transition-all duration-150 ${
+                    empty
+                      ? "border-white/5 bg-white/[0.01] opacity-40 cursor-not-allowed"
+                      : division === d
+                        ? "border-celeste/70 bg-celeste/10 scale-[1.03] shadow-[0_0_24px_-4px_rgba(56,189,248,0.5)]"
+                        : "border-white/10 bg-white/[0.02] hover:border-white/25"
+                  }`}
+                >
+                  <div className="font-display text-lg text-white mb-1">{comp.name}</div>
+                  <div className="text-xs text-white/40">{empty ? "Próximamente" : `${count} equipos`}</div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : phase === "zone" ? (
+        /* ===== Pantalla de selección de ZONA (equivalente a elegir liga) ===== */
+        <div className="border-t border-white/10 bg-[#07080c] px-4 py-6">
+          <div className="text-[11px] uppercase tracking-[0.2em] text-white/40 text-center mb-1">
+            Eligiendo {focus === "home" ? "LOCAL" : "VISITANTE"} · {competition.name}
+          </div>
           <div className="text-center font-display text-lg text-white mb-1">ELEGIR ZONA</div>
           <div className="text-center text-xs text-white/40 mb-4">Seleccioná la zona donde querés jugar</div>
-          {/* Insignia central, como el escudo de liga en la referencia */}
-          <div className="flex justify-center mb-4">
-            <div className="w-14 h-14 rounded-full bg-[#0b1220] border-2 border-celeste/40 flex items-center justify-center shadow-[0_0_20px_-4px_rgba(56,189,248,0.6)]">
-              <span className="font-display text-celeste text-xs">PN</span>
-            </div>
-          </div>
           <div className="grid sm:grid-cols-2 gap-3 max-w-2xl mx-auto">
-            {([
-              { z: "A" as const, count: countA },
-              { z: "B" as const, count: countB },
-            ]).map(({ z, count }) => (
-              <button
-                key={z}
-                onClick={() => pickZone(z)}
-                onMouseEnter={() => setZoneHighlight(z)}
-                className={`rounded border p-5 text-center transition-all duration-150 ${
-                  zoneHighlight === z
-                    ? "border-celeste/70 bg-celeste/10 scale-[1.03] shadow-[0_0_24px_-4px_rgba(56,189,248,0.5)]"
-                    : "border-white/10 bg-white/[0.02] hover:border-white/25"
-                }`}
-              >
-                <div className="text-[11px] uppercase tracking-[0.25em] text-white/40 mb-2">Primera Nacional</div>
-                <div className="font-display text-3xl text-white mb-4">ZONA {z}</div>
-                {/* Vista previa de escudos de la zona, en fila pareja (sin superponer) */}
-                <div className="flex justify-center items-center gap-3 mb-4">
-                  {TEAMS.filter(t => t.zone === z).slice(0, 4).map(t => (
-                    <Shield key={t.id} team={t} size={34} />
-                  ))}
-                </div>
-                <div className="text-xs text-white/40">{count} equipos</div>
-              </button>
-            ))}
+            {competition.zones.map(z => {
+              const count = getTeamsByZone(division, z).length;
+              return (
+                <button
+                  key={z}
+                  onClick={() => pickZone(z)}
+                  onMouseEnter={() => setZoneHighlight(z)}
+                  className={`rounded border p-5 text-center transition-all duration-150 ${
+                    zoneHighlight === z
+                      ? "border-celeste/70 bg-celeste/10 scale-[1.03] shadow-[0_0_24px_-4px_rgba(56,189,248,0.5)]"
+                      : "border-white/10 bg-white/[0.02] hover:border-white/25"
+                  }`}
+                >
+                  <div className="text-[11px] uppercase tracking-[0.25em] text-white/40 mb-2">{competition.name}</div>
+                  <div className="font-display text-3xl text-white mb-4">ZONA {z}</div>
+                  {/* Vista previa de escudos de la zona, en fila pareja (sin superponer) */}
+                  <div className="flex justify-center items-center gap-3 mb-4">
+                    {getTeamsByZone(division, z).slice(0, 4).map(t => (
+                      <Shield key={t.id} team={t} size={34} />
+                    ))}
+                  </div>
+                  <div className="text-xs text-white/40">{count} equipos</div>
+                </button>
+              );
+            })}
           </div>
-          <div className="max-w-2xl mx-auto mt-4 text-center text-[11px] text-white/35 border border-white/10 rounded-full py-2 px-4">
-            ⓘ Cada zona tiene {countA} equipos. Elegí la zona donde querés jugar tu partido amistoso.
+          <div className="max-w-2xl mx-auto mt-4 text-center">
+            <button onClick={() => { sfx.back(); setPhase("division"); }} className="text-[11px] text-celeste hover:underline">
+              ‹ Cambiar división
+            </button>
           </div>
         </div>
       ) : (
-        /* ===== Fila horizontal de escudos de la zona elegida ===== */
+        /* ===== Fila horizontal de escudos de la zona/división elegida ===== */
         <div className="border-t border-white/10 bg-[#07080c] px-4 py-4">
-          {/* Selector de zona centrado, tipo "‹ ZONA A ›" con la insignia debajo */}
+          {/* Selector centrado, tipo "‹ ZONA A ›" con la insignia debajo */}
           <div className="flex flex-col items-center mb-3">
-            <div className="flex items-center gap-3">
-              <button onClick={() => { sfx.move(); setZone(zone === "A" ? "B" : "A"); }} className="text-white/30 hover:text-celeste transition text-lg leading-none px-1">‹</button>
+            {competition.hasZones ? (
+              <div className="flex items-center gap-3">
+                <button onClick={() => { sfx.move(); const zi = competition.zones.indexOf(zone); setZone(competition.zones[(zi - 1 + competition.zones.length) % competition.zones.length]); }} className="text-white/30 hover:text-celeste transition text-lg leading-none px-1">‹</button>
+                <div className="text-center">
+                  <div className="text-[10px] uppercase tracking-[0.2em] text-white/35">{focus === "home" ? "LOCAL" : "VISITANTE"}</div>
+                  <div className="font-display text-sm text-white tracking-wider">ZONA {zone}</div>
+                </div>
+                <button onClick={() => { sfx.move(); const zi = competition.zones.indexOf(zone); setZone(competition.zones[(zi + 1) % competition.zones.length]); }} className="text-white/30 hover:text-celeste transition text-lg leading-none px-1">›</button>
+              </div>
+            ) : (
               <div className="text-center">
                 <div className="text-[10px] uppercase tracking-[0.2em] text-white/35">{focus === "home" ? "LOCAL" : "VISITANTE"}</div>
-                <div className="font-display text-sm text-white tracking-wider">ZONA {zone}</div>
+                <div className="font-display text-sm text-white tracking-wider">{competition.name.toUpperCase()}</div>
               </div>
-              <button onClick={() => { sfx.move(); setZone(zone === "A" ? "B" : "A"); }} className="text-white/30 hover:text-celeste transition text-lg leading-none px-1">›</button>
-            </div>
-            <div className="flex gap-1 mt-1.5">
-              {(["A", "B"] as const).map(z => (
-                <span key={z} className={`w-1.5 h-1.5 rounded-full ${zone === z ? "bg-celeste" : "bg-white/15"}`} />
-              ))}
-            </div>
-            <button onClick={() => { sfx.back(); setPhase("zone"); }} className="mt-2 w-9 h-9 rounded-full bg-[#0b1220] border border-celeste/30 flex items-center justify-center hover:border-celeste/60 transition">
-              <span className="font-display text-celeste text-[10px]">PN</span>
+            )}
+            {competition.hasZones && (
+              <div className="flex gap-1 mt-1.5">
+                {competition.zones.map(z => (
+                  <span key={z} className={`w-1.5 h-1.5 rounded-full ${zone === z ? "bg-celeste" : "bg-white/15"}`} />
+                ))}
+              </div>
+            )}
+            <button onClick={() => { sfx.back(); setPhase(competition.hasZones ? "zone" : "division"); }} className="mt-2 text-[11px] text-celeste hover:underline">
+              ‹ {competition.hasZones ? "Cambiar zona" : "Cambiar división"}
             </button>
           </div>
 
@@ -508,10 +586,11 @@ function PesTeamSelect({
   );
 }
 
-function PesPanel({ label, zone, team, kit, onKit, active, onClick }: {
-  label: string; zone: "A" | "B"; team: Team | null; kit: Kit; onKit: (k: Kit) => void;
+function PesPanel({ label, division, zone, team, kit, onKit, active, onClick }: {
+  label: string; division: DivisionId; zone: string; team: Team | null; kit: Kit; onKit: (k: Kit) => void;
   active: boolean; onClick: () => void;
 }) {
+  const competition = COMPETITIONS[division];
   const displayed = team ? applyKit(team, kit) : null;
   // Mapeo de las 4 stats reales de Primera Heads a las etiquetas tipo PES (ATA/TEC/FIS/DEF).
   const statRows: [string, number][] = displayed ? [
@@ -526,10 +605,12 @@ function PesPanel({ label, zone, team, kit, onKit, active, onClick }: {
       onKeyDown={e => { if (e.key === "Enter" || e.key === " ") onClick(); }}
       className={`cursor-pointer transition-all duration-200 rounded-md border overflow-hidden ${active ? "bg-white/[0.05] border-celeste/30" : "bg-white/[0.015] border-white/10 hover:border-white/20"}`}
     >
-      {/* Barra tipo "liga" (acá: zona) — equivalente a la franja superior de la referencia */}
+      {/* Barra tipo "liga" — ahora la división/zona real elegida, no fija a Primera Nacional */}
       <div className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-[#11151d] to-[#0a0c11] border-b border-white/10">
         <span className="w-2 h-2 rounded-full shrink-0" style={{ background: zone === "A" ? "#38bdf8" : "#f5b400" }} />
-        <span className="text-[11px] uppercase tracking-[0.2em] text-white/60 font-semibold truncate">Zona {zone} · Primera Nacional</span>
+        <span className="text-[11px] uppercase tracking-[0.2em] text-white/60 font-semibold truncate">
+          {competition.hasZones ? `Zona ${zone} · ${competition.name}` : competition.name}
+        </span>
       </div>
       {/* Barra LOCAL/VISITANTE, se enciende cuando este panel tiene el foco */}
       <div className={`px-5 py-2.5 text-[11px] uppercase tracking-[0.3em] border-b transition-colors ${active ? "text-celeste border-celeste/40 bg-celeste/[0.06]" : "text-white/35 border-white/10"}`}>
