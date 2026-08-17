@@ -308,8 +308,6 @@ function hydrateCache() {
   }
 }
 
-hydrateCache();
-
 function applyDbRow(row: DbTeam) {
   const team = rowToTeam(row);
 
@@ -499,6 +497,7 @@ export function useTeamsSync() {
   );
 
   useEffect(() => {
+    hydrateCache();
     bootOnce();
   }, []);
 
