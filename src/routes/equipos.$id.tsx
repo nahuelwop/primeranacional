@@ -2,13 +2,14 @@ import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Nav } from "@/components/Nav";
 import { Shield, Jersey } from "@/components/Shield";
-import { TEAMS } from "@/data/teams";
 import { useTeamsSync } from "@/lib/teams-sync";
+import { getTeamById } from "@/data/teams-catalog";
+import { COMPETITIONS } from "@/data/competitions";
 import { fetchPlayers, fetchStadium, POSITION_LABEL, type Player, type Stadium, type Position } from "@/lib/squads";
 
 export const Route = createFileRoute("/equipos/$id")({
   head: ({ params }) => {
-    const t = TEAMS.find(x => x.id === params.id);
+    const t = getTeamById(params.id);
     return { meta: [{ title: t ? `${t.name} · Primera Heads` : "Equipo" }] };
   },
   component: TeamDetailPage,
@@ -18,8 +19,11 @@ export const Route = createFileRoute("/equipos/$id")({
 
 function TeamDetailPage() {
   const { id } = Route.useParams();
+  // Los equipos de Primera Nacional se sincronizan en vivo con Supabase (por eso
+  // este hook); los de las otras 5 divisiones son estáticos por ahora — getTeamById
+  // ya contempla ambas fuentes a través del catálogo unificado.
   useTeamsSync();
-  const team = TEAMS.find(t => t.id === id);
+  const team = getTeamById(id);
   const [players, setPlayers] = useState<Player[]>([]);
   const [stadium, setStadium] = useState<Stadium | null>(null);
   const [loading, setLoading] = useState(true);
@@ -36,6 +40,7 @@ function TeamDetailPage() {
   }, [id]);
 
   if (!team) throw notFound();
+  const competition = COMPETITIONS[team.division ?? "primera_nacional"];
 
   const positions: Position[] = ["arquero", "defensa", "medio", "delantero"];
 
@@ -48,7 +53,9 @@ function TeamDetailPage() {
           <Shield team={team} size={88} />
           <div className="flex-1">
             <h1 className="font-display text-5xl">{team.name}</h1>
-            <p className="text-sm text-muted-foreground">{team.city} · Zona {team.zone}</p>
+            <p className="text-sm text-muted-foreground">
+              {team.city} · {competition.name}{competition.hasZones && team.zone ? ` · Zona ${team.zone}` : ""}
+            </p>
           </div>
           <Jersey team={team} size={72} />
         </header>
@@ -63,9 +70,9 @@ function TeamDetailPage() {
               <div><dt className="text-xs uppercase text-muted-foreground">Ciudad</dt><dd>{team.city}</dd></div>
               {team.province && <div><dt className="text-xs uppercase text-muted-foreground">Provincia</dt><dd>{team.province}</dd></div>}
               {team.nickname && <div><dt className="text-xs uppercase text-muted-foreground">Apodo</dt><dd>{team.nickname}</dd></div>}
-              {team.rivalId && TEAMS.find(x => x.id === team.rivalId) && (
+              {team.rivalId && getTeamById(team.rivalId) && (
                 <div><dt className="text-xs uppercase text-muted-foreground">Rival histórico</dt>
-                  <dd><Link to="/equipos/$id" params={{ id: team.rivalId }} className="underline">{TEAMS.find(x => x.id === team.rivalId)?.name}</Link></dd>
+                  <dd><Link to="/equipos/$id" params={{ id: team.rivalId }} className="underline">{getTeamById(team.rivalId)?.name}</Link></dd>
                 </div>
               )}
               {team.primeraSeasons != null && <div><dt className="text-xs uppercase text-muted-foreground">Temporadas en Primera</dt><dd>{team.primeraSeasons}</dd></div>}
