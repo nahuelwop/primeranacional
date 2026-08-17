@@ -57,12 +57,18 @@ const useStore = create<State>(() => ({
   loaded: false,
 }));
 
-function cloneArray<T>(value: T[] | null | undefined): T[] {
+function cloneArray<T>(
+  value: T[] | null | undefined
+): T[] {
   return Array.isArray(value) ? [...value] : [];
 }
 
-function findOriginalTeam(id: string): Team | undefined {
-  return TEAMS.find((team) => team.id === id);
+function findOriginalTeam(
+  id: string
+): Team | undefined {
+  return TEAMS.find(
+    (team) => team.id === id
+  );
 }
 
 function rowToTeam(row: DbTeam): Team {
@@ -77,9 +83,15 @@ function rowToTeam(row: DbTeam): Team {
       zone: row.zone ?? "A",
       division: "primera_nacional",
 
-      primary: row.primary_color ?? "#1a55a6",
-      secondary: row.secondary_color ?? "#ffffff",
-      stripe: (row.stripe as Team["stripe"]) ?? "solid",
+      primary:
+        row.primary_color ?? "#1a55a6",
+
+      secondary:
+        row.secondary_color ?? "#ffffff",
+
+      stripe:
+        (row.stripe as Team["stripe"]) ??
+        "solid",
 
       stats: {
         speed: Number(row.speed ?? 70),
@@ -90,54 +102,93 @@ function rowToTeam(row: DbTeam): Team {
 
       rivals: cloneArray(row.rivals),
 
-      logoUrl: row.logo_url ?? null,
-      flagUrls: cloneArray(row.flag_urls),
-      goalAudios: cloneArray(row.goal_audio_urls),
-      hinchadas: cloneArray(row.hinchada_urls),
-      narrators: cloneArray(row.narrators),
+      logoUrl:
+        row.logo_url?.trim() || null,
 
-      fullName: row.full_name ?? null,
-      foundedYear: row.founded_year ?? null,
-      province: row.province ?? null,
-      nickname: row.nickname ?? null,
-      rivalId: row.rival_id ?? null,
-      primeraSeasons: row.primera_seasons ?? null,
-      achievements: row.achievements ?? null,
-      history: row.history ?? null,
+      flagUrls:
+        cloneArray(row.flag_urls),
+
+      goalAudios:
+        cloneArray(row.goal_audio_urls),
+
+      hinchadas:
+        cloneArray(row.hinchada_urls),
+
+      narrators:
+        cloneArray(row.narrators),
+
+      fullName:
+        row.full_name ?? null,
+
+      foundedYear:
+        row.founded_year ?? null,
+
+      province:
+        row.province ?? null,
+
+      nickname:
+        row.nickname ?? null,
+
+      rivalId:
+        row.rival_id ?? null,
+
+      primeraSeasons:
+        row.primera_seasons ?? null,
+
+      achievements:
+        row.achievements ?? null,
+
+      history:
+        row.history ?? null,
     };
   }
-
-  // IMPORTANTE:
-  // El equipo original sigue siendo la fuente principal.
-  // Supabase solamente completa/modifica lo que realmente tiene.
 
   return {
     ...original,
 
-    name: row.name ?? original.name,
-    short: row.short ?? original.short,
-    city: row.city ?? original.city,
-    zone: row.zone ?? original.zone,
+    name:
+      row.name ?? original.name,
 
-    primary: row.primary_color ?? original.primary,
-    secondary: row.secondary_color ?? original.secondary,
+    short:
+      row.short ?? original.short,
+
+    city:
+      row.city ?? original.city,
+
+    zone:
+      row.zone ?? original.zone,
+
+    primary:
+      row.primary_color ??
+      original.primary,
+
+    secondary:
+      row.secondary_color ??
+      original.secondary,
+
     stripe:
       (row.stripe as Team["stripe"]) ??
       original.stripe,
 
     stats: {
-      speed: Number(row.speed ?? original.stats.speed),
-      jump: Number(row.jump ?? original.stats.jump),
-      power: Number(row.power ?? original.stats.power),
-      defense: Number(row.defense ?? original.stats.defense),
+      speed: Number(
+        row.speed ?? original.stats.speed
+      ),
+      jump: Number(
+        row.jump ?? original.stats.jump
+      ),
+      power: Number(
+        row.power ?? original.stats.power
+      ),
+      defense: Number(
+        row.defense ?? original.stats.defense
+      ),
     },
 
-    // Si Supabase tiene logo, usa ese.
-    // Si no, conserva el de teams.ts.
     logoUrl:
-      row.logo_url && row.logo_url.trim()
-        ? row.logo_url
-        : original.logoUrl ?? null,
+      row.logo_url?.trim() ||
+      original.logoUrl ||
+      null,
 
     flagUrls:
       row.flag_urls?.length
@@ -165,37 +216,57 @@ function rowToTeam(row: DbTeam): Team {
         : cloneArray(original.rivals),
 
     fullName:
-      row.full_name ?? original.fullName ?? null,
+      row.full_name ??
+      original.fullName ??
+      null,
 
     foundedYear:
-      row.founded_year ?? original.foundedYear ?? null,
+      row.founded_year ??
+      original.foundedYear ??
+      null,
 
     province:
-      row.province ?? original.province ?? null,
+      row.province ??
+      original.province ??
+      null,
 
     nickname:
-      row.nickname ?? original.nickname ?? null,
+      row.nickname ??
+      original.nickname ??
+      null,
 
     rivalId:
-      row.rival_id ?? original.rivalId ?? null,
+      row.rival_id ??
+      original.rivalId ??
+      null,
 
     primeraSeasons:
-      row.primera_seasons ?? original.primeraSeasons ?? null,
+      row.primera_seasons ??
+      original.primeraSeasons ??
+      null,
 
     achievements:
-      row.achievements ?? original.achievements ?? null,
+      row.achievements ??
+      original.achievements ??
+      null,
 
     history:
-      row.history ?? original.history ?? null,
+      row.history ??
+      original.history ??
+      null,
   };
 }
 
-function replaceTeams(teams: Team[]) {
+function replaceTeams(
+  teams: Team[]
+) {
   TEAMS.length = 0;
   ZONE_A.length = 0;
   ZONE_B.length = 0;
 
-  for (const key of Object.keys(TEAMS_BY_ID)) {
+  for (const key of Object.keys(
+    TEAMS_BY_ID
+  )) {
     delete TEAMS_BY_ID[key];
   }
 
@@ -211,10 +282,13 @@ function replaceTeams(teams: Team[]) {
   }
 }
 
-function applyDbRow(row: DbTeam) {
+function applyDbRow(
+  row: DbTeam
+) {
   const team = rowToTeam(row);
 
-  const existing = TEAMS_BY_ID[row.id];
+  const existing =
+    TEAMS_BY_ID[row.id];
 
   if (existing) {
     Object.assign(existing, team);
@@ -230,7 +304,9 @@ function applyDbRow(row: DbTeam) {
   }
 }
 
-function removeTeam(id: string) {
+function removeTeam(
+  id: string
+) {
   const index = TEAMS.findIndex(
     (team) => team.id === id
   );
@@ -241,42 +317,58 @@ function removeTeam(id: string) {
 
   delete TEAMS_BY_ID[id];
 
-  const zoneAIndex = ZONE_A.findIndex(
-    (team) => team.id === id
-  );
+  const zoneAIndex =
+    ZONE_A.findIndex(
+      (team) => team.id === id
+    );
 
   if (zoneAIndex >= 0) {
-    ZONE_A.splice(zoneAIndex, 1);
+    ZONE_A.splice(
+      zoneAIndex,
+      1
+    );
   }
 
-  const zoneBIndex = ZONE_B.findIndex(
-    (team) => team.id === id
-  );
+  const zoneBIndex =
+    ZONE_B.findIndex(
+      (team) => team.id === id
+    );
 
   if (zoneBIndex >= 0) {
-    ZONE_B.splice(zoneBIndex, 1);
+    ZONE_B.splice(
+      zoneBIndex,
+      1
+    );
   }
 }
 
 let booted = false;
 
 async function loadAll() {
-  console.log("[TEAMS] Cargando equipos desde Supabase...");
+  console.log(
+    "[TEAMS] Cargando equipos desde Supabase..."
+  );
 
-  const { data, error } = await supabase
-    .from("teams")
-    .select("*")
-    .order("sort_order", {
-      ascending: true,
-    });
+  const { data, error } =
+    await supabase
+      .from("teams")
+      .select("*")
+      .order("sort_order", {
+        ascending: true,
+      });
 
   if (error) {
-    console.error("[TEAMS] Error de Supabase:", error);
+    console.error(
+      "[TEAMS] Error de Supabase:",
+      error
+    );
     return;
   }
 
   if (!data) {
-    console.error("[TEAMS] Supabase no devolvió datos.");
+    console.error(
+      "[TEAMS] Supabase no devolvió datos."
+    );
     return;
   }
 
@@ -285,19 +377,23 @@ async function loadAll() {
     data.length
   );
 
-  const rows = data as unknown as DbTeam[];
+  const rows =
+    data as unknown as DbTeam[];
 
-  const teams = rows.map(rowToTeam);
+  replaceTeams(
+    rows.map(rowToTeam)
+  );
 
-  replaceTeams(teams);
-
-  useStore.setState((state) => ({
-    version: state.version + 1,
-    loaded: true,
-  }));
+  useStore.setState(
+    (state) => ({
+      version:
+        state.version + 1,
+      loaded: true,
+    })
+  );
 
   console.log(
-    "[TEAMS] Equipos cargados correctamente:",
+    "[TEAMS] Equipos cargados:",
     TEAMS.length
   );
 }
@@ -305,32 +401,50 @@ async function loadAll() {
 export function syncTeamsFromDbRows(
   rows: DbTeam[]
 ) {
-  if (!Array.isArray(rows) || rows.length === 0) {
-    console.warn("[TEAMS] No se recibieron equipos.");
+  if (
+    !Array.isArray(rows) ||
+    rows.length === 0
+  ) {
+    console.warn(
+      "[TEAMS] No se recibieron equipos."
+    );
     return;
   }
 
-  replaceTeams(rows.map(rowToTeam));
+  replaceTeams(
+    rows.map(rowToTeam)
+  );
 
-  useStore.setState((state) => ({
-    version: state.version + 1,
-    loaded: true,
-  }));
+  useStore.setState(
+    (state) => ({
+      version:
+        state.version + 1,
+      loaded: true,
+    })
+  );
 }
 
 export function hydrateTeamsFromDbRows(
   rows: DbTeam[]
 ) {
-  if (!Array.isArray(rows) || rows.length === 0) {
+  if (
+    !Array.isArray(rows) ||
+    rows.length === 0
+  ) {
     return;
   }
 
-  replaceTeams(rows.map(rowToTeam));
+  replaceTeams(
+    rows.map(rowToTeam)
+  );
 
-  useStore.setState((state) => ({
-    version: state.version + 1,
-    loaded: true,
-  }));
+  useStore.setState(
+    (state) => ({
+      version:
+        state.version + 1,
+      loaded: true,
+    })
+  );
 }
 
 function bootOnce() {
@@ -355,9 +469,13 @@ function bootOnce() {
           payload.eventType
         );
 
-        if (payload.eventType === "DELETE") {
+        if (
+          payload.eventType ===
+          "DELETE"
+        ) {
           removeTeam(
-            (payload.old as DbTeam).id
+            (payload.old as DbTeam)
+              .id
           );
         } else {
           applyDbRow(
@@ -365,24 +483,31 @@ function bootOnce() {
           );
         }
 
-        useStore.setState((state) => ({
-          version: state.version + 1,
-          loaded: true,
-        }));
+        useStore.setState(
+          (state) => ({
+            version:
+              state.version + 1,
+            loaded: true,
+          })
+        );
       }
     )
-    .subscribe((status) => {
-      console.log(
-        "[TEAMS] Realtime:",
-        status
-      );
-    });
+    .subscribe(
+      (status) => {
+        console.log(
+          "[TEAMS] Realtime:",
+          status
+        );
+      }
+    );
 }
 
 export function useTeamsSync() {
-  const version = useStore(
-    (state) => state.version
-  );
+  const version =
+    useStore(
+      (state) =>
+        state.version
+    );
 
   useEffect(() => {
     bootOnce();
@@ -392,10 +517,13 @@ export function useTeamsSync() {
 }
 
 export function bumpTeamsVersion() {
-  useStore.setState((state) => ({
-    version: state.version + 1,
-    loaded: true,
-  }));
+  useStore.setState(
+    (state) => ({
+      version:
+        state.version + 1,
+      loaded: true,
+    })
+  );
 }
 
 export async function reloadTeams() {
