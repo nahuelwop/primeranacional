@@ -1,611 +1,403 @@
-export type Stats = {
-  speed: number;
-  jump: number;
-  power: number;
-  defense: number;
-};
+import { create } from "zustand";
+import { useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import {
+  TEAMS,
+  TEAMS_BY_ID,
+  ZONE_A,
+  ZONE_B,
+  type Team,
+  type Narrator,
+} from "@/data/teams";
 
-export type Narrator = {
+export type DbTeam = {
   id: string;
-  name: string;
-  urls: string[];
-};
+  name?: string | null;
+  short?: string | null;
+  city?: string | null;
+  zone?: "A" | "B" | null;
+  division?: string | null;
 
-export type Team = {
-  id: string;
-  name: string;
-  short: string;
-  city: string;
-  zone: "A" | "B";
-  division?: import("./competitions").DivisionId;
+  primary_color?: string | null;
+  secondary_color?: string | null;
+  stripe?: string | null;
 
-  primary: string;
-  secondary: string;
-  stripe?: "vertical" | "horizontal" | "sash" | "solid";
+  speed?: number | null;
+  jump?: number | null;
+  power?: number | null;
+  defense?: number | null;
 
-  stats: Stats;
-  rivals?: string[];
+  logo_url?: string | null;
+  flag_urls?: string[] | null;
+  rivals?: string[] | null;
 
-  logoUrl?: string | null;
-  flagUrls?: string[];
-  goalAudios?: string[];
-  hinchadas?: string[];
-  narrators?: Narrator[];
+  sort_order?: number | null;
 
-  fullName?: string | null;
-  foundedYear?: number | null;
+  goal_audio_urls?: string[] | null;
+  hinchada_urls?: string[] | null;
+  narrators?: Narrator[] | null;
+
+  full_name?: string | null;
+  founded_year?: number | null;
   province?: string | null;
   nickname?: string | null;
-  rivalId?: string | null;
-  primeraSeasons?: number | null;
+  rival_id?: string | null;
+  primera_seasons?: number | null;
   achievements?: string | null;
   history?: string | null;
 };
 
-const t = (
-  id: string,
-  name: string,
-  short: string,
-  city: string,
-  zone: "A" | "B",
-  primary: string,
-  secondary: string,
-  stripe: Team["stripe"],
-  stats: Stats,
-  rivals: string[] = [],
-  logoUrl: string | null = null,
-): Team => ({
-  id,
-  name,
-  short,
-  city,
-  zone,
-  division: "primera_nacional",
-  primary,
-  secondary,
-  stripe,
-  stats,
-  rivals,
-  logoUrl,
-  flagUrls: [],
-  goalAudios: [],
-  hinchadas: [],
-  narrators: [],
-});
+type State = {
+  version: number;
+  loaded: boolean;
+};
 
-export const TEAMS: Team[] = [
-  // =========================
-  // ZONA A
-  // =========================
+const useStore = create<State>(() => ({
+  version: 0,
+  loaded: false,
+}));
 
-  t(
-    "allboys",
-    "All Boys",
-    "ALB",
-    "Floresta",
-    "A",
-    "#ffffff",
-    "#1a1a1a",
-    "horizontal",
-    { speed: 72, jump: 71, power: 72, defense: 73 },
-    ["nuevachicago"],
-    "https://upload.wikimedia.org/wikipedia/commons/7/7b/Escudo_del_Club_Atl%C3%A9tico_All_Boys.svg",
-  ),
+function cloneArray<T>(value: T[] | null | undefined): T[] {
+  return Array.isArray(value) ? [...value] : [];
+}
 
-  t(
-    "ferro",
-    "Ferro Carril Oeste",
-    "FCO",
-    "Caballito",
-    "A",
-    "#1aa64a",
-    "#ffffff",
-    "horizontal",
-    { speed: 76, jump: 74, power: 77, defense: 79 },
-    ["atlanta"],
-    "https://upload.wikimedia.org/wikipedia/commons/c/c6/Escudo_del_Club_Ferro_Carril_Oeste.svg",
-  ),
+function findOriginalTeam(id: string): Team | undefined {
+  return TEAMS.find((team) => team.id === id);
+}
 
-  t(
-    "depmadryn",
-    "Deportivo Madryn",
-    "DMA",
-    "Puerto Madryn",
-    "A",
-    "#1a55a6",
-    "#f6c419",
-    "horizontal",
-    { speed: 77, jump: 75, power: 78, defense: 75 },
-    [],
-    "https://upload.wikimedia.org/wikipedia/commons/5/50/Escudo_del_Club_Social_y_Deportivo_Madryn.svg",
-  ),
+function rowToTeam(row: DbTeam): Team {
+  const original = findOriginalTeam(row.id);
 
-  t(
-    "chacoforever",
-    "Chaco For Ever",
-    "CFE",
-    "Resistencia",
-    "A",
-    "#1a1a1a",
-    "#d61a1a",
-    "vertical",
-    { speed: 72, jump: 71, power: 73, defense: 72 },
-    [],
-    "https://upload.wikimedia.org/wikipedia/commons/1/1e/Chaco_For_Ever-ARG.png",
-  ),
+  if (!original) {
+    return {
+      id: row.id,
+      name: row.name ?? "Equipo",
+      short: row.short ?? "",
+      city: row.city ?? "",
+      zone: row.zone ?? "A",
+      division: "primera_nacional",
 
-  t(
-    "depmoron",
-    "Deportivo Morón",
-    "DMO",
-    "Morón",
-    "A",
-    "#9b1a1a",
-    "#ffffff",
-    "horizontal",
-    { speed: 73, jump: 72, power: 74, defense: 74 },
-    [],
-    "https://upload.wikimedia.org/wikipedia/commons/6/63/Moron_Escudo_Actual_2024.png",
-  ),
+      primary: row.primary_color ?? "#1a55a6",
+      secondary: row.secondary_color ?? "#ffffff",
+      stripe: (row.stripe as Team["stripe"]) ?? "solid",
 
-  t(
-    "estudiantesba",
-    "Estudiantes (BA)",
-    "ECA",
-    "Caseros",
-    "A",
-    "#d61a1a",
-    "#ffffff",
-    "horizontal",
-    { speed: 72, jump: 71, power: 73, defense: 75 },
-    [],
-    "https://upload.wikimedia.org/wikipedia/commons/e/e2/Escudo_del_Club_Atl%C3%A9tico_Estudiantes_de_Buenos_Aires.svg",
-  ),
+      stats: {
+        speed: Number(row.speed ?? 70),
+        jump: Number(row.jump ?? 70),
+        power: Number(row.power ?? 70),
+        defense: Number(row.defense ?? 70),
+      },
 
-  t(
-    "racingcba",
-    "Racing de Córdoba",
-    "RCC",
-    "Nueva Italia",
-    "A",
-    "#7ec8ff",
-    "#ffffff",
-    "horizontal",
-    { speed: 75, jump: 73, power: 75, defense: 73 },
-    [],
-    "https://upload.wikimedia.org/wikipedia/commons/f/fa/Escudo_del_Club_Racing_de_C%C3%B3rdoba.svg",
-  ),
+      rivals: cloneArray(row.rivals),
 
-  t(
-    "losandes",
-    "Los Andes",
-    "LAN",
-    "Lomas de Zamora",
-    "A",
-    "#9b1a1a",
-    "#ffffff",
-    "vertical",
-    { speed: 70, jump: 70, power: 71, defense: 71 },
-    ["temperley"],
-    "https://upload.wikimedia.org/wikipedia/commons/2/20/Escudo_del_Club_Atl%C3%A9tico_Los_Andes.svg",
-  ),
+      logoUrl: row.logo_url ?? null,
+      flagUrls: cloneArray(row.flag_urls),
+      goalAudios: cloneArray(row.goal_audio_urls),
+      hinchadas: cloneArray(row.hinchada_urls),
+      narrators: cloneArray(row.narrators),
 
-  t(
-    "mitre",
-    "Mitre (SdE)",
-    "MIT",
-    "Sgo. del Estero",
-    "A",
-    "#1a55a6",
-    "#ffffff",
-    "horizontal",
-    { speed: 71, jump: 71, power: 72, defense: 72 },
-    ["guemes"],
-    "https://upload.wikimedia.org/wikipedia/commons/8/86/Escudo_del_Club_Atletico_Mitre.svg",
-  ),
+      fullName: row.full_name ?? null,
+      foundedYear: row.founded_year ?? null,
+      province: row.province ?? null,
+      nickname: row.nickname ?? null,
+      rivalId: row.rival_id ?? null,
+      primeraSeasons: row.primera_seasons ?? null,
+      achievements: row.achievements ?? null,
+      history: row.history ?? null,
+    };
+  }
 
-  t(
-    "almirantebrown",
-    "Almirante Brown",
-    "ABR",
-    "Isidro Casanova",
-    "A",
-    "#f6c419",
-    "#1a1a1a",
-    "vertical",
-    { speed: 71, jump: 71, power: 72, defense: 73 },
-  ),
+  // IMPORTANTE:
+  // El equipo original sigue siendo la fuente principal.
+  // Supabase solamente completa/modifica lo que realmente tiene.
 
-  t(
-    "ciudadbolivar",
-    "Ciudad de Bolívar",
-    "CBV",
-    "Bolívar",
-    "A",
-    "#ffffff",
-    "#d61a1a",
-    "vertical",
-    { speed: 67, jump: 67, power: 69, defense: 69 },
-  ),
+  return {
+    ...original,
 
-  t(
-    "colon",
-    "Colón",
-    "COL",
-    "Santa Fe",
-    "A",
-    "#d61a1a",
-    "#1a1a1a",
-    "vertical",
-    { speed: 81, jump: 77, power: 83, defense: 79 },
-    ["patronato"],
-    "https://upload.wikimedia.org/wikipedia/commons/1/17/Escudo_del_Club_Atl%C3%A9tico_Col%C3%B3n.svg",
-  ),
+    name: row.name ?? original.name,
+    short: row.short ?? original.short,
+    city: row.city ?? original.city,
+    zone: row.zone ?? original.zone,
 
-  t(
-    "centralnorte",
-    "Central Norte",
-    "CNR",
-    "Salta",
-    "A",
-    "#d61a1a",
-    "#1a1a1a",
-    "vertical",
-    { speed: 72, jump: 72, power: 73, defense: 72 },
-    ["gimnasiatiro"],
-    "https://upload.wikimedia.org/wikipedia/commons/4/45/Escudo_Central_Norte_Argentino.png",
-  ),
+    primary: row.primary_color ?? original.primary,
+    secondary: row.secondary_color ?? original.secondary,
+    stripe:
+      (row.stripe as Team["stripe"]) ??
+      original.stripe,
 
-  t(
-    "godoycruz",
-    "Godoy Cruz",
-    "GDC",
-    "Mendoza",
-    "A",
-    "#1a3da6",
-    "#ffffff",
-    "horizontal",
-    { speed: 84, jump: 79, power: 85, defense: 82 },
-    [],
-    "https://upload.wikimedia.org/wikipedia/commons/8/84/Escudo_del_Club_Deportivo_Godoy_Cruz_Antonio_Tomba.svg",
-  ),
+    stats: {
+      speed: Number(row.speed ?? original.stats.speed),
+      jump: Number(row.jump ?? original.stats.jump),
+      power: Number(row.power ?? original.stats.power),
+      defense: Number(row.defense ?? original.stats.defense),
+    },
 
-  t(
-    "santelmo",
-    "San Telmo",
-    "STL",
-    "San Telmo",
-    "A",
-    "#1a55a6",
-    "#d61a1a",
-    "horizontal",
-    { speed: 71, jump: 70, power: 71, defense: 72 },
-    [],
-    "https://upload.wikimedia.org/wikipedia/commons/3/3f/Club_Atl%C3%A9tico_San_Telmo_(logo).svg",
-  ),
+    // Si Supabase tiene logo, usa ese.
+    // Si no, conserva el de teams.ts.
+    logoUrl:
+      row.logo_url && row.logo_url.trim()
+        ? row.logo_url
+        : original.logoUrl ?? null,
 
-  t(
-    "sanmiguel",
-    "San Miguel",
-    "SMG",
-    "San Miguel",
-    "A",
-    "#d61a1a",
-    "#1aa64a",
-    "vertical",
-    { speed: 73, jump: 72, power: 74, defense: 73 },
-    [],
-    "https://upload.wikimedia.org/wikipedia/commons/c/ce/CLUB_ATLETICO_SAN_MIGUEL.png",
-  ),
+    flagUrls:
+      row.flag_urls?.length
+        ? cloneArray(row.flag_urls)
+        : cloneArray(original.flagUrls),
 
-  t(
-    "defbelgrano",
-    "Defensores de Belgrano",
-    "DEB",
-    "Núñez",
-    "A",
-    "#d61a1a",
-    "#ffffff",
-    "vertical",
-    { speed: 73, jump: 71, power: 73, defense: 76 },
-    [],
-    "https://upload.wikimedia.org/wikipedia/commons/f/f2/Defensores_de_Belgrano_Logo.svg",
-  ),
+    goalAudios:
+      row.goal_audio_urls?.length
+        ? cloneArray(row.goal_audio_urls)
+        : cloneArray(original.goalAudios),
 
-  t(
-    "acassuso",
-    "Acassuso",
-    "ACA",
-    "San Isidro",
-    "A",
-    "#7a1aa6",
-    "#ffffff",
-    "horizontal",
-    { speed: 68, jump: 68, power: 69, defense: 69 },
-  ),
+    hinchadas:
+      row.hinchada_urls?.length
+        ? cloneArray(row.hinchada_urls)
+        : cloneArray(original.hinchadas),
 
-  // =========================
-  // ZONA B
-  // =========================
+    narrators:
+      row.narrators?.length
+        ? cloneArray(row.narrators)
+        : cloneArray(original.narrators),
 
-  t(
-    "nuevachicago",
-    "Nueva Chicago",
-    "NCH",
-    "Mataderos",
-    "B",
-    "#1aa64a",
-    "#1a1a1a",
-    "vertical",
-    { speed: 76, jump: 75, power: 79, defense: 74 },
-    ["allboys"],
-    "https://upload.wikimedia.org/wikipedia/commons/c/cd/Escudo_del_Club_Atl%C3%A9tico_Nueva_Chicago.svg",
-  ),
+    rivals:
+      row.rivals?.length
+        ? cloneArray(row.rivals)
+        : cloneArray(original.rivals),
 
-  t(
-    "chacarita",
-    "Chacarita Juniors",
-    "CHA",
-    "San Martín",
-    "B",
-    "#d61a1a",
-    "#1a1a1a",
-    "vertical",
-    { speed: 79, jump: 76, power: 81, defense: 76 },
-    [],
-    "https://upload.wikimedia.org/wikipedia/commons/a/a0/Escudo_del_Club_Atl%C3%A9tico_Chacarita_Juniors.svg",
-  ),
+    fullName:
+      row.full_name ?? original.fullName ?? null,
 
-  t(
-    "atlanta",
-    "Atlanta",
-    "ATL",
-    "Villa Crespo",
-    "B",
-    "#1a3da6",
-    "#f6c419",
-    "vertical",
-    { speed: 74, jump: 72, power: 73, defense: 72 },
-    ["ferro"],
-    "https://upload.wikimedia.org/wikipedia/commons/8/87/Escudoatlanta.png",
-  ),
+    foundedYear:
+      row.founded_year ?? original.foundedYear ?? null,
 
-  t(
-    "sanmartint",
-    "San Martín (T)",
-    "SMT",
-    "Tucumán",
-    "B",
-    "#d61a1a",
-    "#1a1a1a",
-    "vertical",
-    { speed: 82, jump: 78, power: 84, defense: 80 },
-    [],
-    "https://upload.wikimedia.org/wikipedia/commons/6/64/Escudo_del_Club_San_Martin_de_Tucum%C3%A1n.svg",
-  ),
+    province:
+      row.province ?? original.province ?? null,
 
-  t(
-    "gimnasiajujuy",
-    "Gimnasia (J)",
-    "GYE",
-    "San Salvador",
-    "B",
-    "#ffffff",
-    "#1a55a6",
-    "vertical",
-    { speed: 74, jump: 73, power: 74, defense: 73 },
-    [],
-    "https://upload.wikimedia.org/wikipedia/commons/7/7e/Escudo_de_Gimnasia_y_Esgrima_de_Jujuy.svg",
-  ),
+    nickname:
+      row.nickname ?? original.nickname ?? null,
 
-  t(
-    "almagro",
-    "Almagro",
-    "ALM",
-    "José Ingenieros",
-    "B",
-    "#1a3da6",
-    "#d61a1a",
-    "sash",
-    { speed: 70, jump: 70, power: 71, defense: 72 },
-    [],
-    "https://upload.wikimedia.org/wikipedia/commons/5/50/Almagro_escudo2024.png",
-  ),
+    rivalId:
+      row.rival_id ?? original.rivalId ?? null,
 
-  t(
-    "sanmartinsj",
-    "San Martín (SJ)",
-    "SMS",
-    "San Juan",
-    "B",
-    "#1aa64a",
-    "#1a1a1a",
-    "vertical",
-    { speed: 77, jump: 75, power: 78, defense: 76 },
-    [],
-    "https://upload.wikimedia.org/wikipedia/commons/b/bd/Escudo_de_San_Martin_de_San_Juan.svg",
-  ),
+    primeraSeasons:
+      row.primera_seasons ?? original.primeraSeasons ?? null,
 
-  t(
-    "temperley",
-    "Temperley",
-    "TEM",
-    "Temperley",
-    "B",
-    "#7ec8ff",
-    "#ffffff",
-    "horizontal",
-    { speed: 72, jump: 72, power: 73, defense: 73 },
-    ["losandes"],
-    "https://upload.wikimedia.org/wikipedia/commons/e/e9/Club-Atl%C3%A9tico-Temperley.png",
-  ),
+    achievements:
+      row.achievements ?? original.achievements ?? null,
 
-  t(
-    "guemes",
-    "Güemes (SdE)",
-    "GUE",
-    "Sgo. del Estero",
-    "B",
-    "#1a1a1a",
-    "#ffffff",
-    "vertical",
-    { speed: 71, jump: 71, power: 72, defense: 71 },
-    ["mitre"],
-  ),
+    history:
+      row.history ?? original.history ?? null,
+  };
+}
 
-  t(
-    "tristanrey",
-    "Tristán Suárez",
-    "TSU",
-    "Tristán Suárez",
-    "B",
-    "#f6c419",
-    "#1a3da6",
-    "horizontal",
-    { speed: 70, jump: 70, power: 70, defense: 71 },
-    [],
-    "https://upload.wikimedia.org/wikipedia/commons/f/f8/Escudo_Final_TS_PNG.png",
-  ),
+function replaceTeams(teams: Team[]) {
+  TEAMS.length = 0;
+  ZONE_A.length = 0;
+  ZONE_B.length = 0;
 
-  t(
-    "agropecuario",
-    "Agropecuario",
-    "AGR",
-    "Carlos Casares",
-    "B",
-    "#1aa64a",
-    "#ffffff",
-    "horizontal",
-    { speed: 72, jump: 71, power: 73, defense: 73 },
-    [],
-    "https://upload.wikimedia.org/wikipedia/commons/d/de/Agropecuario_cc.png",
-  ),
+  for (const key of Object.keys(TEAMS_BY_ID)) {
+    delete TEAMS_BY_ID[key];
+  }
 
-  t(
-    "patronato",
-    "Patronato",
-    "PAT",
-    "Paraná",
-    "B",
-    "#9b1a1a",
-    "#1a1a1a",
-    "vertical",
-    { speed: 74, jump: 72, power: 74, defense: 76 },
-    ["colon"],
-    "https://upload.wikimedia.org/wikipedia/commons/0/08/Escudo_Patronato.png",
-  ),
+  for (const team of teams) {
+    TEAMS.push(team);
+    TEAMS_BY_ID[team.id] = team;
 
-  t(
-    "gimnasiatiro",
-    "Gimnasia y Tiro",
-    "GYT",
-    "Salta",
-    "B",
-    "#d61a1a",
-    "#1a55a6",
-    "horizontal",
-    { speed: 72, jump: 72, power: 72, defense: 73 },
-    ["centralnorte"],
-    "https://upload.wikimedia.org/wikipedia/commons/4/44/Escudo_del_Club_Gimnasia_y_Tiro_de_Salta.svg",
-  ),
+    if (team.zone === "A") {
+      ZONE_A.push(team);
+    } else {
+      ZONE_B.push(team);
+    }
+  }
+}
 
-  t(
-    "depmaipu",
-    "Deportivo Maipú",
-    "DMP",
-    "Mendoza",
-    "B",
-    "#d61a1a",
-    "#ffffff",
-    "horizontal",
-    { speed: 74, jump: 73, power: 74, defense: 73 },
-    [],
-    "https://upload.wikimedia.org/wikipedia/commons/3/36/Escudo_del_Club_Deportivo_Maipu.svg",
-  ),
+function applyDbRow(row: DbTeam) {
+  const team = rowToTeam(row);
 
-  t(
-    "quilmes",
-    "Quilmes",
-    "QUI",
-    "Quilmes",
-    "B",
-    "#ffffff",
-    "#7ec8ff",
-    "horizontal",
-    { speed: 79, jump: 76, power: 80, defense: 77 },
-  ),
+  const existing = TEAMS_BY_ID[row.id];
 
-  t(
-    "colegiales",
-    "Colegiales",
-    "CLG",
-    "Munro",
-    "B",
-    "#1a1a1a",
-    "#d61a1a",
-    "horizontal",
-    { speed: 69, jump: 69, power: 69, defense: 70 },
-    [],
-    "https://upload.wikimedia.org/wikipedia/commons/8/81/Logo_of_Club_Atl%C3%A9tico_Colegiales.svg",
-  ),
+  if (existing) {
+    Object.assign(existing, team);
+  } else {
+    TEAMS.push(team);
+    TEAMS_BY_ID[team.id] = team;
 
-  t(
-    "rafaela",
-    "Atlético de Rafaela",
-    "ARF",
-    "Rafaela",
-    "B",
-    "#ffffff",
-    "#7ec8ff",
-    "horizontal",
-    { speed: 74, jump: 73, power: 75, defense: 77 },
-    [],
-    "https://upload.wikimedia.org/wikipedia/commons/4/4e/Logotipo_Oficial_y_Escudo_del_Club_Atl%C3%A9tico_de_Rafaela.svg",
-  ),
+    if (team.zone === "A") {
+      ZONE_A.push(team);
+    } else {
+      ZONE_B.push(team);
+    }
+  }
+}
 
-  t(
-    "midland",
-    "Midland",
-    "MID",
-    "Libertad",
-    "B",
-    "#d61a1a",
-    "#1a3da6",
-    "vertical",
-    { speed: 67, jump: 67, power: 68, defense: 69 },
-    [],
-    "https://upload.wikimedia.org/wikipedia/commons/d/de/Midland_escudo.png",
-  ),
-];
+function removeTeam(id: string) {
+  const index = TEAMS.findIndex(
+    (team) => team.id === id
+  );
 
-export const TEAMS_BY_ID: Record<string, Team> = Object.fromEntries(
-  TEAMS.map((team) => [team.id, team]),
-);
+  if (index >= 0) {
+    TEAMS.splice(index, 1);
+  }
 
-export const ZONE_A = TEAMS.filter(
-  (team) => team.zone === "A",
-);
+  delete TEAMS_BY_ID[id];
 
-export const ZONE_B = TEAMS.filter(
-  (team) => team.zone === "B",
-);
+  const zoneAIndex = ZONE_A.findIndex(
+    (team) => team.id === id
+  );
 
-export const CLASICOS_INTERZONALES: Array<[string, string]> = [
-  ["allboys", "nuevachicago"],
-  ["ferro", "atlanta"],
-  ["losandes", "temperley"],
-  ["colon", "patronato"],
-  ["mitre", "guemes"],
-  ["centralnorte", "gimnasiatiro"],
-];
+  if (zoneAIndex >= 0) {
+    ZONE_A.splice(zoneAIndex, 1);
+  }
 
-export function teamRating(team: Team) {
-  const stats = team.stats;
+  const zoneBIndex = ZONE_B.findIndex(
+    (team) => team.id === id
+  );
 
-  return (
-    stats.speed +
-    stats.jump +
-    stats.power +
-    stats.defense
-  ) / 4;
+  if (zoneBIndex >= 0) {
+    ZONE_B.splice(zoneBIndex, 1);
+  }
+}
+
+let booted = false;
+
+async function loadAll() {
+  console.log("[TEAMS] Cargando equipos desde Supabase...");
+
+  const { data, error } = await supabase
+    .from("teams")
+    .select("*")
+    .order("sort_order", {
+      ascending: true,
+    });
+
+  if (error) {
+    console.error("[TEAMS] Error de Supabase:", error);
+    return;
+  }
+
+  if (!data) {
+    console.error("[TEAMS] Supabase no devolvió datos.");
+    return;
+  }
+
+  console.log(
+    "[TEAMS] Equipos recibidos:",
+    data.length
+  );
+
+  const rows = data as unknown as DbTeam[];
+
+  const teams = rows.map(rowToTeam);
+
+  replaceTeams(teams);
+
+  useStore.setState((state) => ({
+    version: state.version + 1,
+    loaded: true,
+  }));
+
+  console.log(
+    "[TEAMS] Equipos cargados correctamente:",
+    TEAMS.length
+  );
+}
+
+export function syncTeamsFromDbRows(
+  rows: DbTeam[]
+) {
+  if (!Array.isArray(rows) || rows.length === 0) {
+    console.warn("[TEAMS] No se recibieron equipos.");
+    return;
+  }
+
+  replaceTeams(rows.map(rowToTeam));
+
+  useStore.setState((state) => ({
+    version: state.version + 1,
+    loaded: true,
+  }));
+}
+
+export function hydrateTeamsFromDbRows(
+  rows: DbTeam[]
+) {
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return;
+  }
+
+  replaceTeams(rows.map(rowToTeam));
+
+  useStore.setState((state) => ({
+    version: state.version + 1,
+    loaded: true,
+  }));
+}
+
+function bootOnce() {
+  if (booted) return;
+
+  booted = true;
+
+  void loadAll();
+
+  supabase
+    .channel("teams-live")
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "teams",
+      },
+      (payload) => {
+        console.log(
+          "[TEAMS] Cambio recibido:",
+          payload.eventType
+        );
+
+        if (payload.eventType === "DELETE") {
+          removeTeam(
+            (payload.old as DbTeam).id
+          );
+        } else {
+          applyDbRow(
+            payload.new as DbTeam
+          );
+        }
+
+        useStore.setState((state) => ({
+          version: state.version + 1,
+          loaded: true,
+        }));
+      }
+    )
+    .subscribe((status) => {
+      console.log(
+        "[TEAMS] Realtime:",
+        status
+      );
+    });
+}
+
+export function useTeamsSync() {
+  const version = useStore(
+    (state) => state.version
+  );
+
+  useEffect(() => {
+    bootOnce();
+  }, []);
+
+  return version;
+}
+
+export function bumpTeamsVersion() {
+  useStore.setState((state) => ({
+    version: state.version + 1,
+    loaded: true,
+  }));
+}
+
+export async function reloadTeams() {
+  await loadAll();
 }
