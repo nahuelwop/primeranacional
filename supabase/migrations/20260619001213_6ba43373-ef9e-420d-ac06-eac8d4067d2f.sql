@@ -1,6 +1,6 @@
 -- Career mode, achievements, and match history
 
-CREATE TABLE public.career_saves (
+CREATE TABLE IF NOT EXISTS public.career_saves (
   user_id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   team_id text NOT NULL,
   season int NOT NULL DEFAULT 1,
