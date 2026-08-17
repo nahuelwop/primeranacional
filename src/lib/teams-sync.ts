@@ -1,9 +1,38 @@
 import { create } from "zustand";
 import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { TEAMS, TEAMS_BY_ID, ZONE_A, ZONE_B, type Team, type Narrator } from "@/data/teams";
+import {
+  TEAMS,
+  TEAMS_BY_ID,
+  ZONE_A,
+  ZONE_B,
+  type Team,
+  type Narrator,
+} from "@/data/teams";
 
-const CACHE_KEY = "primera-heads-teams-cache-v2";
+const CACHE_KEY = "primera-heads-teams-cache-v3";
+
+/*
+ * IMPORTANTE:
+ * Guardamos una copia del catálogo original ANTES de que Supabase
+ * pueda reemplazar los equipos.
+ *
+ * Esto permite que si la BD tiene logo_url vacío/null, el juego
+ * conserve el escudo original del catálogo.
+ */
+const CATALOG_FALLBACK = new Map<string, Team>();
+
+for (const team of TEAMS) {
+  CATALOG_FALLBACK.set(team.id, {
+    ...team,
+    stats: { ...team.stats },
+    rivals: [...(team.rivals ?? [])],
+    flagUrls: [...(team.flagUrls ?? [])],
+    goalAudios: [...(team.goalAudios ?? [])],
+    hinchadas: [...(team.hinchadas ?? [])],
+    narrators: [...(team.narrators ?? [])],
+  });
+}
 
 export type DbTeam = {
   id: string;
@@ -11,20 +40,28 @@ export type DbTeam = {
   short: string;
   city: string;
   zone: "A" | "B";
+  division?: string | null;
+
   primary_color: string;
   secondary_color: string;
   stripe: string;
+
   speed: number;
   jump: number;
   power: number;
   defense: number;
+
   logo_url: string | null;
-  flag_urls?: string[];
+  flag_urls?: string[] | null;
   rivals: string[];
+
   sort_order: number;
-  goal_audio_urls?: string[];
-  hinchada_urls?: string[];
-  narrators?: Narrator[];
+
+  goal_audio_urls?: string[] | null;
+  hinchada_urls?: string[] | null;
+
+  narrators?: Narrator[] | null;
+
   full_name?: string | null;
   founded_year?: number | null;
   province?: string | null;
@@ -35,34 +72,138 @@ export type DbTeam = {
   history?: string | null;
 };
 
-type State = { version: number; loaded: boolean };
-const useStore = create<State>(() => ({ version: 0, loaded: false }));
+type State = {
+  version: number;
+  loaded: boolean;
+};
+
+const useStore = create<State>(() => ({
+  version: 0,
+  loaded: false,
+}));
+
+function cloneArray<T>(value: T[] | null | undefined): T[] {
+  return Array.isArray(value) ? [...value] : [];
+}
 
 function rowToTeam(row: DbTeam): Team {
+  const fallback = CATALOG_FALLBACK.get(row.id);
+
+  /*
+   * La BD manda cuando realmente tiene un valor.
+   * Si está vacía/null, usamos el catálogo original.
+   *
+   * Esto evita perder escudos, banderas, hinchada, etc.
+   */
+  const logoUrl =
+    row.logo_url && row.logo_url.trim().length > 0
+      ? row.logo_url
+      : fallback?.logoUrl ?? null;
+
+  const flagUrls =
+    row.flag_urls && row.flag_urls.length > 0
+      ? cloneArray(row.flag_urls)
+      : cloneArray(fallback?.flagUrls);
+
+  const goalAudios =
+    row.goal_audio_urls && row.goal_audio_urls.length > 0
+      ? cloneArray(row.goal_audio_urls)
+      : cloneArray(fallback?.goalAudios);
+
+  const hinchadas =
+    row.hinchada_urls && row.hinchada_urls.length > 0
+      ? cloneArray(row.hinchada_urls)
+      : cloneArray(fallback?.hinchadas);
+
+  const narrators =
+    row.narrators && row.narrators.length > 0
+      ? cloneArray(row.narrators)
+      : cloneArray(fallback?.narrators);
+
   return {
     id: row.id,
-    name: row.name,
-    short: row.short,
-    city: row.city,
+    name: row.name || fallback?.name || "Equipo",
+    short: row.short || fallback?.short || "",
+    city: row.city || fallback?.city || "",
     zone: row.zone,
-    primary: row.primary_color,
-    secondary: row.secondary_color,
-    stripe: (row.stripe as Team["stripe"]) ?? "solid",
-    stats: { speed: row.speed, jump: row.jump, power: row.power, defense: row.defense },
-    rivals: row.rivals ?? [],
-    logoUrl: row.logo_url,
-    flagUrls: row.flag_urls ?? [],
-    goalAudios: row.goal_audio_urls ?? [],
-    hinchadas: row.hinchada_urls ?? [],
-    narrators: (row.narrators as Narrator[] | undefined) ?? [],
-    fullName: row.full_name ?? null,
-    foundedYear: row.founded_year ?? null,
-    province: row.province ?? null,
-    nickname: row.nickname ?? null,
-    rivalId: row.rival_id ?? null,
-    primeraSeasons: row.primera_seasons ?? null,
-    achievements: row.achievements ?? null,
-    history: row.history ?? null,
+
+    division:
+      (row.division as Team["division"]) ??
+      fallback?.division ??
+      "primera_nacional",
+
+    primary:
+      row.primary_color ||
+      fallback?.primary ||
+      "#1a55a6",
+
+    secondary:
+      row.secondary_color ||
+      fallback?.secondary ||
+      "#ffffff",
+
+    stripe:
+      (row.stripe as Team["stripe"]) ??
+      fallback?.stripe ??
+      "solid",
+
+    stats: {
+      speed: Number(row.speed ?? fallback?.stats.speed ?? 70),
+      jump: Number(row.jump ?? fallback?.stats.jump ?? 70),
+      power: Number(row.power ?? fallback?.stats.power ?? 70),
+      defense: Number(row.defense ?? fallback?.stats.defense ?? 70),
+    },
+
+    rivals:
+      row.rivals?.length
+        ? [...row.rivals]
+        : cloneArray(fallback?.rivals),
+
+    logoUrl,
+    flagUrls,
+    goalAudios,
+    hinchadas,
+    narrators,
+
+    fullName:
+      row.full_name ??
+      fallback?.fullName ??
+      null,
+
+    foundedYear:
+      row.founded_year ??
+      fallback?.foundedYear ??
+      null,
+
+    province:
+      row.province ??
+      fallback?.province ??
+      null,
+
+    nickname:
+      row.nickname ??
+      fallback?.nickname ??
+      null,
+
+    rivalId:
+      row.rival_id ??
+      fallback?.rivalId ??
+      null,
+
+    primeraSeasons:
+      row.primera_seasons ??
+      fallback?.primeraSeasons ??
+      null,
+
+    achievements:
+      row.achievements ??
+      fallback?.achievements ??
+      null,
+
+    history:
+      row.history ??
+      fallback?.history ??
+      null,
   };
 }
 
@@ -70,31 +211,103 @@ function replaceTeams(teams: Team[]) {
   TEAMS.length = 0;
   ZONE_A.length = 0;
   ZONE_B.length = 0;
-  for (const k of Object.keys(TEAMS_BY_ID)) delete TEAMS_BY_ID[k];
+
+  for (const k of Object.keys(TEAMS_BY_ID)) {
+    delete TEAMS_BY_ID[k];
+  }
+
   for (const team of teams) {
     TEAMS.push(team);
     TEAMS_BY_ID[team.id] = team;
-    if (team.zone === "A") ZONE_A.push(team); else ZONE_B.push(team);
+
+    if (team.zone === "A") {
+      ZONE_A.push(team);
+    } else {
+      ZONE_B.push(team);
+    }
   }
 }
 
 function saveCache() {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(CACHE_KEY, JSON.stringify(TEAMS));
+
+  try {
+    window.localStorage.setItem(
+      CACHE_KEY,
+      JSON.stringify(TEAMS)
+    );
+  } catch {
+    // No bloquear el juego si localStorage falla.
+  }
 }
 
 function hydrateCache() {
   if (typeof window === "undefined") return false;
+
   try {
     const raw = window.localStorage.getItem(CACHE_KEY);
+
     if (!raw) return false;
+
     const teams = JSON.parse(raw) as Team[];
-    if (!Array.isArray(teams) || teams.length === 0) return false;
-    replaceTeams(teams);
-    useStore.setState(s => ({ version: s.version + 1, loaded: true }));
+
+    if (!Array.isArray(teams) || teams.length === 0) {
+      return false;
+    }
+
+    /*
+     * El cache viejo puede contener equipos sin escudos.
+     * Lo reparamos usando el catálogo original.
+     */
+    const repaired = teams.map((team) => {
+      const fallback = CATALOG_FALLBACK.get(team.id);
+
+      if (!fallback) return team;
+
+      return {
+        ...fallback,
+        ...team,
+
+        logoUrl:
+          team.logoUrl ||
+          fallback.logoUrl ||
+          null,
+
+        flagUrls:
+          team.flagUrls?.length
+            ? team.flagUrls
+            : fallback.flagUrls ?? [],
+
+        goalAudios:
+          team.goalAudios?.length
+            ? team.goalAudios
+            : fallback.goalAudios ?? [],
+
+        hinchadas:
+          team.hinchadas?.length
+            ? team.hinchadas
+            : fallback.hinchadas ?? [],
+
+        narrators:
+          team.narrators?.length
+            ? team.narrators
+            : fallback.narrators ?? [],
+      };
+    });
+
+    replaceTeams(repaired);
+
+    useStore.setState((s) => ({
+      version: s.version + 1,
+      loaded: true,
+    }));
+
     return true;
   } catch {
-    window.localStorage.removeItem(CACHE_KEY);
+    try {
+      window.localStorage.removeItem(CACHE_KEY);
+    } catch {}
+
     return false;
   }
 }
@@ -102,73 +315,142 @@ function hydrateCache() {
 hydrateCache();
 
 function applyDbRow(row: DbTeam) {
-  const existing = TEAMS_BY_ID[row.id];
   const team = rowToTeam(row);
+
+  const existing = TEAMS_BY_ID[row.id];
+
   if (existing) {
     Object.assign(existing, team);
   } else {
     TEAMS.push(team);
     TEAMS_BY_ID[team.id] = team;
-    if (team.zone === "A") ZONE_A.push(team); else ZONE_B.push(team);
+
+    if (team.zone === "A") {
+      ZONE_A.push(team);
+    } else {
+      ZONE_B.push(team);
+    }
   }
 }
 
 function removeTeam(id: string) {
-  const i = TEAMS.findIndex(t => t.id === id);
-  if (i >= 0) TEAMS.splice(i, 1);
+  const index = TEAMS.findIndex((t) => t.id === id);
+
+  if (index >= 0) {
+    TEAMS.splice(index, 1);
+  }
+
   delete TEAMS_BY_ID[id];
-  const ai = ZONE_A.findIndex(t => t.id === id);
-  if (ai >= 0) ZONE_A.splice(ai, 1);
-  const bi = ZONE_B.findIndex(t => t.id === id);
-  if (bi >= 0) ZONE_B.splice(bi, 1);
+
+  const zoneAIndex = ZONE_A.findIndex((t) => t.id === id);
+  if (zoneAIndex >= 0) {
+    ZONE_A.splice(zoneAIndex, 1);
+  }
+
+  const zoneBIndex = ZONE_B.findIndex((t) => t.id === id);
+  if (zoneBIndex >= 0) {
+    ZONE_B.splice(zoneBIndex, 1);
+  }
 }
 
 let booted = false;
+
 async function loadAll() {
   const { data, error } = await supabase
     .from("teams")
     .select("*")
     .order("sort_order", { ascending: true });
-  if (error || !data) return;
-  syncTeamsFromDbRows(data as unknown as DbTeam[]);
+
+  if (error || !data) {
+    return;
+  }
+
+  syncTeamsFromDbRows(
+    data as unknown as DbTeam[]
+  );
 }
 
 export function syncTeamsFromDbRows(rows: DbTeam[]) {
-  // Si la base no devuelve equipos, mantenemos los 36 locales como fallback.
-  if (!Array.isArray(rows) || rows.length === 0) return;
-  replaceTeams(rows.map(rowToTeam));
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return;
+  }
+
+  const teams = rows.map(rowToTeam);
+
+  replaceTeams(teams);
   saveCache();
-  useStore.setState(s => ({ version: s.version + 1, loaded: true }));
+
+  useStore.setState((s) => ({
+    version: s.version + 1,
+    loaded: true,
+  }));
 }
 
 export function hydrateTeamsFromDbRows(rows: DbTeam[]) {
-  if (!Array.isArray(rows) || rows.length === 0) return;
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return;
+  }
+
   replaceTeams(rows.map(rowToTeam));
 }
 
 function bootOnce() {
   if (booted) return;
+
   booted = true;
+
   loadAll();
+
   supabase
     .channel("teams-live")
-    .on("postgres_changes", { event: "*", schema: "public", table: "teams" }, (payload) => {
-      if (payload.eventType === "DELETE") removeTeam((payload.old as DbTeam).id);
-      else applyDbRow(payload.new as DbTeam);
-      saveCache();
-      useStore.setState(s => ({ version: s.version + 1, loaded: true }));
-    })
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "teams",
+      },
+      (payload) => {
+        if (payload.eventType === "DELETE") {
+          removeTeam(
+            (payload.old as DbTeam).id
+          );
+        } else {
+          applyDbRow(
+            payload.new as DbTeam
+          );
+        }
+
+        saveCache();
+
+        useStore.setState((s) => ({
+          version: s.version + 1,
+          loaded: true,
+        }));
+      }
+    )
     .subscribe();
 }
 
 export function useTeamsSync() {
-  const version = useStore(s => s.version);
-  useEffect(() => { bootOnce(); }, []);
+  const version = useStore(
+    (s) => s.version
+  );
+
+  useEffect(() => {
+    bootOnce();
+  }, []);
+
   return version;
 }
 
 export function bumpTeamsVersion() {
-  useStore.setState(s => ({ version: s.version + 1, loaded: true }));
+  useStore.setState((s) => ({
+    version: s.version + 1,
+    loaded: true,
+  }));
 }
 
-export async function reloadTeams() { await loadAll(); }
+export async function reloadTeams() {
+  await loadAll();
+}
