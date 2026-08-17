@@ -14,13 +14,18 @@ export function Shield({
 }: ShieldProps) {
   const [imageError, setImageError] = useState(false);
 
+  const logoUrl =
+    typeof team.logoUrl === "string"
+      ? team.logoUrl.trim()
+      : "";
+
   const hasLogo =
-    Boolean(team.logoUrl) && !imageError;
+    logoUrl.length > 0 && !imageError;
 
   if (hasLogo) {
     return (
       <img
-        src={team.logoUrl!}
+        src={logoUrl}
         alt={team.name}
         width={size}
         height={size}
