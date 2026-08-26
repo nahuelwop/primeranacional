@@ -339,6 +339,7 @@ export type Database = {
           city: string
           created_at: string
           defense: number
+          division: string
           flag_urls: string[]
           founded_year: number | null
           full_name: string | null
@@ -370,6 +371,7 @@ export type Database = {
           city: string
           created_at?: string
           defense?: number
+          division?: string
           flag_urls?: string[]
           founded_year?: number | null
           full_name?: string | null
@@ -401,6 +403,7 @@ export type Database = {
           city?: string
           created_at?: string
           defense?: number
+          division?: string
           flag_urls?: string[]
           founded_year?: number | null
           full_name?: string | null
