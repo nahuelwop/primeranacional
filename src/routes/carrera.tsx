@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Nav } from "@/components/Nav";
 import { Shield } from "@/components/Shield";
 import { TEAMS, TEAMS_BY_ID, type Team } from "@/data/teams";
-import { getTeamsByDivision } from "@/data/teams-catalog";
+import { getTeamsByDivision, getTeamById } from "@/data/teams-catalog";
 import type { DivisionId } from "@/data/competitions";
 import { useTeamsSync } from "@/lib/teams-sync";
 import { useAuth } from "@/lib/auth";
@@ -25,7 +25,6 @@ import {
 } from "@/lib/career-api";
 import { SeasonIntro } from "@/components/SeasonIntro";
 import { DifficultyPicker } from "@/components/DifficultyPicker";
-import { useGameSettings } from "@/lib/game-settings";
 import { DIFFICULTY_INFO, toGameAi } from "@/lib/difficulty";
 import { AmbientStadium } from "@/components/career/AmbientStadium";
 import { useUiSfx } from "@/lib/ui-sound";
@@ -67,7 +66,6 @@ function CarreraPage() {
   const navigate = useNavigate();
   const seedReducidoFromCareer = useTournament(s => s.seedFromCareer);
   const { user, loading } = useAuth();
-  const { settings } = useGameSettings();
   const [teamId, setTeamId] = useState<string | null>(null);
   const [season, setSeason] = useState(1);
   const [budget, setBudget] = useState(1000);
@@ -90,7 +88,7 @@ function CarreraPage() {
           setSeason(save.season);
           setBudget(save.budget);
           const loadedState = save.state as CareerState;
-          if (!loadedState.division) loadedState.division = TEAMS_BY_ID[save.team_id]?.division ?? "primera_nacional";
+          if (!loadedState.division) loadedState.division = getTeamById(save.team_id)?.division ?? "primera_nacional";
           setState(loadedState);
         }
         setUnlocked(new Set(ach.map(a => a.key)));
@@ -108,7 +106,7 @@ function CarreraPage() {
     }
   }
 
-  async function startCareer(tid: string, division: DivisionId = TEAMS_BY_ID[tid]?.division ?? "primera_nacional") {
+  async function startCareer(tid: string, division: DivisionId = getTeamById(tid)?.division ?? "primera_nacional") {
     if (!user) return;
     const s = buildSeason(tid, division);
     setTeamId(tid); setSeason(1); setBudget(1000); setState(s);
@@ -128,7 +126,7 @@ function CarreraPage() {
   }
 
   const nextMatch = useMemo(() => state && teamId ? nextPendingMatchForUser(state, teamId) : null, [state, teamId]);
-  const team = teamId ? TEAMS_BY_ID[teamId] : undefined;
+  const team = teamId ? getTeamById(teamId) : undefined;
 
   async function onMatchEnd(lg: number, rg: number, _stats: MatchStats) {
     if (!state || !teamId || !user || !nextMatch) return;
@@ -275,7 +273,7 @@ function CarreraPage() {
         <SeasonIntro season={season} teamId={teamId}
           division={careerDivision(state, teamId)}
           objetivo={OBJETIVO_LABEL[state.objetivo ?? (isFirstDivision(state, teamId) ? "salir_campeon" : "ascenso_directo")]}
-          videoUrl={settings.intro_video_url}
+          videoUrl={null}
           onDone={async () => {
             const next = { ...state, introVista: true };
             setState(next);
@@ -287,8 +285,11 @@ function CarreraPage() {
 
   if (playing && state && team && nextMatch && teamId) {
     const userIsHome = nextMatch.home === teamId;
-    const leftTeam = TEAMS_BY_ID[teamId];
-    const rightTeam = userIsHome ? TEAMS_BY_ID[nextMatch.away] : TEAMS_BY_ID[nextMatch.home];
+    const leftTeam = getTeamById(teamId);
+    const rightTeam = userIsHome ? getTeamById(nextMatch.away) : getTeamById(nextMatch.home);
+    if (!leftTeam || !rightTeam) {
+      return <Shell><div className="p-16 text-center text-destructive">No se pudo cargar uno de los equipos de esta división.</div></Shell>;
+    }
     const fx = currentCorruptionEffects(state);
     return (
       <Shell>
@@ -477,8 +478,8 @@ function InicioTab({ state, teamId, season, nextMatch, indicators, standings, bu
   onPlay: () => void; onSimulate: () => void; onAdvance: () => void; onGo: (t: TopTab) => void; onGoReducido: () => void;
 }) {
   const rival = nextMatch ? (nextMatch.home === teamId ? nextMatch.away : nextMatch.home) : null;
-  const rivalTeam = rival ? TEAMS_BY_ID[rival] : undefined;
-  const myTeam = TEAMS_BY_ID[teamId];
+  const rivalTeam = rival ? getTeamById(rival) : undefined;
+  const myTeam = getTeamById(teamId);
   const isHome = nextMatch ? nextMatch.home === teamId : true;
   const flags = [...(myTeam?.flagUrls ?? []), ...(rivalTeam?.flagUrls ?? [])];
   const flag = flags[0];
@@ -557,9 +558,9 @@ function InicioTab({ state, teamId, season, nextMatch, indicators, standings, bu
                   </div>
                 </div>
                 <div className="mt-5 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-                  <TeamBig team={TEAMS_BY_ID[nextMatch.home]} />
+                  <TeamBig team={getTeamById(nextMatch.home)} />
                   <div className="font-display text-4xl">VS</div>
-                  <TeamBig team={TEAMS_BY_ID[nextMatch.away]} />
+                  <TeamBig team={getTeamById(nextMatch.away)} />
                 </div>
                 <div className="mt-5 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-foreground/90">
                   <span>🗓️ Temporada {season}</span>
@@ -585,8 +586,8 @@ function InicioTab({ state, teamId, season, nextMatch, indicators, standings, bu
                 <div className="text-[11px] uppercase tracking-widest text-hud-green">Temporada terminada</div>
                 <div className="font-display text-3xl mt-2">
                   {division === "primera_division"
-                    ? `Campeón: ${TEAMS_BY_ID[seasonChampion(state) ?? ""]?.short ?? "—"}`
-                    : `Campeón Zona ${state.zone}: ${TEAMS_BY_ID[seasonChampion(state) ?? ""]?.short ?? "—"}`}
+                    ? `Campeón: ${getTeamById(seasonChampion(state) ?? "")?.short ?? "—"}`
+                    : `Campeón Zona ${state.zone}: ${getTeamById(seasonChampion(state) ?? "")?.short ?? "—"}`}
                 </div>
                 <div className="text-sm text-muted-foreground mt-1">Terminaste {pos}° en la tabla.</div>
                 {division === "primera_division" && firstDivisionRelegated(state).includes(teamId) && (
@@ -690,7 +691,7 @@ function InicioTab({ state, teamId, season, nextMatch, indicators, standings, bu
           <div className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground mb-2">Próximos rivales</div>
           <div className="space-y-1.5">
             {nextRivals(state, teamId, 4).map(m => {
-              const other = TEAMS_BY_ID[m.home === teamId ? m.away : m.home];
+              const other = getTeamById(m.home === teamId ? m.away : m.home);
               return (
                 <div key={m.id} className="flex items-center gap-2 text-xs">
                   <span className="text-muted-foreground tabular-nums w-10">F{m.round}</span>
@@ -714,7 +715,7 @@ function InicioTab({ state, teamId, season, nextMatch, indicators, standings, bu
               const mine = m.home === teamId ? (m.homeGoals ?? 0) : (m.awayGoals ?? 0);
               const opp = m.home === teamId ? (m.awayGoals ?? 0) : (m.homeGoals ?? 0);
               const r = mine > opp ? "V" : mine === opp ? "E" : "D";
-              const other = TEAMS_BY_ID[m.home === teamId ? m.away : m.home];
+              const other = getTeamById(m.home === teamId ? m.away : m.home);
               return (
                 <div key={m.id} style={{ animationDelay: `${i * 70}ms` }}
                   className="row-drop flex items-center gap-2 text-xs">
@@ -836,8 +837,8 @@ function CalendarioTab({ state, teamId }: { state: CareerState; teamId: string }
               <div className="space-y-1">
                 {ms.map(m => {
                   const mine = m.home === teamId || m.away === teamId;
-                  const home = TEAMS_BY_ID[m.home];
-                  const away = TEAMS_BY_ID[m.away];
+                  const home = getTeamById(m.home);
+                  const away = getTeamById(m.away);
                   let resultColor = "";
                   if (mine && m.played) {
                     const myGoals = m.home === teamId ? m.homeGoals! : m.awayGoals!;
@@ -921,7 +922,7 @@ function TablaPromedios({ rows, highlight }: { rows: ReturnType<typeof buildAver
         <table className="w-full text-sm">
           <thead className="text-[10px] text-muted-foreground uppercase"><tr><th className="text-left px-3 py-2">#</th><th className="text-left px-3 py-2">Equipo</th><th className="px-2 py-2">Temp.</th><th className="px-2 py-2">PJ</th><th className="px-2 py-2">PTS</th><th className="px-2 py-2">Prom.</th></tr></thead>
           <tbody>{rows.map((r, i) => {
-            const t = TEAMS_BY_ID[r.teamId];
+            const t = getTeamById(r.teamId);
             const mine = r.teamId === highlight;
             return <tr key={r.teamId} className={`border-t border-border/40 ${mine ? "bg-celeste/15" : i % 2 ? "bg-white/[0.02]" : ""}`}>
               <td className="px-3 py-1.5 tabular-nums">{i + 1}</td><td className="px-3 py-1.5"><div className="flex items-center gap-2"><Shield team={t} size={20} /><span className="truncate">{t?.short}</span></div></td>
@@ -968,7 +969,7 @@ function TablaZona({ title, rows, highlight, matches, division = "primera_nacion
           </thead>
           <tbody>
             {rows.map((r, i) => {
-              const t = TEAMS_BY_ID[r.teamId];
+              const t = getTeamById(r.teamId);
               const mine = r.teamId === highlight;
               const pos = i + 1;
               const isChamp = pos === 1;
@@ -1071,7 +1072,7 @@ function ClubTab({ state, teamId, budget, unlocked, onBuy }: {
             <div className="space-y-1">
               {state.zoneChampions.map((z, i) => (
                 <div key={i} className="text-xs bg-card/50 rounded-lg px-2 py-1.5 border border-border/50">
-                  T{z.season} · Zona {z.zone} · <span className="font-display">{TEAMS_BY_ID[z.teamId]?.short}</span>
+                  T{z.season} · Zona {z.zone} · <span className="font-display">{getTeamById(z.teamId)?.short}</span>
                 </div>
               ))}
             </div>
@@ -1156,7 +1157,7 @@ function OficinaTab({ state, budget, season, onActivate, onAbandon, onSignSponso
 /* ============================ SHELL ============================ */
 
 function PersonalizarTab({ teamId }: { teamId: string }) {
-  const t = TEAMS_BY_ID[teamId];
+  const t = getTeamById(teamId);
   const music = useCareerMusicContext();
   if (!t) return null;
   const kits = [
