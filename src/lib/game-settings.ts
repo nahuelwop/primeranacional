@@ -22,9 +22,12 @@ export type CoimasFlags = {
   bonus_presupuesto?: boolean;
 };
 
+export type DivisionIntroVideos = Record<string, string | null>;
+
 export type GameSettings = {
   id: string;
   intro_video_url: string | null;
+  intro_videos: DivisionIntroVideos;
   whistle_audio_url: string | null;
   coimas_enabled: boolean;
   coimas_flags: CoimasFlags;
@@ -34,6 +37,7 @@ export type GameSettings = {
 export const DEFAULT_SETTINGS: GameSettings = {
   id: "global",
   intro_video_url: null,
+  intro_videos: {},
   whistle_audio_url: null,
   coimas_enabled: false,
   coimas_flags: {},
@@ -46,6 +50,7 @@ export async function fetchGameSettings(): Promise<GameSettings> {
   return {
     id: data.id,
     intro_video_url: data.intro_video_url,
+    intro_videos: (data.intro_videos as DivisionIntroVideos) ?? {},
     whistle_audio_url: data.whistle_audio_url ?? null,
     coimas_enabled: data.coimas_enabled,
     coimas_flags: (data.coimas_flags as CoimasFlags) ?? {},
