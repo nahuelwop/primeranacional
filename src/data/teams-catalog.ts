@@ -1,4 +1,4 @@
-import { TEAMS, type Team } from "./teams";
+import { TEAMS, TEAMS_BY_ID, type Team } from "./teams";
 import { OTHER_DIVISION_TEAMS } from "./teams-other-divisions";
 import type { DivisionId } from "./competitions";
 
@@ -25,10 +25,15 @@ import type { DivisionId } from "./competitions";
 
 export function getAllTeams(): Team[] {
   const byId = new Map<string, Team>();
-  for (const team of TEAMS) byId.set(team.id, team);
-  for (const team of OTHER_DIVISION_TEAMS) if (!byId.has(team.id)) byId.set(team.id, team);
+  // TEAMS_BY_ID is updated by teams-sync with live Supabase rows.
+  for (const team of Object.values(TEAMS_BY_ID)) byId.set(team.id, team);
+  for (const team of OTHER_DIVISION_TEAMS) {
+    if (!byId.has(team.id)) byId.set(team.id, team);
+  }
   return Array.from(byId.values());
 }
+
+export const ALL_TEAMS: Team[] = getAllTeams();
 
 // -----------------------------------------------------------------------------
 // BÚSQUEDAS
