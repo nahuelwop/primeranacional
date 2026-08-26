@@ -23,24 +23,12 @@ import type { DivisionId } from "./competitions";
 // CATÁLOGO UNIFICADO
 // -----------------------------------------------------------------------------
 
-export const ALL_TEAMS: Team[] = (() => {
+export function getAllTeams(): Team[] {
   const byId = new Map<string, Team>();
-
-  // Primero cargamos los equipos dinámicos de TEAMS.
-  for (const team of TEAMS) {
-    byId.set(team.id, team);
-  }
-
-  // Después agregamos los equipos de las demás divisiones.
-  // Si existe el mismo ID en ambas fuentes, TEAMS tiene prioridad.
-  for (const team of OTHER_DIVISION_TEAMS) {
-    if (!byId.has(team.id)) {
-      byId.set(team.id, team);
-    }
-  }
-
+  for (const team of TEAMS) byId.set(team.id, team);
+  for (const team of OTHER_DIVISION_TEAMS) if (!byId.has(team.id)) byId.set(team.id, team);
   return Array.from(byId.values());
-})();
+}
 
 // -----------------------------------------------------------------------------
 // BÚSQUEDAS
@@ -49,7 +37,7 @@ export const ALL_TEAMS: Team[] = (() => {
 export function getTeamsByDivision(
   division: DivisionId,
 ): Team[] {
-  return ALL_TEAMS.filter(
+  return getAllTeams().filter(
     (team) => (team.division ?? "primera_nacional") === division,
   );
 }
@@ -66,7 +54,7 @@ export function getTeamsByZone(
 export function getTeamById(
   id: string,
 ): Team | undefined {
-  return ALL_TEAMS.find(
+  return getAllTeams().find(
     (team) => team.id === id,
   );
 }
@@ -100,7 +88,7 @@ export function getTeamCountByDivision(
 // -----------------------------------------------------------------------------
 
 export function getDivisionTeamSummary(): Record<string, number> {
-  return ALL_TEAMS.reduce<Record<string, number>>(
+  return getAllTeams().reduce<Record<string, number>>(
     (summary, team) => {
       const division =
         team.division ?? "primera_nacional";
