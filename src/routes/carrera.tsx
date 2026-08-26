@@ -4,7 +4,7 @@ import { Nav } from "@/components/Nav";
 import { Shield } from "@/components/Shield";
 import { TEAMS, TEAMS_BY_ID, type Team } from "@/data/teams";
 import { getTeamsByDivision, getTeamById } from "@/data/teams-catalog";
-import type { DivisionId } from "@/data/competitions";
+import { COMPETITIONS, type DivisionId } from "@/data/competitions";
 import { useTeamsSync } from "@/lib/teams-sync";
 import { useAuth } from "@/lib/auth";
 import { Game, type MatchStats } from "@/components/Game";
@@ -14,7 +14,8 @@ import {
   STADIUM_UPGRADE_CATALOG, CORRUPTION_CATALOG,
   buyUpgrade, activateCorruption, tickCorruption, currentCorruptionEffects, incomeMultiplier,
   OBJETIVO_LABEL, type Objetivo, clubIndicators, currentRound, totalRounds,
-  careerDivision, isFirstDivision, recordSeasonSnapshot, firstDivisionRelegated, buildAverageTable,
+  careerDivision, isFirstDivision, recordSeasonSnapshot, firstDivisionRelegated, firstDivisionRelegationDetails,
+  divisionRelegationCandidates, divisionPromotionCandidates, buildAverageTable,
 } from "@/lib/career";
 import { sortStandings, simulateMatch, type Match, type StandingRow } from "@/lib/tournament";
 import stadiumBg from "@/assets/stadium-night.jpg";
@@ -210,12 +211,25 @@ function CarreraPage() {
     const completed = recordSeasonSnapshot(state, season);
     const currentDivision = careerDivision(completed, teamId);
     let nextDivision = currentDivision;
+    const finalRows = sortStandings(completed.standings);
+    const userPos = finalRows.findIndex(r => r.teamId === teamId) + 1;
+
     if (currentDivision === "primera_division") {
-      const relegated = firstDivisionRelegated(completed);
-      if (relegated.includes(teamId)) nextDivision = "primera_nacional";
+      if (firstDivisionRelegated(completed).includes(teamId)) nextDivision = "primera_nacional";
     } else if (currentDivision === "primera_nacional") {
-      // Si el usuario sale campeón de su zona en Primera Nacional, vuelve a Primera División.
+      // El campeón de zona tiene el ascenso directo en el modo carrera actual.
       if (seasonChampion(completed) === teamId) nextDivision = "primera_division";
+      // El juego muestra los puestos de descenso por zona; el destino exacto se
+      // reserva a la afiliación cuando ese dato exista en el club.
+    } else {
+      const rules = COMPETITIONS[currentDivision];
+      const direct = rules.promotion[0]?.directSlots ?? 0;
+      const relegationSlots = rules.relegation.reduce((sum, r) => sum + r.slots, 0);
+      if (direct > 0 && userPos > 0 && userPos <= direct && rules.promotion[0]) {
+        nextDivision = rules.promotion[0].to;
+      } else if (relegationSlots > 0 && userPos > finalRows.length - relegationSlots) {
+        nextDivision = rules.relegation[0]?.to ?? currentDivision;
+      }
     }
 
     const fresh = buildSeason(teamId, nextDivision);
@@ -269,7 +283,7 @@ function CarreraPage() {
 
   if (state && teamId && state.difficulty && !state.introVista) {
     return (
-      <Shell>
+      <Shell musicActive={false}>
         <SeasonIntro season={season} teamId={teamId}
           division={careerDivision(state, teamId)}
           objetivo={OBJETIVO_LABEL[state.objetivo ?? (isFirstDivision(state, teamId) ? "salir_campeon" : "ascenso_directo")]}
@@ -292,7 +306,7 @@ function CarreraPage() {
     }
     const fx = currentCorruptionEffects(state);
     return (
-      <Shell>
+      <Shell musicActive={false}>
         <div className="text-center text-sm text-muted-foreground mb-2">
           Temporada {season} · Fecha {nextMatch.round} · {userIsHome ? "Local" : "Visitante"}
           {state.difficulty && <span className="ml-2 text-celeste">· {DIFFICULTY_INFO[state.difficulty].emoji} {DIFFICULTY_INFO[state.difficulty].label}</span>}
@@ -354,6 +368,38 @@ function CarreraPage() {
                   <div className="text-[10px] text-muted-foreground">Zona {t.zone}</div>
                 </button>
               ))}
+            </div>
+          </div>
+
+          <div className="mt-8 pt-6 border-t border-border/60">
+            <div className="font-display text-2xl text-celeste mb-1">OTRAS CATEGORÍAS</div>
+            <div className="text-xs text-muted-foreground mb-4">Empezá desde Primera B, Primera C, Primera D o Federal A.</div>
+            <div className="space-y-6">
+              {(["primera_b", "primera_c", "primera_d", "federal_a"] as DivisionId[]).map(d => {
+                const teams = getTeamsByDivision(d);
+                const rules = COMPETITIONS[d];
+                return (
+                  <div key={d}>
+                    <div className="flex items-center justify-between mb-2">
+                      <div>
+                        <div className="font-display text-xl">{rules.name}</div>
+                        <div className="text-[10px] text-muted-foreground">{rules.hasZones ? `Zonas: ${rules.zones.join(" · ")}` : "Tabla general"}</div>
+                      </div>
+                      <span className="text-xs text-muted-foreground">{teams.length} clubes</span>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2">
+                      {teams.map(t => (
+                        <button key={t.id} onClick={() => startCareer(t.id, d)}
+                          className="p-3 rounded-xl border border-border bg-card/60 hover:bg-secondary hover:scale-[1.03] transition text-left">
+                          <Shield team={t} size={44} />
+                          <div className="text-xs mt-2 font-display truncate">{t.short}</div>
+                          <div className="text-[10px] text-muted-foreground truncate">{t.city}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
@@ -590,12 +636,19 @@ function InicioTab({ state, teamId, season, nextMatch, indicators, standings, bu
                     : `Campeón Zona ${state.zone}: ${getTeamById(seasonChampion(state) ?? "")?.short ?? "—"}`}
                 </div>
                 <div className="text-sm text-muted-foreground mt-1">Terminaste {pos}° en la tabla.</div>
-                {division === "primera_division" && firstDivisionRelegated(state).includes(teamId) && (
-                  <div className="mt-2 font-display text-lg text-destructive">DESCENDÉS A PRIMERA NACIONAL</div>
-                )}
-                {division === "primera_nacional" && seasonChampion(state) === teamId && (
-                  <div className="mt-2 font-display text-lg text-hud-green">ASCENDÉS A PRIMERA DIVISIÓN</div>
-                )}
+                {(() => {
+                  const relegated = divisionRelegationCandidates(state);
+                  const promoted = divisionPromotionCandidates(state);
+                  const next = COMPETITIONS[division].promotion[0]?.to;
+                  const down = COMPETITIONS[division].relegation[0]?.to;
+                  if (relegated.includes(teamId)) {
+                    return <div className="mt-2 font-display text-lg text-destructive">DESCENDÉS · {down ? COMPETITIONS[down].name.toUpperCase() : "DESCENSO"}</div>;
+                  }
+                  if (promoted.includes(teamId) && next) {
+                    return <div className="mt-2 font-display text-lg text-hud-green">ASCENDÉS · {COMPETITIONS[next].name.toUpperCase()}</div>;
+                  }
+                  return null;
+                })()}
                 <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
                   {division !== "primera_division" && pos <= 8 && (
                     <button onClick={onGoReducido}
@@ -615,7 +668,12 @@ function InicioTab({ state, teamId, season, nextMatch, indicators, standings, bu
                 )}
                 {division === "primera_division" && firstDivisionRelegated(state).includes(teamId) && (
                   <div className="text-[11px] text-destructive mt-3 max-w-sm mx-auto">
-                    Tu club queda relegado a Primera Nacional para la próxima temporada por posición anual/promedio.
+                    Tu club queda relegado a Primera Nacional para la próxima temporada. En esta división se combinan la tabla anual y los promedios.
+                  </div>
+                )}
+                {division !== "primera_division" && divisionRelegationCandidates(state).includes(teamId) && (
+                  <div className="text-[11px] text-destructive mt-3 max-w-sm mx-auto">
+                    Tu club ocupa uno de los puestos de descenso definidos para {COMPETITIONS[division].name}.
                   </div>
                 )}
               </div>
@@ -875,24 +933,55 @@ function CalendarioTab({ state, teamId }: { state: CareerState; teamId: string }
 
 function CompeticionTab({ state, teamId }: { state: CareerState; teamId: string }) {
   const division = careerDivision(state, teamId);
+  const rules = COMPETITIONS[division];
+
   if (division === "primera_division") {
     const annual = sortStandings(state.standings);
     const averages = buildAverageTable(state, "primera_division");
-    const history = [...(state.seasonHistory ?? [])].filter(s => s.division === "primera_division").sort((a, b) => b.season - a.season);
-    const rel = isSeasonFinished(state) ? firstDivisionRelegated(state) : [];
+    const history = [...(state.seasonHistory ?? [])]
+      .filter(s => s.division === "primera_division")
+      .sort((a, b) => b.season - a.season);
+    const relegated = isSeasonFinished(state) ? firstDivisionRelegated(state) : [];
+    const relegationDetails = isSeasonFinished(state) ? firstDivisionRelegationDetails(state) : [];
     return (
       <div className="space-y-3">
-        <TablaZona title={`Tabla anual · Temporada ${history.length ? Math.max(...history.map(h => h.season), 0) : "actual"}`} rows={annual} highlight={teamId} matches={state.matches} division="primera_division" relegated={rel} />
+        <CompetitionMovementPanel division={division} state={state} teamId={teamId} />
+        <TablaZona
+          title={`Tabla anual · Temporada ${history.length ? Math.max(...history.map(h => h.season), 0) : seasonLabel(state)}`}
+          rows={annual}
+          highlight={teamId}
+          matches={state.matches}
+          division={division}
+          relegated={relegated}
+        />
         <div className="grid lg:grid-cols-2 gap-3">
           <TablaPromedios rows={averages} highlight={teamId} />
           <div className="hud-panel overflow-hidden">
+            <div className="px-4 py-2.5 font-display text-sm uppercase tracking-widest text-celeste border-b border-border">Descenso · Primera División</div>
+            <div className="p-3 space-y-2">
+              {relegationDetails.length === 0 ? (
+                <div className="text-xs text-muted-foreground">Los descensos se definen al finalizar la temporada. El sistema combina la tabla anual y los promedios históricos.</div>
+              ) : (
+                relegationDetails.map((r, i) => {
+                  const t = getTeamById(r.teamId);
+                  return <div key={r.teamId} className="flex items-center gap-2 rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs">
+                    <span className="font-display text-destructive">{i + 1}</span>
+                    <Shield team={t} size={22} />
+                    <span className="font-semibold truncate">{t?.short ?? r.teamId}</span>
+                    <span className="ml-auto text-destructive/80 text-right">{r.reason}</span>
+                  </div>;
+                })
+              )}
+            </div>
+          </div>
+          <div className="hud-panel overflow-hidden lg:col-span-2">
             <div className="px-4 py-2.5 font-display text-sm uppercase tracking-widest text-celeste border-b border-border">Historial de temporadas</div>
             <div className="p-3 space-y-2">
               {history.length === 0 ? <div className="text-xs text-muted-foreground">La tabla anual de la Temporada 1 quedará guardada al finalizar la temporada.</div> : history.map(h => {
                 const sorted = sortStandings(h.standings);
                 const me = sorted.findIndex(r => r.teamId === teamId) + 1;
                 return <div key={h.season} className="rounded-lg border border-border/60 bg-card/40 px-3 py-2 flex items-center justify-between text-xs">
-                  <span className="font-display">Temporada {h.season}</span><span>{me ? `${me}° · ${sorted[me-1]?.pts ?? 0} pts` : "Sin participación"}</span>
+                  <span className="font-display">Temporada {h.season}</span><span>{me ? `${me}° · ${sorted[me - 1]?.pts ?? 0} pts` : "Sin participación"}</span>
                 </div>;
               })}
             </div>
@@ -903,11 +992,71 @@ function CompeticionTab({ state, teamId }: { state: CareerState; teamId: string 
   }
 
   return (
-    <div className="grid lg:grid-cols-2 gap-3">
-      <TablaZona title={`Zona ${state.zone}`} rows={sortStandings(state.standings)} highlight={teamId} matches={state.matches} />
+    <div className="space-y-3">
+      <CompetitionMovementPanel division={division} state={state} teamId={teamId} />
+      <TablaZona
+        title={rules.hasZones ? `Tabla de la temporada · Zona ${state.zone}` : `Tabla anual · ${rules.name}`}
+        rows={sortStandings(state.standings)}
+        highlight={teamId}
+        matches={state.matches}
+        division={division}
+        relegated={divisionRelegationCandidates(state)}
+      />
       {state.otherStandings && state.otherStandings.length > 0 && (
-        <TablaZona title={`Zona ${state.zone === "A" ? "B" : "A"} (simulada)`} rows={sortStandings(state.otherStandings)} matches={[]} />
+        <TablaZona
+          title={`Zona ${state.zone === "A" ? "B" : "A"} (simulada)`}
+          rows={sortStandings(state.otherStandings)}
+          matches={state.otherMatches ?? []}
+          division={division}
+        />
       )}
+    </div>
+  );
+}
+
+function seasonLabel(state: CareerState): string {
+  const finished = isSeasonFinished(state);
+  return finished ? "finalizada" : "actual";
+}
+
+function CompetitionMovementPanel({ division, state, teamId }: { division: DivisionId; state: CareerState; teamId: string }) {
+  const rules = COMPETITIONS[division];
+  const rows = sortStandings(state.standings);
+  const position = rows.findIndex(r => r.teamId === teamId) + 1;
+  const relegated = divisionRelegationCandidates(state);
+  const promoted = divisionPromotionCandidates(state);
+  const relegationLabel = (() => {
+    if (division === "primera_division") return "2 descensos: 1 por último de la tabla anual y 1 por peor promedio histórico.";
+    if (division === "primera_nacional") return "Descensos definidos por afiliación: 2 metropolitanos a Primera B y 2 federales a Federal A.";
+    if (rules.relegation.length === 0 || rules.relegation.every(r => r.slots === 0)) return "No hay descenso modelado en esta categoría.";
+    return `Descenso: ${rules.relegation.reduce((sum, r) => sum + r.slots, 0)} puestos por tabla.`;
+  })();
+  const promotionLabel = rules.promotion.length === 0
+    ? "No hay ascenso porque esta es la máxima categoría."
+    : `${rules.promotion[0].directSlots} ascenso(s) directo(s)${rules.promotion[0].playoffSlots ? ` + ${rules.promotion[0].playoffSlots} por playoff/reducido` : ""} a ${COMPETITIONS[rules.promotion[0].to].name}.`;
+  return (
+    <div className="hud-panel p-4">
+      <div className="flex items-center justify-between gap-3 mb-3">
+        <div>
+          <div className="font-display text-lg tracking-wide">ASCENSOS Y DESCENSOS</div>
+          <div className="text-[11px] text-muted-foreground">{rules.name} · puesto actual {position || "—"}°</div>
+        </div>
+        {state && isSeasonFinished(state) && (
+          <span className={`text-[10px] uppercase tracking-widest font-display ${relegated.includes(teamId) ? "text-destructive" : promoted.includes(teamId) ? "text-hud-green" : "text-muted-foreground"}`}>
+            {relegated.includes(teamId) ? "DESCENSO" : promoted.includes(teamId) ? "ASCENSO" : "MANTIENE"}
+          </span>
+        )}
+      </div>
+      <div className="grid md:grid-cols-2 gap-2">
+        <div className="rounded-lg border border-hud-green/20 bg-hud-green/5 p-3">
+          <div className="text-[10px] uppercase tracking-widest text-hud-green mb-1">Ascenso</div>
+          <div className="text-xs text-foreground/90">{promotionLabel}</div>
+        </div>
+        <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-3">
+          <div className="text-[10px] uppercase tracking-widest text-destructive mb-1">Descenso</div>
+          <div className="text-xs text-foreground/90">{relegationLabel}</div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -918,6 +1067,7 @@ function TablaPromedios({ rows, highlight }: { rows: ReturnType<typeof buildAver
       <div className="px-4 py-2.5 font-display text-sm uppercase tracking-widest text-celeste border-b border-border flex items-center justify-between">
         <span>Promedios · Primera División</span><span className="text-[9px] normal-case tracking-normal text-muted-foreground">PTS / PJ</span>
       </div>
+      {rows.length === 0 && <div className="px-4 py-3 text-xs text-muted-foreground border-b border-border/60">El promedio se empieza a contar desde la primera temporada finalizada de tu carrera.</div>}
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="text-[10px] text-muted-foreground uppercase"><tr><th className="text-left px-3 py-2">#</th><th className="text-left px-3 py-2">Equipo</th><th className="px-2 py-2">Temp.</th><th className="px-2 py-2">PJ</th><th className="px-2 py-2">PTS</th><th className="px-2 py-2">Prom.</th></tr></thead>
@@ -954,7 +1104,7 @@ function TablaZona({ title, rows, highlight, matches, division = "primera_nacion
         <span>{title}</span>
         <div className="flex items-center gap-3 text-[9px] normal-case font-sans tracking-normal text-muted-foreground">
           <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-accent" />Campeón</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-celeste" />{division === "primera_division" ? "Descenso" : "Reducido"}</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-celeste" />{division === "primera_division" ? "Zona de descenso" : "Clasificación"}</span>
         </div>
       </div>
       <div className="overflow-x-auto">
@@ -973,13 +1123,18 @@ function TablaZona({ title, rows, highlight, matches, division = "primera_nacion
               const mine = r.teamId === highlight;
               const pos = i + 1;
               const isChamp = pos === 1;
-              const inReducido = division !== "primera_division" && pos <= 8 && !isChamp;
+              const rules = COMPETITIONS[division];
+              const directSlots = rules.promotion[0]?.directSlots ?? 0;
+              const playoffSlots = rules.promotion[0]?.playoffSlots ?? 0;
+              const playoffRange = directSlots + playoffSlots * 4;
+              const inReducido = division !== "primera_division" && playoffSlots > 0 && pos > directSlots && pos <= playoffRange;
+              const isPromoted = division !== "primera_division" && directSlots > 0 && pos <= directSlots;
               const isRelegated = relegated.includes(r.teamId);
               const form = recentForm(r.teamId, matches);
               return (
                 <tr key={r.teamId} className={`border-t border-border/40 transition-colors ${
                   mine ? "bg-celeste/15" : i % 2 === 1 ? "bg-white/[0.02]" : ""
-                } ${isChamp ? "border-l-[3px] border-l-accent" : inReducido ? "border-l-[3px] border-l-celeste/70" : "border-l-[3px] border-l-transparent"}`}
+                } ${isRelegated ? "border-l-[3px] border-l-destructive" : isChamp || isPromoted ? "border-l-[3px] border-l-accent" : inReducido ? "border-l-[3px] border-l-celeste/70" : "border-l-[3px] border-l-transparent"}`}
                 >
                   <td className="px-3 py-1.5 tabular-nums">
                     <span className={isChamp ? "text-accent font-display" : "text-muted-foreground"}>{pos}</span>
@@ -1007,7 +1162,7 @@ function TablaZona({ title, rows, highlight, matches, division = "primera_nacion
                       ))}
                     </div>
                   </td>
-                  <td className="px-2 py-1.5 text-center text-[10px] font-display">{division === "primera_division" && isRelegated ? <span className="text-destructive">DESC.</span> : isChamp ? <span className="text-accent">CAMPEÓN</span> : inReducido ? <span className="text-celeste">RED.</span> : ""}</td>
+                  <td className="px-2 py-1.5 text-center text-[10px] font-display">{isRelegated ? <span className="text-destructive">DESC.</span> : isChamp ? <span className="text-accent">CAMPEÓN</span> : isPromoted ? <span className="text-hud-green">ASC.</span> : inReducido ? <span className="text-celeste">PLAYOFF</span> : ""}</td>
                 </tr>
               );
             })}
@@ -1015,7 +1170,13 @@ function TablaZona({ title, rows, highlight, matches, division = "primera_nacion
         </table>
       </div>
       <div className="px-4 py-2 text-[10px] text-muted-foreground border-t border-border/40">
-        {division === "primera_division" ? "1° campeón · el descenso combina tabla anual y promedio" : "1° campeón asciende directo · 2° al 8° juegan el Reducido"}
+        {division === "primera_division"
+          ? "1° campeón · el descenso combina tabla anual y promedio"
+          : division === "primera_nacional"
+            ? "Ascenso: campeón de zona / Reducido · Descenso: según afiliación (metropolitano o federal)"
+            : COMPETITIONS[division].relegation.every(r => r.slots === 0)
+              ? "1° asciende según el reglamento · no hay descenso modelado en esta categoría"
+              : `Ascenso directo: ${COMPETITIONS[division].promotion[0]?.directSlots ?? 0} · Descenso: ${COMPETITIONS[division].relegation.reduce((sum, r) => sum + r.slots, 0)} puestos`}
       </div>
     </div>
   );
@@ -1229,9 +1390,9 @@ function PersonalizarTab({ teamId }: { teamId: string }) {
 
 /* ============================ SHELL ============================ */
 
-function Shell({ children, hideNav }: { children: React.ReactNode; hideNav?: boolean }) {
-  // Música de fondo: solo se instancia acá, así que solo suena dentro de /carrera.
-  const music = useCareerMusic();
+function Shell({ children, hideNav, musicActive = true }: { children: React.ReactNode; hideNav?: boolean; musicActive?: boolean }) {
+  // Música de fondo: solo suena en el menú de Carrera. Intro y partidos la pausan.
+  const music = useCareerMusic(musicActive);
   return (
     <CareerMusicContext.Provider value={music}>
       <div className="relative min-h-screen flex flex-col hud-shell" data-sfx-root>
