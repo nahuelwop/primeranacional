@@ -285,7 +285,7 @@ function PesTeamSelect({
 
   const list = useMemo(
     () => (competition.hasZones ? getTeamsByZone(division, zone) : getTeamsByDivision(division)),
-    [division, zone, competition.hasZones, teamsVersion],
+    [division, zone, competition.hasZones, TEAMS.length],
   );
   const idx = Math.max(0, list.findIndex(t => t.id === selected?.id));
   const itemRefs = useRef<Record<string, HTMLButtonElement | null>>({});
