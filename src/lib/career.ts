@@ -1,6 +1,6 @@
 import { ZONE_A, ZONE_B, type Team } from "@/data/teams";
 import { getTeamsByDivision, getTeamById } from "@/data/teams-catalog";
-import type { DivisionId } from "@/data/competitions";
+import { COMPETITIONS, type DivisionId } from "@/data/competitions";
 import { generateRoundRobin, simulateMatch, emptyStandings, applyMatchToStandings, sortStandings, type Match, type StandingRow } from "@/lib/tournament";
 
 // ============ Stadium upgrades ============
@@ -173,13 +173,49 @@ export function buildAverageTable(state: CareerState, division: DivisionId = car
   })).sort((a, b) => b.avgPtsPerMatch - a.avgPtsPerMatch || b.pts - a.pts || b.dg - a.dg);
 }
 
-export function firstDivisionRelegated(state: CareerState): string[] {
+export type RelegationDetail = {
+  teamId: string;
+  reason: string;
+};
+
+export function firstDivisionRelegationDetails(state: CareerState): RelegationDetail[] {
   if (!isFirstDivision(state) || !isSeasonFinished(state)) return [];
   const annual = sortStandings(state.standings);
-  const lastAnnual = annual[annual.length - 1]?.teamId;
+  const annualBottom = annual[annual.length - 1]?.teamId;
   const averages = buildAverageTable(state, "primera_division");
-  const worstAverage = averages.find(r => r.teamId !== lastAnnual)?.teamId ?? averages[averages.length - 1]?.teamId;
-  return [lastAnnual, worstAverage].filter((id, i, arr): id is string => !!id && arr.indexOf(id) === i);
+  const averageBottom = averages.find(r => r.teamId !== annualBottom)?.teamId ?? averages[averages.length - 1]?.teamId;
+  return [
+    annualBottom ? { teamId: annualBottom, reason: "Último en la tabla anual" } : null,
+    averageBottom ? { teamId: averageBottom, reason: "Peor promedio histórico (PTS/PJ)" } : null,
+  ].filter((v): v is RelegationDetail => !!v).filter((v, i, arr) => arr.findIndex(x => x.teamId === v.teamId) === i);
+}
+
+export function firstDivisionRelegated(state: CareerState): string[] {
+  return firstDivisionRelegationDetails(state).map(r => r.teamId);
+}
+
+// Para las categorías sin promedio, los puestos de descenso se determinan por
+// la tabla de la temporada. En Primera Nacional hay dos circuitos de destino
+// y el reglamento reparte cuatro descensos entre afiliaciones; por eso la UI
+// muestra la regla y no inventa una asignación cuando no existe ese dato en Team.
+export function divisionRelegationCandidates(state: CareerState): string[] {
+  if (!isSeasonFinished(state)) return [];
+  const division = careerDivision(state);
+  if (division === "primera_division") return firstDivisionRelegated(state);
+  const rules = COMPETITIONS[division];
+  const slots = rules.relegation.reduce((sum, rule) => sum + rule.slots, 0);
+  if (slots <= 0) return [];
+  return sortStandings(state.standings).slice(-Math.min(slots, state.standings.length)).map(r => r.teamId);
+}
+
+export function divisionPromotionCandidates(state: CareerState): string[] {
+  if (!isSeasonFinished(state)) return [];
+  const division = careerDivision(state);
+  const rules = COMPETITIONS[division];
+  if (rules.promotion.length === 0) return [];
+  const direct = rules.promotion[0]?.directSlots ?? 0;
+  if (direct <= 0) return [];
+  return sortStandings(state.standings).slice(0, direct).map(r => r.teamId);
 }
 
 export function promoteFromPrimeraNacional(state: CareerState): boolean {
