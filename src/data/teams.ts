@@ -1,3 +1,5 @@
+import { OTHER_DIVISION_TEAMS } from "./teams-other-divisions";
+
 export type Stats = {
   speed: number;
   jump: number;
@@ -578,10 +580,10 @@ export const TEAMS: Team[] = [
   ),
 ];
 
-export const TEAMS_BY_ID: Record<string, Team> =
-  Object.fromEntries(
-    TEAMS.map((team) => [team.id, team]),
-  );
+export const TEAMS_BY_ID: Record<string, Team> = Object.fromEntries([
+  ...TEAMS,
+  ...OTHER_DIVISION_TEAMS.filter((team) => !TEAMS.some((pn) => pn.id === team.id)),
+].map((team) => [team.id, team]));
 
 export const ZONE_A = TEAMS.filter(
   (team) => team.zone === "A",
