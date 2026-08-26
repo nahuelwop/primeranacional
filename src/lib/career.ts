@@ -1,5 +1,5 @@
-import { TEAMS_BY_ID, ZONE_A, ZONE_B, type Team } from "@/data/teams";
-import { getTeamsByDivision } from "@/data/teams-catalog";
+import { ZONE_A, ZONE_B, type Team } from "@/data/teams";
+import { getTeamsByDivision, getTeamById } from "@/data/teams-catalog";
 import type { DivisionId } from "@/data/competitions";
 import { generateRoundRobin, simulateMatch, emptyStandings, applyMatchToStandings, sortStandings, type Match, type StandingRow } from "@/lib/tournament";
 
@@ -96,18 +96,18 @@ export type CareerState = {
 export function teamZone(teamId: string): "A" | "B" {
   if (ZONE_A.some(t => t.id === teamId)) return "A";
   if (ZONE_B.some(t => t.id === teamId)) return "B";
-  return TEAMS_BY_ID[teamId]?.zone ?? "A";
+  return getTeamById(teamId)?.zone ?? "A";
 }
 
 export function careerDivision(state: CareerState | null | undefined, teamId?: string): DivisionId {
-  return state?.division ?? (teamId ? (TEAMS_BY_ID[teamId]?.division ?? "primera_nacional") : "primera_nacional");
+  return state?.division ?? (teamId ? (getTeamById(teamId)?.division ?? "primera_nacional") : "primera_nacional");
 }
 
 export function isFirstDivision(state: CareerState | null | undefined, teamId?: string): boolean {
   return careerDivision(state, teamId) === "primera_division";
 }
 
-export function buildSeason(teamId: string, division: DivisionId = TEAMS_BY_ID[teamId]?.division ?? "primera_nacional"): CareerState {
+export function buildSeason(teamId: string, division: DivisionId = getTeamById(teamId)?.division ?? "primera_nacional"): CareerState {
   if (division === "primera_division") {
     const ids = getTeamsByDivision("primera_division").map(t => t.id);
     if (!ids.includes(teamId)) ids.push(teamId);
@@ -305,7 +305,7 @@ export function budgetReward(myGoals: number, oppGoals: number): number {
 }
 
 export function teamOf(id: string | undefined | null): Team | undefined {
-  return id ? TEAMS_BY_ID[id] : undefined;
+  return id ? getTeamById(id) : undefined;
 }
 
 // ============ Indicadores del club (para el panel de Modo Carrera) ============
