@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
-import { TEAMS_BY_ID } from "@/data/teams";
-import { getTeamsByDivision } from "@/data/teams-catalog";
+import { getTeamsByDivision, getTeamById } from "@/data/teams-catalog";
 import type { DivisionId } from "@/data/competitions";
 import { Shield } from "@/components/Shield";
 
@@ -14,16 +13,88 @@ type Props = {
 };
 
 export function SeasonIntro({ season, teamId, objetivo, division = "primera_nacional", videoUrl, onDone }: Props) {
-  const team = TEAMS_BY_ID[teamId];
+  const team = getTeamById(teamId);
   const seasonTeams = getTeamsByDivision(division);
-  const competitionName = division === "primera_division" ? "PRIMERA DIVISIÓN" : "PRIMERA NACIONAL";
+
+  const intro = (() => {
+    switch (division) {
+      case "primera_division":
+        return {
+          title: "PRIMERA DIVISIÓN",
+          subtitle: "LA MÁXIMA CATEGORÍA",
+          descriptor: "30 CLUBES · TABLA ANUAL · PROMEDIOS",
+          trophy: "EL TÍTULO MÁS DESEADO",
+          trophySub: "La lucha por el campeonato y la permanencia.",
+          final: "Una nueva temporada en la máxima categoría comienza...",
+          card: "La tabla anual define al campeón. La permanencia también se pelea en los promedios.",
+          accent: "#38bdf8",
+        };
+      case "primera_nacional":
+        return {
+          title: "PRIMERA NACIONAL",
+          subtitle: "EL CAMINO AL ASCENSO",
+          descriptor: "ZONA A · ZONA B · REDUCIDO",
+          trophy: "UN ASCENSO EN JUEGO",
+          trophySub: "Cada fecha te acerca — o te aleja — de Primera División.",
+          final: "La temporada por el ascenso está a punto de comenzar...",
+          card: "Dos zonas, posiciones de clasificación y el Reducido: cada punto cuenta.",
+          accent: "#facc15",
+        };
+      case "primera_b":
+        return {
+          title: "PRIMERA B",
+          subtitle: "LA LUCHA METROPOLITANA",
+          descriptor: "CAMPEONATO · ASCENSO · PERMANENCIA",
+          trophy: "EL SALTO A NACIONAL",
+          trophySub: "Una temporada para dejar atrás la categoría.",
+          final: "La pelea por el ascenso comienza ahora...",
+          card: "Regularidad, presión y partidos clave: todo conduce al ascenso a Primera Nacional.",
+          accent: "#4ade80",
+        };
+      case "primera_c":
+        return {
+          title: "PRIMERA C",
+          subtitle: "EL SIGUIENTE ESCALÓN",
+          descriptor: "CAMPEONATO · ASCENSO · HISTORIA",
+          trophy: "RUMBO A PRIMERA B",
+          trophySub: "Un nuevo desafío para tu club.",
+          final: "La temporada de Primera C está por comenzar...",
+          card: "El objetivo está claro: pelear arriba y acercarte un paso más al fútbol profesional.",
+          accent: "#fb923c",
+        };
+      case "primera_d":
+        return {
+          title: "PRIMERA D",
+          subtitle: "EL COMIENZO DEL CAMINO",
+          descriptor: "CLUBES · ASCENSO · COMPETENCIA",
+          trophy: "EL PRIMER GRAN PASO",
+          trophySub: "Construí una temporada para hacer historia.",
+          final: "El camino de tu club comienza en Primera D...",
+          card: "Cada partido cuenta para dar el salto hacia Primera C.",
+          accent: "#c084fc",
+        };
+      case "federal_a":
+        return {
+          title: "TORNEO FEDERAL A",
+          subtitle: "TODO EL PAÍS EN JUEGO",
+          descriptor: "ZONAS · VIAJES · ASCENSO NACIONAL",
+          trophy: "EL CAMINO FEDERAL",
+          trophySub: "Representá a tu región y buscá el ascenso.",
+          final: "Una nueva campaña federal está por comenzar...",
+          card: "Dos zonas, viajes largos y una meta: llegar a Primera Nacional.",
+          accent: "#f472b6",
+        };
+    }
+  })();
+
   const [step, setStep] = useState(0);
   const [videoFailed, setVideoFailed] = useState(false);
 
-  // Secuencia por defecto: 6 pasos ~ 18-20s
+  // Las intros son específicas de cada división. Si existe un video global legado,
+  // sólo se usa cuando se pidió explícitamente y no reemplaza el contenido textual.
   useEffect(() => {
-    if (videoUrl && !videoFailed) return; // deja que el video maneje su tiempo
-    const timings = [2200, 2200, 3000, 3500, 2500, 4000, 3000]; // ms por paso
+    if (videoUrl && !videoFailed) return;
+    const timings = [1800, 2200, 3000, 3300, 2400, 3000, 3000];
     if (step >= timings.length) { onDone(); return; }
     const t = setTimeout(() => setStep(s => s + 1), timings[step]);
     return () => clearTimeout(t);
@@ -32,14 +103,7 @@ export function SeasonIntro({ season, teamId, objetivo, division = "primera_naci
   if (videoUrl && !videoFailed) {
     return (
       <div className="fixed inset-0 z-[60] bg-black flex items-center justify-center">
-        <video
-          src={videoUrl}
-          autoPlay
-          playsInline
-          onEnded={onDone}
-          onError={() => setVideoFailed(true)}
-          className="w-full h-full object-contain"
-        />
+        <video src={videoUrl} autoPlay playsInline onEnded={onDone} onError={() => setVideoFailed(true)} className="w-full h-full object-contain" />
         <SkipButton onClick={onDone} />
       </div>
     );
@@ -51,38 +115,37 @@ export function SeasonIntro({ season, teamId, objetivo, division = "primera_naci
       <div key={step} className="w-full h-full flex items-center justify-center p-6 animate-fade-in">
         {step === 0 && (
           <div className="text-center">
-            <div className="w-32 h-32 mx-auto rounded-2xl bg-gradient-to-br from-celeste to-white grid place-items-center font-display text-6xl text-primary-foreground shadow-2xl">PH</div>
-            <div className="font-display text-5xl tracking-widest mt-6">PRIMERA <span className="text-celeste">HEADS</span></div>
+            <div className="w-28 h-28 mx-auto rounded-2xl border border-white/20 bg-black/50 grid place-items-center font-display text-5xl text-white shadow-2xl">PH</div>
+            <div className="font-display text-4xl sm:text-5xl tracking-widest mt-6">PRIMERA <span className="text-celeste">HEADS</span></div>
+            <div className="text-xs text-muted-foreground uppercase tracking-[0.35em] mt-3">Modo Carrera</div>
           </div>
         )}
         {step === 1 && (
-          <div className="text-center">
-            <div className="font-display text-2xl text-celeste tracking-[0.4em] mb-3">CAMPEONATO ARGENTINO</div>
-            <div className="font-display text-6xl tracking-widest">{competitionName}</div>
-            <div className="text-muted-foreground mt-4">{season === 1 ? "Temporada" : "Temporada"} 2026</div>
+          <div className="text-center max-w-4xl">
+            <div className="font-display text-xl sm:text-2xl tracking-[0.4em] mb-3" style={{ color: intro.accent }}>{intro.subtitle}</div>
+            <div className="font-display text-5xl sm:text-7xl tracking-widest">{intro.title}</div>
+            <div className="text-muted-foreground mt-4">Temporada {2026 + season - 1}</div>
           </div>
         )}
         {step === 2 && (
-          <div className="text-center">
-            <div className="text-xs text-celeste tracking-[0.4em] font-display mb-6">ESTADIOS DEL PAÍS</div>
-            <div className="grid grid-cols-3 md:grid-cols-5 gap-4 max-w-3xl">
+          <div className="text-center max-w-4xl">
+            <div className="text-xs tracking-[0.4em] font-display mb-3" style={{ color: intro.accent }}>{intro.descriptor}</div>
+            <div className="text-sm text-muted-foreground max-w-2xl mx-auto mb-6">{intro.card}</div>
+            <div className="grid grid-cols-3 md:grid-cols-5 gap-4 max-w-4xl mx-auto">
               {seasonTeams.slice(0, 15).map(t => (
-                <div key={t.id} className="aspect-video rounded-lg border border-celeste/30 grid place-items-center"
-                  style={{ background: `linear-gradient(135deg, ${t.primary}, ${t.secondary ?? "#111"})` }}>
-                  <Shield team={t} size={32} />
+                <div key={t.id} className="aspect-video rounded-lg border border-white/10 bg-white/[0.03] grid place-items-center" style={{ boxShadow: `inset 0 0 0 1px ${intro.accent}22` }}>
+                  <Shield team={t} size={34} />
                 </div>
               ))}
             </div>
           </div>
         )}
         {step === 3 && (
-          <div className="text-center">
-            <div className="text-xs text-celeste tracking-[0.4em] font-display mb-6">{seasonTeams.length} CLUBES · 1 SUEÑO</div>
-            <div className="grid grid-cols-8 gap-3 max-w-4xl">
+          <div className="text-center max-w-5xl">
+            <div className="text-xs tracking-[0.4em] font-display mb-6" style={{ color: intro.accent }}>{seasonTeams.length} CLUBES · 1 OBJETIVO</div>
+            <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 gap-3 max-w-5xl mx-auto">
               {seasonTeams.map((t, i) => (
-                <div key={t.id} className="animate-scale-in" style={{ animationDelay: `${i * 40}ms` }}>
-                  <Shield team={t} size={44} />
-                </div>
+                <div key={t.id} className="animate-scale-in" style={{ animationDelay: `${i * 30}ms` }}><Shield team={t} size={42} /></div>
               ))}
             </div>
           </div>
@@ -90,24 +153,24 @@ export function SeasonIntro({ season, teamId, objetivo, division = "primera_naci
         {step === 4 && (
           <div className="text-center">
             <div className="text-7xl mb-4">🏆</div>
-            <div className="font-display text-4xl tracking-widest text-celeste">EL TROFEO DE LA GLORIA</div>
-            <div className="text-muted-foreground mt-2">{division === "primera_division" ? "La lucha por el título" : "Ascenso a Primera División"}</div>
+            <div className="font-display text-4xl sm:text-5xl tracking-widest" style={{ color: intro.accent }}>{intro.trophy}</div>
+            <div className="text-muted-foreground mt-3 max-w-2xl mx-auto">{intro.trophySub}</div>
           </div>
         )}
         {step === 5 && (
-          <div className="text-center max-w-2xl">
-            <div className="font-display text-6xl tracking-wider mb-4">{competitionName} 2026</div>
-            <div className="text-2xl text-muted-foreground italic">Una nueva temporada comienza...</div>
+          <div className="text-center max-w-3xl">
+            <div className="font-display text-5xl sm:text-6xl tracking-wider mb-4">{intro.title} {2026 + season - 1}</div>
+            <div className="text-2xl text-muted-foreground italic">{intro.final}</div>
           </div>
         )}
         {step === 6 && team && (
           <div className="text-center">
-            <div className="text-xs text-celeste tracking-[0.4em] font-display mb-4">TU CLUB</div>
+            <div className="text-xs tracking-[0.4em] font-display mb-4" style={{ color: intro.accent }}>TU CLUB</div>
             <div className="flex flex-col items-center gap-4">
               <Shield team={team} size={140} />
               <div className="font-display text-5xl">{team.name}</div>
               <div className="mt-4 text-sm text-muted-foreground uppercase tracking-widest">Objetivo</div>
-              <div className="font-display text-2xl text-celeste">{objetivo}</div>
+              <div className="font-display text-2xl" style={{ color: intro.accent }}>{objetivo}</div>
             </div>
           </div>
         )}
