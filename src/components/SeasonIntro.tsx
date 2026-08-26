@@ -1,17 +1,22 @@
 import { useEffect, useState } from "react";
-import { TEAMS, TEAMS_BY_ID } from "@/data/teams";
+import { TEAMS_BY_ID } from "@/data/teams";
+import { getTeamsByDivision } from "@/data/teams-catalog";
+import type { DivisionId } from "@/data/competitions";
 import { Shield } from "@/components/Shield";
 
 type Props = {
   season: number;
   teamId: string;
   objetivo: string;
+  division?: DivisionId;
   videoUrl?: string | null;
   onDone: () => void;
 };
 
-export function SeasonIntro({ season, teamId, objetivo, videoUrl, onDone }: Props) {
+export function SeasonIntro({ season, teamId, objetivo, division = "primera_nacional", videoUrl, onDone }: Props) {
   const team = TEAMS_BY_ID[teamId];
+  const seasonTeams = getTeamsByDivision(division);
+  const competitionName = division === "primera_division" ? "PRIMERA DIVISIÓN" : "PRIMERA NACIONAL";
   const [step, setStep] = useState(0);
   const [videoFailed, setVideoFailed] = useState(false);
 
@@ -53,7 +58,7 @@ export function SeasonIntro({ season, teamId, objetivo, videoUrl, onDone }: Prop
         {step === 1 && (
           <div className="text-center">
             <div className="font-display text-2xl text-celeste tracking-[0.4em] mb-3">CAMPEONATO ARGENTINO</div>
-            <div className="font-display text-6xl tracking-widest">PRIMERA NACIONAL</div>
+            <div className="font-display text-6xl tracking-widest">{competitionName}</div>
             <div className="text-muted-foreground mt-4">{season === 1 ? "Temporada" : "Temporada"} 2026</div>
           </div>
         )}
@@ -61,7 +66,7 @@ export function SeasonIntro({ season, teamId, objetivo, videoUrl, onDone }: Prop
           <div className="text-center">
             <div className="text-xs text-celeste tracking-[0.4em] font-display mb-6">ESTADIOS DEL PAÍS</div>
             <div className="grid grid-cols-3 md:grid-cols-5 gap-4 max-w-3xl">
-              {TEAMS.slice(0, 15).map(t => (
+              {seasonTeams.slice(0, 15).map(t => (
                 <div key={t.id} className="aspect-video rounded-lg border border-celeste/30 grid place-items-center"
                   style={{ background: `linear-gradient(135deg, ${t.primary}, ${t.secondary ?? "#111"})` }}>
                   <Shield team={t} size={32} />
@@ -72,9 +77,9 @@ export function SeasonIntro({ season, teamId, objetivo, videoUrl, onDone }: Prop
         )}
         {step === 3 && (
           <div className="text-center">
-            <div className="text-xs text-celeste tracking-[0.4em] font-display mb-6">36 CLUBES · 1 SUEÑO</div>
+            <div className="text-xs text-celeste tracking-[0.4em] font-display mb-6">{seasonTeams.length} CLUBES · 1 SUEÑO</div>
             <div className="grid grid-cols-8 gap-3 max-w-4xl">
-              {TEAMS.map((t, i) => (
+              {seasonTeams.map((t, i) => (
                 <div key={t.id} className="animate-scale-in" style={{ animationDelay: `${i * 40}ms` }}>
                   <Shield team={t} size={44} />
                 </div>
@@ -86,12 +91,12 @@ export function SeasonIntro({ season, teamId, objetivo, videoUrl, onDone }: Prop
           <div className="text-center">
             <div className="text-7xl mb-4">🏆</div>
             <div className="font-display text-4xl tracking-widest text-celeste">EL TROFEO DE LA GLORIA</div>
-            <div className="text-muted-foreground mt-2">Ascenso a Primera División</div>
+            <div className="text-muted-foreground mt-2">{division === "primera_division" ? "La lucha por el título" : "Ascenso a Primera División"}</div>
           </div>
         )}
         {step === 5 && (
           <div className="text-center max-w-2xl">
-            <div className="font-display text-6xl tracking-wider mb-4">PRIMERA NACIONAL 2026</div>
+            <div className="font-display text-6xl tracking-wider mb-4">{competitionName} 2026</div>
             <div className="text-2xl text-muted-foreground italic">Una nueva temporada comienza...</div>
           </div>
         )}
