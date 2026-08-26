@@ -1,4 +1,5 @@
-import { Team, TEAMS_BY_ID, teamRating } from "@/data/teams";
+import { TEAMS_BY_ID } from "@/data/teams";
+import { getTeamById } from "@/data/teams-catalog";
 import { FIXTURE_2026, isClasicoMatch } from "@/data/fixture2026";
 
 // Fixture oficial 2026 (cruces declarados por el usuario).
@@ -50,7 +51,7 @@ export function generateRoundRobin(teamIds: string[], zone: "A" | "B"): Match[] 
         const swap = (r + i) % 2 === 0;
         const h = swap ? home : away;
         const a = swap ? away : home;
-        const ht = TEAMS_BY_ID[h];
+        const ht = getTeamById(h);
         const isClasico = !!(ht?.rivals?.includes(a));
         matches.push({
           id: `${zone}-r${r + 1}-${h}-${a}`,
@@ -88,14 +89,20 @@ export function buildFixture(
 
 // Simulación de partido por estadísticas (Poisson aproximada).
 export function simulateMatch(homeId: string, awayId: string): { hg: number; ag: number } {
-  const h = TEAMS_BY_ID[homeId], a = TEAMS_BY_ID[awayId];
-  const homeAttack = (h.stats.power + h.stats.speed) / 2 + 5; // bonus de local
-  const homeDefense = h.stats.defense + h.stats.jump / 2;
-  const awayAttack = (a.stats.power + a.stats.speed) / 2;
-  const awayDefense = a.stats.defense + a.stats.jump / 2;
+  const h = getTeamById(homeId), a = getTeamById(awayId);
+  if (!h || !a) return { hg: 0, ag: 0 };
 
-  const hLambda = Math.max(0.2, (homeAttack - awayDefense * 0.6) / 35 + 1.1);
-  const aLambda = Math.max(0.2, (awayAttack - homeDefense * 0.6) / 35 + 0.9);
+  // Las estadísticas SI afectan la simulación, pero con una compresión fuerte:
+  // una diferencia de 20 puntos no debe sentirse como una goleada automática.
+  const rating = (team: typeof h) =>
+    (team.stats.speed + team.stats.jump + team.stats.power + team.stats.defense) / 4;
+  const compressed = (r: number) => 0.30 * (r - 75);
+  const diff = Math.max(-9, Math.min(9, compressed(rating(h)) - compressed(rating(a))));
+
+  // Localía pequeña y variabilidad alta: la calidad importa, pero el resultado
+  // sigue teniendo bastante componente de azar.
+  const hLambda = Math.max(0.25, Math.min(1.85, 1.12 + diff * 0.035 + 0.10));
+  const aLambda = Math.max(0.25, Math.min(1.70, 0.98 - diff * 0.030));
 
   const poisson = (l: number) => {
     const L = Math.exp(-l);
