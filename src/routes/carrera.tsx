@@ -3,6 +3,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Nav } from "@/components/Nav";
 import { Shield } from "@/components/Shield";
 import { TEAMS, TEAMS_BY_ID, type Team } from "@/data/teams";
+import { getTeamsByDivision } from "@/data/teams-catalog";
+import type { DivisionId } from "@/data/competitions";
 import { useTeamsSync } from "@/lib/teams-sync";
 import { useAuth } from "@/lib/auth";
 import { Game, type MatchStats } from "@/components/Game";
@@ -12,6 +14,7 @@ import {
   STADIUM_UPGRADE_CATALOG, CORRUPTION_CATALOG,
   buyUpgrade, activateCorruption, tickCorruption, currentCorruptionEffects, incomeMultiplier,
   OBJETIVO_LABEL, type Objetivo, clubIndicators, currentRound, totalRounds,
+  careerDivision, isFirstDivision, recordSeasonSnapshot, firstDivisionRelegated, buildAverageTable,
 } from "@/lib/career";
 import { sortStandings, simulateMatch, type Match, type StandingRow } from "@/lib/tournament";
 import stadiumBg from "@/assets/stadium-night.jpg";
@@ -38,7 +41,7 @@ export const Route = createFileRoute("/carrera")({
   head: () => ({
     meta: [
       { title: "Modo Carrera · Primera Heads" },
-      { name: "description", content: "Dirigí tu club en la Primera Nacional: temporadas, calendario, tabla, economía y oficina del club." },
+      { name: "description", content: "Dirigí tu club en Primera División o Primera Nacional: temporadas, ascensos, descensos, tabla, economía y oficina del club." },
       { property: "og:title", content: "Modo Carrera · Primera Heads" },
       { property: "og:description", content: "Dirigí tu club en la Primera Nacional: temporadas, calendario, tabla, economía y oficina del club." },
       { property: "og:type", content: "website" },
@@ -86,7 +89,9 @@ function CarreraPage() {
           setTeamId(save.team_id);
           setSeason(save.season);
           setBudget(save.budget);
-          setState(save.state as CareerState);
+          const loadedState = save.state as CareerState;
+          if (!loadedState.division) loadedState.division = TEAMS_BY_ID[save.team_id]?.division ?? "primera_nacional";
+          setState(loadedState);
         }
         setUnlocked(new Set(ach.map(a => a.key)));
       } finally { setBusy(false); }
@@ -103,9 +108,9 @@ function CarreraPage() {
     }
   }
 
-  async function startCareer(tid: string) {
+  async function startCareer(tid: string, division: DivisionId = TEAMS_BY_ID[tid]?.division ?? "primera_nacional") {
     if (!user) return;
-    const s = buildSeason(tid);
+    const s = buildSeason(tid, division);
     setTeamId(tid); setSeason(1); setBudget(1000); setState(s);
     await upsertCareer({ user_id: user.id, team_id: tid, season: 1, budget: 1000, fixture_index: 0, state: s });
   }
@@ -202,17 +207,34 @@ function CarreraPage() {
   }
 
   async function advanceSeason() {
-    if (!state || !teamId || !user) return;
-    const fresh = buildSeason(teamId);
-    fresh.totalGoalsScored = state.totalGoalsScored;
-    fresh.bestUnbeaten = state.bestUnbeaten;
+    if (!state || !teamId || !user || !isSeasonFinished(state)) return;
+
+    const completed = recordSeasonSnapshot(state, season);
+    const currentDivision = careerDivision(completed, teamId);
+    let nextDivision = currentDivision;
+    if (currentDivision === "primera_division") {
+      const relegated = firstDivisionRelegated(completed);
+      if (relegated.includes(teamId)) nextDivision = "primera_nacional";
+    } else if (currentDivision === "primera_nacional") {
+      // Si el usuario sale campeón de su zona en Primera Nacional, vuelve a Primera División.
+      if (seasonChampion(completed) === teamId) nextDivision = "primera_division";
+    }
+
+    const fresh = buildSeason(teamId, nextDivision);
+    fresh.totalGoalsScored = completed.totalGoalsScored;
+    fresh.bestUnbeaten = completed.bestUnbeaten;
     fresh.streakUnbeaten = 0;
-    fresh.zoneChampions = [...state.zoneChampions];
-    fresh.difficulty = state.difficulty;
-    fresh.objetivo = state.objetivo;
+    fresh.zoneChampions = [...completed.zoneChampions];
+    fresh.seasonHistory = [...(completed.seasonHistory ?? [])];
+    fresh.difficulty = completed.difficulty;
+    fresh.objetivo = nextDivision === "primera_division" ? "salir_campeon" : "ascenso_directo";
+    fresh.sponsor = completed.sponsor ?? null;
+    fresh.stadiumUpgrades = completed.stadiumUpgrades;
     fresh.introVista = false;
-    const champ = seasonChampion(state);
-    if (champ) fresh.zoneChampions.push({ season, zone: state.zone, teamId: champ });
+
+    const champ = !isFirstDivision(completed, teamId) ? seasonChampion(completed) : null;
+    if (champ && completed.zone) fresh.zoneChampions.push({ season, zone: completed.zone, teamId: champ });
+
     const nextSeason = season + 1;
     setSeason(nextSeason); setState(fresh);
     setTab("inicio");
@@ -239,7 +261,7 @@ function CarreraPage() {
     return (
       <Shell>
         <DifficultyPicker onPick={async (d) => {
-          const next = { ...state, difficulty: d, objetivo: state.objetivo ?? "ascenso_directo" as Objetivo };
+          const next = { ...state, difficulty: d, objetivo: state.objetivo ?? (isFirstDivision(state, teamId) ? "salir_campeon" : "ascenso_directo") as Objetivo };
           setState(next);
           await persist(next);
         }} />
@@ -251,7 +273,8 @@ function CarreraPage() {
     return (
       <Shell>
         <SeasonIntro season={season} teamId={teamId}
-          objetivo={OBJETIVO_LABEL[state.objetivo ?? "ascenso_directo"]}
+          division={careerDivision(state, teamId)}
+          objetivo={OBJETIVO_LABEL[state.objetivo ?? (isFirstDivision(state, teamId) ? "salir_campeon" : "ascenso_directo")]}
           videoUrl={settings.intro_video_url}
           onDone={async () => {
             const next = { ...state, introVista: true };
@@ -286,26 +309,59 @@ function CarreraPage() {
   }
 
   if (!state || !teamId) {
+    const firstDivisionTeams = getTeamsByDivision("primera_division");
     return (
       <Shell>
         <div className="hud-panel p-6">
           <h1 className="font-display text-5xl">MODO CARRERA</h1>
-          <p className="text-muted-foreground text-sm mt-1">Elegí el club que vas a dirigir. Tu progreso queda guardado.</p>
-          <div className="mt-6 grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2">
-            {TEAMS.map(t => (
-              <button key={t.id} onClick={() => startCareer(t.id)}
-                className="p-3 rounded-xl border border-border bg-card/60 hover:bg-secondary hover:scale-[1.03] transition text-left">
-                <Shield team={t} size={48} />
-                <div className="text-xs mt-2 font-display truncate">{t.short}</div>
-                <div className="text-[10px] text-muted-foreground">Zona {t.zone}</div>
-              </button>
-            ))}
+          <p className="text-muted-foreground text-sm mt-1">Elegí una categoría y el club que vas a dirigir. Los ascensos, descensos y temporadas quedan guardados.</p>
+
+          <div className="mt-6">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <div className="font-display text-2xl text-celeste">PRIMERA DIVISIÓN</div>
+                <div className="text-xs text-muted-foreground">Carrera completa con tabla anual y promedios.</div>
+              </div>
+              <span className="text-xs text-muted-foreground">{firstDivisionTeams.length} clubes</span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2">
+              {firstDivisionTeams.map(t => (
+                <button key={t.id} onClick={() => startCareer(t.id, "primera_division")}
+                  className="p-3 rounded-xl border border-border bg-card/60 hover:bg-secondary hover:scale-[1.03] transition text-left">
+                  <Shield team={t} size={48} />
+                  <div className="text-xs mt-2 font-display truncate">{t.short}</div>
+                  <div className="text-[10px] text-muted-foreground truncate">{t.name}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-8 pt-6 border-t border-border/60">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <div className="font-display text-2xl">PRIMERA NACIONAL</div>
+                <div className="text-xs text-muted-foreground">Modo carrera original por zonas.</div>
+              </div>
+              <span className="text-xs text-muted-foreground">{TEAMS.length} clubes</span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2">
+              {TEAMS.map(t => (
+                <button key={t.id} onClick={() => startCareer(t.id, "primera_nacional")}
+                  className="p-3 rounded-xl border border-border bg-card/60 hover:bg-secondary hover:scale-[1.03] transition text-left">
+                  <Shield team={t} size={48} />
+                  <div className="text-xs mt-2 font-display truncate">{t.short}</div>
+                  <div className="text-[10px] text-muted-foreground">Zona {t.zone}</div>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </Shell>
     );
   }
 
+  const division = careerDivision(state, teamId);
+  const first = division === "primera_division";
   const standings = sortStandings(state.standings);
   const myPos = standings.findIndex(r => r.teamId === teamId) + 1;
   const indicators = clubIndicators(state, budget, teamId);
@@ -319,10 +375,10 @@ function CarreraPage() {
       {/* Barra superior tipo consola */}
       <header className="hud-in grid grid-cols-[auto_1fr_auto] items-center gap-4 border-b border-border/50 pb-0 mb-4">
         <Link to="/" className="flex items-center gap-2.5 pb-3 min-w-0">
-          <span className="grid h-9 w-9 place-items-center rounded-lg border border-border bg-card font-display text-sm">PN</span>
+          <span className="grid h-9 w-9 place-items-center rounded-lg border border-border bg-card font-display text-sm">{first ? "1D" : "PN"}</span>
           <span className="hidden sm:block leading-none">
-            <span className="block font-display text-sm tracking-widest">PRIMERA</span>
-            <span className="block font-display text-sm tracking-widest text-muted-foreground">NACIONAL</span>
+            <span className="block font-display text-sm tracking-widest">{first ? "PRIMERA" : "PRIMERA"}</span>
+            <span className="block font-display text-sm tracking-widest text-muted-foreground">{first ? "DIVISIÓN" : "NACIONAL"}</span>
           </span>
         </Link>
 
@@ -377,7 +433,7 @@ function CarreraPage() {
         })()}
         <span className="hud-card px-3 py-1.5 flex items-center gap-1.5 text-xs text-hud-green">
           <span>🎯</span>
-          <span className="font-display tracking-wide">{OBJETIVO_LABEL[state.objetivo ?? "ascenso_directo"]}</span>
+          <span className="font-display tracking-wide">{OBJETIVO_LABEL[state.objetivo ?? (first ? "salir_campeon" : "ascenso_directo")]}</span>
         </span>
       </div>
 
@@ -394,7 +450,7 @@ function CarreraPage() {
         {tab === "inicio" && (
           <InicioTab
             state={state} teamId={teamId} season={season} nextMatch={nextMatch}
-            indicators={indicators} standings={standings} budget={budget}
+            indicators={indicators} standings={standings} budget={budget} division={division}
             onPlay={() => setPlaying(true)} onSimulate={onSimulateMatch}
             onAdvance={advanceSeason} onGo={setTab} onGoReducido={goToReducido}
           />
@@ -415,9 +471,9 @@ function CarreraPage() {
 
 /* ============================ INICIO ============================ */
 
-function InicioTab({ state, teamId, season, nextMatch, indicators, standings, budget, onPlay, onSimulate, onAdvance, onGo, onGoReducido }: {
+function InicioTab({ state, teamId, season, nextMatch, indicators, standings, budget, division, onPlay, onSimulate, onAdvance, onGo, onGoReducido }: {
   state: CareerState; teamId: string; season: number; nextMatch: Match | null;
-  indicators: ReturnType<typeof clubIndicators>; standings: StandingRow[]; budget: number;
+  indicators: ReturnType<typeof clubIndicators>; standings: StandingRow[]; budget: number; division: DivisionId;
   onPlay: () => void; onSimulate: () => void; onAdvance: () => void; onGo: (t: TopTab) => void; onGoReducido: () => void;
 }) {
   const rival = nextMatch ? (nextMatch.home === teamId ? nextMatch.away : nextMatch.home) : null;
@@ -449,7 +505,12 @@ function InicioTab({ state, teamId, season, nextMatch, indicators, standings, bu
     { k: "personalizar" as TopTab, icon: "📄", title: "Informes", sub: "Noticias y análisis" },
   ];
 
-  const objetivos = [
+  const objetivos = division === "primera_division" ? [
+    { label: "Terminar entre los 10 primeros", done: pos > 0 && pos <= 10 },
+    { label: "Ganar 8 partidos", done: state.matches.filter(m => m.played && ((m.home === teamId && (m.homeGoals ?? 0) > (m.awayGoals ?? 0)) || (m.away === teamId && (m.awayGoals ?? 0) > (m.homeGoals ?? 0)))).length >= 8 },
+    { label: "Mantener la valla invicta en 6 partidos", done: state.matches.filter(m => m.played && ((m.home === teamId && m.awayGoals === 0) || (m.away === teamId && m.homeGoals === 0))).length >= 6 },
+    { label: "Terminar entre los 4 primeros", done: pos > 0 && pos <= 4 },
+  ] : [
     { label: "Clasificar al Reducido", done: pos <= 8 },
     { label: "Ganar 6 partidos de local", done: state.matches.filter(m => m.played && m.home === teamId && (m.homeGoals ?? 0) > (m.awayGoals ?? 0)).length >= 6 },
     { label: "Mantener la valla invicta en 6 partidos", done: state.matches.filter(m => m.played && ((m.home === teamId && m.awayGoals === 0) || (m.away === teamId && m.homeGoals === 0))).length >= 6 },
@@ -523,11 +584,19 @@ function InicioTab({ state, teamId, season, nextMatch, indicators, standings, bu
               <div className="text-center py-6">
                 <div className="text-[11px] uppercase tracking-widest text-hud-green">Temporada terminada</div>
                 <div className="font-display text-3xl mt-2">
-                  Campeón Zona {state.zone}: {TEAMS_BY_ID[seasonChampion(state) ?? ""]?.short ?? "—"}
+                  {division === "primera_division"
+                    ? `Campeón: ${TEAMS_BY_ID[seasonChampion(state) ?? ""]?.short ?? "—"}`
+                    : `Campeón Zona ${state.zone}: ${TEAMS_BY_ID[seasonChampion(state) ?? ""]?.short ?? "—"}`}
                 </div>
                 <div className="text-sm text-muted-foreground mt-1">Terminaste {pos}° en la tabla.</div>
+                {division === "primera_division" && firstDivisionRelegated(state).includes(teamId) && (
+                  <div className="mt-2 font-display text-lg text-destructive">DESCENDÉS A PRIMERA NACIONAL</div>
+                )}
+                {division === "primera_nacional" && seasonChampion(state) === teamId && (
+                  <div className="mt-2 font-display text-lg text-hud-green">ASCENDÉS A PRIMERA DIVISIÓN</div>
+                )}
                 <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
-                  {pos <= 8 && (
+                  {division !== "primera_division" && pos <= 8 && (
                     <button onClick={onGoReducido}
                       className="px-8 py-3 rounded-xl hud-btn-play font-display text-lg tracking-[0.2em]">
                       🏆 IR AL REDUCIDO
@@ -538,9 +607,14 @@ function InicioTab({ state, teamId, season, nextMatch, indicators, standings, bu
                     NUEVA TEMPORADA
                   </button>
                 </div>
-                {pos <= 8 && (
+                {division !== "primera_division" && pos <= 8 && (
                   <div className="text-[11px] text-muted-foreground mt-3 max-w-xs mx-auto">
                     Clasificaste al Reducido con tu tabla real de esta temporada. Podés jugarlo antes de arrancar una temporada nueva.
+                  </div>
+                )}
+                {division === "primera_division" && firstDivisionRelegated(state).includes(teamId) && (
+                  <div className="text-[11px] text-destructive mt-3 max-w-sm mx-auto">
+                    Tu club queda relegado a Primera Nacional para la próxima temporada por posición anual/promedio.
                   </div>
                 )}
               </div>
@@ -561,7 +635,7 @@ function InicioTab({ state, teamId, season, nextMatch, indicators, standings, bu
             <div className="font-display text-3xl mt-1">FECHA {nextMatch?.round ?? "—"}</div>
             <p className="text-sm text-foreground/85 mt-3 leading-relaxed max-w-[19ch]">
               {rivalTeam
-                ? `${isHome ? myTeam?.name : rivalTeam.name} recibe a ${isHome ? rivalTeam.name : myTeam?.name}. Ambos buscan sumar de a tres para meterse en la pelea por los puestos de Reducido.`
+                ? `${isHome ? myTeam?.name : rivalTeam.name} recibe a ${isHome ? rivalTeam.name : myTeam?.name}. Ambos buscan sumar de a tres y mejorar su posición en la ${division === "primera_division" ? "tabla anual" : "tabla de la zona"}.`
                 : "Temporada finalizada. Preparate para el próximo desafío."}
             </p>
             <button onClick={() => onGo("competicion")}
@@ -799,12 +873,63 @@ function CalendarioTab({ state, teamId }: { state: CareerState; teamId: string }
 /* ============================ COMPETICIÓN ============================ */
 
 function CompeticionTab({ state, teamId }: { state: CareerState; teamId: string }) {
+  const division = careerDivision(state, teamId);
+  if (division === "primera_division") {
+    const annual = sortStandings(state.standings);
+    const averages = buildAverageTable(state, "primera_division");
+    const history = [...(state.seasonHistory ?? [])].filter(s => s.division === "primera_division").sort((a, b) => b.season - a.season);
+    const rel = isSeasonFinished(state) ? firstDivisionRelegated(state) : [];
+    return (
+      <div className="space-y-3">
+        <TablaZona title={`Tabla anual · Temporada ${history.length ? Math.max(...history.map(h => h.season), 0) : "actual"}`} rows={annual} highlight={teamId} matches={state.matches} division="primera_division" relegated={rel} />
+        <div className="grid lg:grid-cols-2 gap-3">
+          <TablaPromedios rows={averages} highlight={teamId} />
+          <div className="hud-panel overflow-hidden">
+            <div className="px-4 py-2.5 font-display text-sm uppercase tracking-widest text-celeste border-b border-border">Historial de temporadas</div>
+            <div className="p-3 space-y-2">
+              {history.length === 0 ? <div className="text-xs text-muted-foreground">La tabla anual de la Temporada 1 quedará guardada al finalizar la temporada.</div> : history.map(h => {
+                const sorted = sortStandings(h.standings);
+                const me = sorted.findIndex(r => r.teamId === teamId) + 1;
+                return <div key={h.season} className="rounded-lg border border-border/60 bg-card/40 px-3 py-2 flex items-center justify-between text-xs">
+                  <span className="font-display">Temporada {h.season}</span><span>{me ? `${me}° · ${sorted[me-1]?.pts ?? 0} pts` : "Sin participación"}</span>
+                </div>;
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="grid lg:grid-cols-2 gap-3">
       <TablaZona title={`Zona ${state.zone}`} rows={sortStandings(state.standings)} highlight={teamId} matches={state.matches} />
       {state.otherStandings && state.otherStandings.length > 0 && (
         <TablaZona title={`Zona ${state.zone === "A" ? "B" : "A"} (simulada)`} rows={sortStandings(state.otherStandings)} matches={[]} />
       )}
+    </div>
+  );
+}
+
+function TablaPromedios({ rows, highlight }: { rows: ReturnType<typeof buildAverageTable>; highlight?: string }) {
+  return (
+    <div className="hud-panel overflow-hidden">
+      <div className="px-4 py-2.5 font-display text-sm uppercase tracking-widest text-celeste border-b border-border flex items-center justify-between">
+        <span>Promedios · Primera División</span><span className="text-[9px] normal-case tracking-normal text-muted-foreground">PTS / PJ</span>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="text-[10px] text-muted-foreground uppercase"><tr><th className="text-left px-3 py-2">#</th><th className="text-left px-3 py-2">Equipo</th><th className="px-2 py-2">Temp.</th><th className="px-2 py-2">PJ</th><th className="px-2 py-2">PTS</th><th className="px-2 py-2">Prom.</th></tr></thead>
+          <tbody>{rows.map((r, i) => {
+            const t = TEAMS_BY_ID[r.teamId];
+            const mine = r.teamId === highlight;
+            return <tr key={r.teamId} className={`border-t border-border/40 ${mine ? "bg-celeste/15" : i % 2 ? "bg-white/[0.02]" : ""}`}>
+              <td className="px-3 py-1.5 tabular-nums">{i + 1}</td><td className="px-3 py-1.5"><div className="flex items-center gap-2"><Shield team={t} size={20} /><span className="truncate">{t?.short}</span></div></td>
+              <td className="text-center">{r.seasons}</td><td className="text-center tabular-nums">{r.pj}</td><td className="text-center tabular-nums">{r.pts}</td><td className="text-center tabular-nums font-display text-celeste">{r.avgPtsPerMatch.toFixed(2)}</td>
+            </tr>;
+          })}</tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -821,14 +946,14 @@ function recentForm(teamId: string, matches: Match[]): ("V" | "E" | "D")[] {
     });
 }
 
-function TablaZona({ title, rows, highlight, matches }: { title: string; rows: StandingRow[]; highlight?: string; matches: Match[] }) {
+function TablaZona({ title, rows, highlight, matches, division = "primera_nacional", relegated = [] as string[] }: { title: string; rows: StandingRow[]; highlight?: string; matches: Match[]; division?: DivisionId; relegated?: string[] }) {
   return (
     <div className="hud-panel overflow-hidden">
       <div className="px-4 py-2.5 font-display text-sm uppercase tracking-widest text-celeste border-b border-border flex items-center justify-between">
         <span>{title}</span>
         <div className="flex items-center gap-3 text-[9px] normal-case font-sans tracking-normal text-muted-foreground">
           <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-accent" />Campeón</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-celeste" />Reducido</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-celeste" />{division === "primera_division" ? "Descenso" : "Reducido"}</span>
         </div>
       </div>
       <div className="overflow-x-auto">
@@ -838,7 +963,7 @@ function TablaZona({ title, rows, highlight, matches }: { title: string; rows: S
               <th className="text-left px-3 py-2">#</th><th className="text-left px-3 py-2">Equipo</th>
               <th className="px-2 py-2">PJ</th><th className="px-2 py-2">PG</th><th className="px-2 py-2">PE</th>
               <th className="px-2 py-2">PP</th><th className="px-2 py-2">DG</th><th className="px-2 py-2">Pts</th>
-              <th className="px-2 py-2 hidden sm:table-cell">Forma</th>
+              <th className="px-2 py-2 hidden sm:table-cell">Forma</th><th className="px-2 py-2">Estado</th>
             </tr>
           </thead>
           <tbody>
@@ -847,7 +972,8 @@ function TablaZona({ title, rows, highlight, matches }: { title: string; rows: S
               const mine = r.teamId === highlight;
               const pos = i + 1;
               const isChamp = pos === 1;
-              const inReducido = pos <= 8 && !isChamp;
+              const inReducido = division !== "primera_division" && pos <= 8 && !isChamp;
+              const isRelegated = relegated.includes(r.teamId);
               const form = recentForm(r.teamId, matches);
               return (
                 <tr key={r.teamId} className={`border-t border-border/40 transition-colors ${
@@ -880,6 +1006,7 @@ function TablaZona({ title, rows, highlight, matches }: { title: string; rows: S
                       ))}
                     </div>
                   </td>
+                  <td className="px-2 py-1.5 text-center text-[10px] font-display">{division === "primera_division" && isRelegated ? <span className="text-destructive">DESC.</span> : isChamp ? <span className="text-accent">CAMPEÓN</span> : inReducido ? <span className="text-celeste">RED.</span> : ""}</td>
                 </tr>
               );
             })}
@@ -887,7 +1014,7 @@ function TablaZona({ title, rows, highlight, matches }: { title: string; rows: S
         </table>
       </div>
       <div className="px-4 py-2 text-[10px] text-muted-foreground border-t border-border/40">
-        1° campeón asciende directo · 2° al 8° juegan el Reducido
+        {division === "primera_division" ? "1° campeón · el descenso combina tabla anual y promedio" : "1° campeón asciende directo · 2° al 8° juegan el Reducido"}
       </div>
     </div>
   );
