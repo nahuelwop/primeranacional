@@ -1,11 +1,10 @@
-import { TEAMS_BY_ID } from "@/data/teams";
 import { getTeamById } from "@/data/teams-catalog";
 import { FIXTURE_2026, isClasicoMatch } from "@/data/fixture2026";
 
 // Fixture oficial 2026 (cruces declarados por el usuario).
 export function buildOfficialFixture(): Match[] {
   return FIXTURE_2026.map(([round, home, away]) => {
-    const ht = TEAMS_BY_ID[home];
+    const ht = getTeamById(home);
     const rivalRel = !!(ht?.rivals?.includes(away));
     return {
       id: `F${round}-${home}-${away}`,
@@ -142,7 +141,7 @@ export function applyMatchToStandings(rows: StandingRow[], m: Match): StandingRo
 export function sortStandings(rows: StandingRow[]) {
   return [...rows].sort((a, b) =>
     b.pts - a.pts || b.dg - a.dg || b.gf - a.gf
-    || (TEAMS_BY_ID[a.teamId]?.name ?? "").localeCompare(TEAMS_BY_ID[b.teamId]?.name ?? "")
+    || (getTeamById(a.teamId)?.name ?? "").localeCompare(getTeamById(b.teamId)?.name ?? "")
   );
 }
 
