@@ -35,6 +35,7 @@ import { buildCareerNews, nextRivals } from "@/lib/career-news";
 import { useTournament } from "@/store/tournament";
 import type { SponsorDeal } from "@/lib/sponsors";
 import { useCareerMusic, CareerMusicContext, useCareerMusicContext } from "@/lib/career-music";
+import { fetchGameSettings } from "@/lib/game-settings";
 import { NowPlayingToast } from "@/components/career/NowPlayingToast";
 
 export const Route = createFileRoute("/carrera")({
@@ -64,6 +65,7 @@ const TOP_TABS: { k: TopTab; label: string }[] = [
 
 function CarreraPage() {
   useTeamsSync();
+  const [introVideos, setIntroVideos] = useState<Record<string, string | null>>({});
   const navigate = useNavigate();
   const seedReducidoFromCareer = useTournament(s => s.seedFromCareer);
   const { user, loading } = useAuth();
@@ -77,6 +79,14 @@ function CarreraPage() {
   const [recentAch, setRecentAch] = useState<string[]>([]);
   const [tab, setTab] = useState<TopTab>("inicio");
   useUiSfx();
+
+  useEffect(() => {
+    let active = true;
+    fetchGameSettings().then(settings => {
+      if (active) setIntroVideos(settings.intro_videos ?? {});
+    }).catch(() => {});
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     if (loading) return;
@@ -287,7 +297,7 @@ function CarreraPage() {
         <SeasonIntro season={season} teamId={teamId}
           division={careerDivision(state, teamId)}
           objetivo={OBJETIVO_LABEL[state.objetivo ?? (isFirstDivision(state, teamId) ? "salir_campeon" : "ascenso_directo")]}
-          videoUrl={null}
+          videoUrl={introVideos[careerDivision(state, teamId)] ?? null}
           onDone={async () => {
             const next = { ...state, introVista: true };
             setState(next);
