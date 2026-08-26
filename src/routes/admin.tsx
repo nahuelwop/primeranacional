@@ -450,16 +450,18 @@ function AjustesTab() {
     setSettings(s => ({ ...s, coimas_flags: { ...s.coimas_flags, [key]: !s.coimas_flags[key] } }));
   }
 
-  async function uploadIntroFile(file: File) {
+  const introDivisions: { id: DivisionId; label: string }[] = DIVISION_ORDER.map(id => ({ id, label: COMPETITIONS[id].name }));
+
+  async function uploadIntroFile(file: File, division: DivisionId) {
     setBusy(true); setErr(null); setMsg(null);
     try {
       const ext = file.name.split(".").pop() || "mp4";
-      const path = `intro/season-intro-${Date.now()}.${ext}`;
+      const path = `intro/${division}/season-intro-${Date.now()}.${ext}`;
       const { error } = await supabase.storage.from("team-logos").upload(path, file, { upsert: true, contentType: file.type });
       if (error) throw error;
       const { data } = supabase.storage.from("team-logos").getPublicUrl(path);
-      set("intro_video_url", data.publicUrl);
-      setMsg("Video subido. Recordá guardar los cambios.");
+      setSettings(s => ({ ...s, intro_videos: { ...s.intro_videos, [division]: data.publicUrl } }));
+      setMsg(`Intro de ${COMPETITIONS[division].name} subida. Recordá guardar los cambios.`);
     } catch (e) { setErr((e as Error).message); }
     finally { setBusy(false); }
   }
@@ -484,6 +486,7 @@ function AjustesTab() {
     try {
       await saveGameSettings({
         intro_video_url: settings.intro_video_url,
+        intro_videos: settings.intro_videos,
         whistle_audio_url: settings.whistle_audio_url,
         coimas_enabled: settings.coimas_enabled,
         coimas_flags: settings.coimas_flags,
@@ -498,27 +501,36 @@ function AjustesTab() {
 
   return (
     <div className="space-y-6 max-w-3xl">
-      {/* Intro de temporada */}
+      {/* Intro de temporada por división */}
       <section className="rounded-2xl bg-card border border-border p-5">
         <h2 className="font-display text-xl mb-1">🎬 Intro de temporada</h2>
-        <p className="text-xs text-muted-foreground mb-3">Video opcional que se reproduce al iniciar cada temporada. Si está vacío, se usa la intro animada por defecto.</p>
-        <div className="space-y-2">
-          <label className="text-xs text-muted-foreground uppercase">URL del video (MP4/WebM)</label>
-          <Input value={settings.intro_video_url ?? ""} onChange={e => set("intro_video_url", e.target.value || null)} placeholder="https://..." />
-          <div className="flex items-center gap-3">
-            <label className="text-xs text-celeste underline inline-block cursor-pointer">
-              o subir archivo desde tu PC
-              <input type="file" accept="video/*" hidden
-                onChange={e => e.target.files?.[0] && uploadIntroFile(e.target.files[0])} />
-            </label>
-            {settings.intro_video_url && (
-              <button onClick={() => set("intro_video_url", null)} className="text-xs text-destructive hover:underline">Quitar video</button>
-            )}
-          </div>
-          {settings.intro_video_url && (
-            <video src={settings.intro_video_url} controls className="w-full max-h-64 rounded-lg border border-border mt-2" />
-          )}
+        <p className="text-xs text-muted-foreground mb-4">Configurá una intro independiente para cada división. La carrera usa automáticamente la intro correspondiente a la categoría elegida.</p>
+        <div className="grid md:grid-cols-2 gap-4">
+          {introDivisions.map(({ id, label }) => {
+            const url = settings.intro_videos[id] ?? null;
+            return (
+              <div key={id} className="rounded-xl border border-border p-4 space-y-2">
+                <div>
+                  <div className="font-display text-base">{label}</div>
+                  <div className="text-[11px] text-muted-foreground">Intro exclusiva de esta división</div>
+                </div>
+                <Input value={url ?? ""} onChange={e => setSettings(x => ({ ...x, intro_videos: { ...x.intro_videos, [id]: e.target.value || null } }))} placeholder="https://..." />
+                <div className="flex items-center gap-3 flex-wrap">
+                  <label className="text-xs text-celeste underline inline-block cursor-pointer">
+                    Subir video desde PC
+                    <input type="file" accept="video/*" hidden disabled={busy}
+                      onChange={e => e.target.files?.[0] && uploadIntroFile(e.target.files[0], id)} />
+                  </label>
+                  {url && (
+                    <button onClick={() => setSettings(x => ({ ...x, intro_videos: { ...x.intro_videos, [id]: null } }))} className="text-xs text-destructive hover:underline">Quitar</button>
+                  )}
+                </div>
+                {url && <video src={url} controls className="w-full max-h-40 rounded-lg border border-border mt-2" />}
+              </div>
+            );
+          })}
         </div>
+        <div className="mt-4 rounded-lg bg-secondary/30 border border-border p-3 text-xs text-muted-foreground">La intro antigua global se mantiene solamente por compatibilidad. Para el Modo Carrera se prioriza siempre la intro específica de la división.</div>
       </section>
 
       {/* Pitido final */}
