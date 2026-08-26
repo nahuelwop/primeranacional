@@ -76,6 +76,7 @@ export type Database = {
           created_at: string
           id: string
           intro_video_url: string | null
+          intro_videos: Json
           updated_at: string
           whistle_audio_url: string | null
         }
@@ -86,6 +87,7 @@ export type Database = {
           created_at?: string
           id?: string
           intro_video_url?: string | null
+          intro_videos?: Json
           updated_at?: string
           whistle_audio_url?: string | null
         }
@@ -96,6 +98,7 @@ export type Database = {
           created_at?: string
           id?: string
           intro_video_url?: string | null
+          intro_videos?: Json
           updated_at?: string
           whistle_audio_url?: string | null
         }
