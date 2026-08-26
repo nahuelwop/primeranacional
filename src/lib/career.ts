@@ -1,4 +1,6 @@
 import { TEAMS_BY_ID, ZONE_A, ZONE_B, type Team } from "@/data/teams";
+import { getTeamsByDivision } from "@/data/teams-catalog";
+import type { DivisionId } from "@/data/competitions";
 import { generateRoundRobin, simulateMatch, emptyStandings, applyMatchToStandings, sortStandings, type Match, type StandingRow } from "@/lib/tournament";
 
 // ============ Stadium upgrades ============
@@ -43,23 +45,41 @@ export type CorruptionKind = "leve" | "medio" | "obvio" | "seca_nuca";
 export type ActiveCorruption = { kind: CorruptionKind; matchesLeft: number } | null;
 export type IncomePenalty = { pct: number; matchesLeft: number } | null;
 
-export type Objetivo = "ascenso_directo" | "reducido" | "mantener";
+export type Objetivo = "ascenso_directo" | "reducido" | "mantener" | "salir_campeon";
 export const OBJETIVO_LABEL: Record<Objetivo, string> = {
   ascenso_directo: "Ascender a Primera División",
   reducido: "Entrar al Reducido",
   mantener: "Mantener la categoría",
+  salir_campeon: "Salir campeón de Primera División",
+};
+
+export type SeasonSnapshot = {
+  season: number;
+  division: DivisionId;
+  standings: StandingRow[];
+};
+
+export type AverageRow = {
+  teamId: string;
+  seasons: number;
+  pj: number;
+  pts: number;
+  avgPtsPerMatch: number;
+  dg: number;
 };
 
 export type CareerState = {
   zone: "A" | "B";
-  matches: Match[];           // partidos de la zona del usuario
-  standings: StandingRow[];   // tabla del usuario
-  otherStandings?: StandingRow[]; // tabla de la otra zona (simulada)
-  otherMatches?: Match[];         // partidos de la otra zona
+  division?: DivisionId;
+  matches: Match[];
+  standings: StandingRow[];
+  otherStandings?: StandingRow[];
+  otherMatches?: Match[];
   totalGoalsScored: number;
   streakUnbeaten: number;
   bestUnbeaten: number;
   zoneChampions: { season: number; zone: "A" | "B"; teamId: string }[];
+  seasonHistory?: SeasonSnapshot[];
   stadiumUpgrades?: StadiumUpgrades;
   activeCorruption?: ActiveCorruption;
   incomePenalty?: IncomePenalty;
@@ -74,12 +94,36 @@ export type CareerState = {
 };
 
 export function teamZone(teamId: string): "A" | "B" {
-  return ZONE_A.some(t => t.id === teamId) ? "A" : "B";
+  if (ZONE_A.some(t => t.id === teamId)) return "A";
+  if (ZONE_B.some(t => t.id === teamId)) return "B";
+  return TEAMS_BY_ID[teamId]?.zone ?? "A";
 }
 
-export function buildSeason(teamId: string): CareerState {
+export function careerDivision(state: CareerState | null | undefined, teamId?: string): DivisionId {
+  return state?.division ?? (teamId ? (TEAMS_BY_ID[teamId]?.division ?? "primera_nacional") : "primera_nacional");
+}
+
+export function isFirstDivision(state: CareerState | null | undefined, teamId?: string): boolean {
+  return careerDivision(state, teamId) === "primera_division";
+}
+
+export function buildSeason(teamId: string, division: DivisionId = TEAMS_BY_ID[teamId]?.division ?? "primera_nacional"): CareerState {
+  if (division === "primera_division") {
+    const ids = getTeamsByDivision("primera_division").map(t => t.id);
+    if (!ids.includes(teamId)) ids.push(teamId);
+    const matches = generateRoundRobin(ids, "A");
+    return {
+      zone: "A", division, matches, standings: emptyStandings(ids),
+      totalGoalsScored: 0, streakUnbeaten: 0, bestUnbeaten: 0, zoneChampions: [],
+      seasonHistory: [],
+      stadiumUpgrades: { capacity: false, pitch: false, vip: false, led: false },
+      activeCorruption: null, incomePenalty: null,
+    };
+  }
+
   const zone = teamZone(teamId);
   const ids = (zone === "A" ? ZONE_A : ZONE_B).map(t => t.id);
+  if (!ids.includes(teamId)) ids.push(teamId);
   const matches = generateRoundRobin(ids, zone);
   const standings = emptyStandings(ids);
   const otherZone: "A" | "B" = zone === "A" ? "B" : "A";
@@ -91,11 +135,56 @@ export function buildSeason(teamId: string): CareerState {
   let otherStandings = emptyStandings(otherIds);
   for (const m of otherMatches) otherStandings = applyMatchToStandings(otherStandings, m);
   return {
-    zone, matches, standings, otherStandings, otherMatches,
+    zone, division, matches, standings, otherStandings, otherMatches,
     totalGoalsScored: 0, streakUnbeaten: 0, bestUnbeaten: 0, zoneChampions: [],
+    seasonHistory: [],
     stadiumUpgrades: { capacity: false, pitch: false, vip: false, led: false },
     activeCorruption: null, incomePenalty: null,
   };
+}
+
+export function recordSeasonSnapshot(state: CareerState, season: number): CareerState {
+  if (!isSeasonFinished(state)) return state;
+  const division = careerDivision(state);
+  const snapshot: SeasonSnapshot = {
+    season, division, standings: state.standings.map(r => ({ ...r })),
+  };
+  const previous = (state.seasonHistory ?? []).filter(s => !(s.season === season && s.division === division));
+  return { ...state, seasonHistory: [...previous, snapshot].sort((a, b) => a.season - b.season) };
+}
+
+export function buildAverageTable(state: CareerState, division: DivisionId = careerDivision(state)): AverageRow[] {
+  const snapshots = (state.seasonHistory ?? []).filter(s => s.division === division);
+  const current = isSeasonFinished(state) && careerDivision(state) === division
+    ? { season: Number.MAX_SAFE_INTEGER, division, standings: state.standings } as SeasonSnapshot
+    : null;
+  const all = current ? [...snapshots, current] : snapshots;
+  const map = new Map<string, { seasons: number; pj: number; pts: number; dg: number }>();
+  for (const snap of all) {
+    for (const row of snap.standings) {
+      const cur = map.get(row.teamId) ?? { seasons: 0, pj: 0, pts: 0, dg: 0 };
+      cur.seasons += 1; cur.pj += row.pj; cur.pts += row.pts; cur.dg += row.dg;
+      map.set(row.teamId, cur);
+    }
+  }
+  return [...map.entries()].map(([teamId, v]) => ({
+    teamId, seasons: v.seasons, pj: v.pj, pts: v.pts,
+    avgPtsPerMatch: v.pj ? Number((v.pts / v.pj).toFixed(2)) : 0, dg: v.dg,
+  })).sort((a, b) => b.avgPtsPerMatch - a.avgPtsPerMatch || b.pts - a.pts || b.dg - a.dg);
+}
+
+export function firstDivisionRelegated(state: CareerState): string[] {
+  if (!isFirstDivision(state) || !isSeasonFinished(state)) return [];
+  const annual = sortStandings(state.standings);
+  const lastAnnual = annual[annual.length - 1]?.teamId;
+  const averages = buildAverageTable(state, "primera_division");
+  const worstAverage = averages.find(r => r.teamId !== lastAnnual)?.teamId ?? averages[averages.length - 1]?.teamId;
+  return [lastAnnual, worstAverage].filter((id, i, arr): id is string => !!id && arr.indexOf(id) === i);
+}
+
+export function promoteFromPrimeraNacional(state: CareerState): boolean {
+  if (careerDivision(state) !== "primera_nacional" || !isSeasonFinished(state)) return false;
+  return seasonChampion(state) === sortStandings(state.standings)[0]?.teamId;
 }
 
 // ============ Ingresos & corrupción ============
