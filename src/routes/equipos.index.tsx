@@ -29,7 +29,7 @@ export const Route = createFileRoute("/equipos/")({
 });
 
 function EquiposPage() {
-  useTeamsSync();
+  const teamsVersion = useTeamsSync();
 
   const [selectedDivision, setSelectedDivision] =
     useState<DivisionId>("primera_nacional");
@@ -38,7 +38,7 @@ function EquiposPage() {
 
   const zones = useMemo(
     () => getZonesByDivision(selectedDivision),
-    [selectedDivision],
+    [selectedDivision, teamsVersion],
   );
 
   const [selectedZone, setSelectedZone] = useState<string | null>(null);
@@ -53,7 +53,7 @@ function EquiposPage() {
     }
 
     return getTeamsByDivision(selectedDivision);
-  }, [selectedDivision, selectedZone, zones]);
+  }, [selectedDivision, selectedZone, zones, teamsVersion]);
 
   function handleDivisionChange(division: DivisionId) {
     setSelectedDivision(division);
