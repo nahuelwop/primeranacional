@@ -541,8 +541,14 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
     // Relato de previa del clásico: se dispara una única vez, apenas arranca el
     // recibimiento (banner + bengalas), no en cada frame.
     if (isClasico) playPreviaAudio();
-    const speedScale = (s: number) => 3 + s / 28;
-    const jumpScale = (s: number) => -7.5 - s / 22;
+    // Gameplay base: ningún stat del equipo altera velocidad, salto o potencia.
+    // Las estadísticas de los equipos se reservan para la simulación automática.
+    const GAME_SPEED = 5.65;
+    const GAME_JUMP = -10.9;
+    const PASSIVE_KICK_POWER = 5.1;
+    const ACTIVE_KICK_POWER = 8.2;
+    const FOOT_KICK_POWER = 12.8;
+    const FOOT_KICK_VERTICAL = 10.3;
     const update = () => {
       frame++;
       // === Replay activo: reproducir snapshots, no avanzar físicas ===
@@ -625,7 +631,7 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         if (c.y > H + 20) confetti.splice(i, 1);
       }
       // P1 controles: WASD+ESPACIO o ←/→ ↑ ENTER (en 1vAI ambos sirven)
-      const sp1 = speedScale(home.stats.speed);
+      const sp1 = GAME_SPEED;
       const p1Left = keys["a"] || (mode === "1vAI" && keys["arrowleft"]);
       const p1Right = keys["d"] || (mode === "1vAI" && keys["arrowright"]);
       const p1Jump = keys["w"] || (mode === "1vAI" && keys["arrowup"]);
@@ -633,22 +639,22 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
       if (p1Left) p1.vx = -sp1;
       else if (p1Right) p1.vx = sp1;
       else p1.vx *= 0.78;
-      if (p1Jump && p1.y >= ground) p1.vy = jumpScale(home.stats.jump);
+      if (p1Jump && p1.y >= ground) p1.vy = GAME_JUMP;
       if (p1Kick) p1.kick = 10;
       // P2: en 1v1 humano con flechas; en 1vAI siempre IA
       if (mode === "1v1") {
-        const sp2 = speedScale(away.stats.speed);
+        const sp2 = GAME_SPEED;
         if (keys["arrowleft"]) p2.vx = -sp2;
         else if (keys["arrowright"]) p2.vx = sp2;
         else p2.vx *= 0.78;
-        if (keys["arrowup"] && p2.y >= ground) p2.vy = jumpScale(away.stats.jump);
+        if (keys["arrowup"] && p2.y >= ground) p2.vy = GAME_JUMP;
         if (keys["enter"]) p2.kick = 10;
       } else {
         // ============ IA reescrita (decisiones sobre acciones) ============
         if (aiJumpCd > 0) aiJumpCd--;
         // detectar aterrizaje: si vuelve al suelo, ya puede considerar saltar de nuevo
         if (aiAirborne && p2.y >= ground) aiAirborne = false;
-        const sp2 = speedScale(away.stats.speed) * aiCfg.speed;
+        const sp2 = GAME_SPEED * aiCfg.speed;
         // arco propio (derecha, W) vs arco rival (izquierda, 0)
         const ownGoalX = W - 10;
         const rivalGoalX = 10;
@@ -693,7 +699,7 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
           aiJumpCd === 0 && !aiAirborne && p2.y >= ground &&
           ballHigh && ballDescending && landingClose && ballCloseX && usefulHeader;
         if (wantsToJump && Math.random() < aiCfg.jumpProb) {
-          p2.vy = jumpScale(away.stats.jump);
+          p2.vy = GAME_JUMP;
           aiJumpCd = aiCfg.jumpCd;
           aiAirborne = true;
         }
@@ -775,13 +781,10 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         const minD = rad + ball.r;
         if (d < minD) {
           const ang = Math.atan2(dy, dx);
-          const power = (i === 0 ? home.stats.power : away.stats.power) / 18;
-          // Antes un cabezazo "pasivo" (sin apretar patear) casi no impulsaba la
-          // pelota (kickBoost fijo en 1.2) y se sentía al azar. Ahora tiene fuerza
-          // decente siempre, y más si venís saltando/corriendo hacia la pelota.
+          // Potencia de impacto idéntica para todos los equipos.
           const jumping = p.vy < -1;
-          const passiveBoost = 2.6 + power * 0.6 + (jumping ? 1.4 : 0) + Math.min(1.5, Math.abs(p.vx) * 0.3);
-          const kickBoost = p.kick > 0 ? 4 + power : passiveBoost;
+          const passiveBoost = PASSIVE_KICK_POWER + (jumping ? 1.4 : 0) + Math.min(1.5, Math.abs(p.vx) * 0.3);
+          const kickBoost = p.kick > 0 ? ACTIVE_KICK_POWER : passiveBoost;
           ball.vx = Math.cos(ang) * (2.2 + kickBoost) + p.vx * 0.45;
           ball.vy = Math.sin(ang) * (2.2 + kickBoost) - 1.8;
           ball.x = p.x + Math.cos(ang) * minD;
@@ -798,9 +801,8 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
           const fd = Math.hypot(fdx, fdy);
           if (fd < ball.r + 14) {
             const ang = Math.atan2(fdy, fdx);
-            const power = (i === 0 ? home.stats.power : away.stats.power) / 12;
-            ball.vx = Math.cos(ang) * (6.5 + power) + p.facing * 3;
-            ball.vy = Math.sin(ang) * (4 + power) - 3;
+            ball.vx = Math.cos(ang) * FOOT_KICK_POWER + p.facing * 3;
+            ball.vy = Math.sin(ang) * FOOT_KICK_VERTICAL - 3;
             ball.lastTouch = (i === 0 ? 1 : 2);
             registerShot(i === 0 ? 1 : 2);
           }
