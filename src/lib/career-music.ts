@@ -52,7 +52,7 @@ function shuffle<T>(arr: T[]): T[] {
 // Reproductor de música de fondo del Modo Carrera. Solo se monta dentro del
 // <Shell> de /carrera, así que solo suena ahí — en cualquier otra pantalla del
 // juego este hook ni se instancia.
-export function useCareerMusic() {
+export function useCareerMusic(active = true) {
   const { user } = useAuth();
   const [tracks, setTracks] = useState<MusicTrack[]>([]);
   const [prefs, setPrefs] = useState<MusicPrefs>(DEFAULT_PREFS);
@@ -103,13 +103,22 @@ export function useCareerMusic() {
     } catch { /* noop */ }
   };
 
-  // Arranca / reinicia la reproducción cuando cambian tracks o preferencias
+  // La música está activa únicamente mientras el menú del Modo Carrera está visible.
+  // Al entrar en una intro o en un partido se pausa inmediatamente y no compite
+  // con la música/sonidos propios de esas pantallas.
   useEffect(() => {
+    if (!active) {
+      audioRef.current?.pause();
+      setCurrent(null);
+      setShowToast(false);
+      return;
+    }
     if (tracks.length === 0) return;
     const enabledTracks = tracks.filter(t => !prefs.disabled_track_ids.includes(t.id));
     if (!prefs.music_enabled || enabledTracks.length === 0) {
       audioRef.current?.pause();
       setCurrent(null);
+      setShowToast(false);
       return;
     }
     // Si el tema actual dejó de estar habilitado, saltamos al próximo.
@@ -118,7 +127,7 @@ export function useCareerMusic() {
       playNext();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tracks, prefs]);
+  }, [active, tracks, prefs]);
 
   useEffect(() => {
     if (!showToast) return;
