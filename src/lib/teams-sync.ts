@@ -9,6 +9,7 @@ import {
   type Team,
   type Narrator,
 } from "@/data/teams";
+import { OTHER_DIVISION_TEAMS } from "@/data/teams-other-divisions";
 
 const CACHE_KEY =
   "primera-heads-teams-cache-v4";
@@ -307,35 +308,24 @@ function rowToTeam(
   };
 }
 
-function replaceTeams(
-  teams: Team[],
-) {
+function replaceTeams(teams: Team[]) {
+  const primera = teams.filter(t => (t.division ?? "primera_nacional") === "primera_nacional");
+
   TEAMS.length = 0;
-
   ZONE_A.length = 0;
-
   ZONE_B.length = 0;
+  for (const key of Object.keys(TEAMS_BY_ID)) delete TEAMS_BY_ID[key];
 
-  for (const key of Object.keys(
-    TEAMS_BY_ID,
-  )) {
-    delete TEAMS_BY_ID[key];
+  for (const team of primera) {
+    TEAMS.push(team);
+    TEAMS_BY_ID[team.id] = team;
+    if (team.zone === "A") ZONE_A.push(team);
+    else ZONE_B.push(team);
   }
 
-  for (const team of teams) {
-    TEAMS.push(team);
-
-    TEAMS_BY_ID[
-      team.id
-    ] = team;
-
-    if (
-      team.zone === "A"
-    ) {
-      ZONE_A.push(team);
-    } else {
-      ZONE_B.push(team);
-    }
+  OTHER_DIVISION_TEAMS.length = 0;
+  for (const team of teams.filter(t => (t.division ?? "primera_nacional") !== "primera_nacional")) {
+    OTHER_DIVISION_TEAMS.push(team);
   }
 }
 
@@ -351,7 +341,7 @@ function saveCache() {
     window.localStorage.setItem(
       CACHE_KEY,
       JSON.stringify(
-        TEAMS,
+        [...TEAMS, ...OTHER_DIVISION_TEAMS],
       ),
     );
   } catch {
@@ -591,70 +581,20 @@ function removeTeam(
 let booted = false;
 
 async function loadAll() {
-  console.log(
-    "[TEAMS] Cargando equipos desde Supabase...",
-  );
-
-  const {
-    data,
-    error,
-  } =
-    await supabase
-      .from("teams")
-      .select("*")
-      .order(
-        "sort_order",
-        {
-          ascending: true,
-        },
-      );
-
+  console.log("[TEAMS] Cargando equipos desde Supabase...");
+  const { data, error } = await supabase.from("teams").select("*").order("sort_order", { ascending: true });
   if (error) {
-    console.error(
-      "[TEAMS] Error de Supabase:",
-      error,
-    );
-
+    console.error("[TEAMS] Error de Supabase:", error);
+    hydrateCache();
     return;
   }
-
-  if (!data) {
-    console.error(
-      "[TEAMS] Supabase no devolvió datos.",
-    );
-
+  if (!data || data.length === 0) {
+    console.warn("[TEAMS] Supabase devolvió 0 equipos; usando cache/local como fallback.");
+    hydrateCache();
     return;
   }
-
-  console.log(
-    "[TEAMS] Equipos recibidos desde Supabase:",
-    data.length,
-  );
-
-  const rows =
-    data as unknown as DbTeam[];
-
-  syncTeamsFromDbRows(
-    rows,
-  );
-
-  console.log(
-    "[TEAMS] Equipos finales:",
-    TEAMS.map(
-      (team) => ({
-        id: team.id,
-        name: team.name,
-        logoUrl:
-          team.logoUrl,
-        goalAudios:
-          team.goalAudios,
-        hinchadas:
-          team.hinchadas,
-        narrators:
-          team.narrators,
-      }),
-    ),
-  );
+  console.log("[TEAMS] Equipos recibidos desde Supabase:", data.length);
+  syncTeamsFromDbRows(data as unknown as DbTeam[]);
 }
 
 export function syncTeamsFromDbRows(
@@ -673,15 +613,8 @@ export function syncTeamsFromDbRows(
     return;
   }
 
-  const teams =
-    rows.map(
-      rowToTeam,
-    );
-
-  replaceTeams(
-    teams,
-  );
-
+  const teams = rows.map(rowToTeam);
+  replaceTeams(teams);
   saveCache();
 
   useStore.setState(
@@ -786,18 +719,8 @@ function bootOnce() {
 }
 
 export function useTeamsSync() {
-  const version =
-    useStore(
-      (state) =>
-        state.version,
-    );
-
-  useEffect(() => {
-    hydrateCache();
-
-    bootOnce();
-  }, []);
-
+  const version = useStore((state) => state.version);
+  useEffect(() => { bootOnce(); }, []);
   return version;
 }
 
