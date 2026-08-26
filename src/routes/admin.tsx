@@ -357,14 +357,12 @@ function EquiposTab() {
   // Primera Nacional por default: mantiene el comportamiento de siempre para
   // quien no toque el selector de división.
   const [division, setDivision] = useState<DivisionId>("primera_nacional");
-  const isEditable = division === "primera_nacional";
+  const teamsVersion = useTeamsSync();
 
   const list = useMemo(() => {
     const q = filter.toLowerCase();
-    const source = isEditable ? TEAMS : getTeamsByDivision(division);
-    return source.filter(t => !q || t.name.toLowerCase().includes(q) || t.short.toLowerCase().includes(q));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter, division, TEAMS.length]);
+    return getTeamsByDivision(division).filter(t => !q || t.name.toLowerCase().includes(q) || t.short.toLowerCase().includes(q));
+  }, [filter, division, teamsVersion]);
 
   return (
     <div>
@@ -381,22 +379,14 @@ function EquiposTab() {
 
       <div className="flex items-center gap-3 flex-wrap">
         <Input className="max-w-sm" placeholder="Buscar equipo..." value={filter} onChange={e => setFilter(e.target.value)} />
-        {isEditable && <Button onClick={() => { setCreating(true); setEditing(null); }}>+ Nuevo equipo</Button>}
+        <Button onClick={() => { setCreating(true); setEditing(null); }}>+ Nuevo equipo</Button>
       </div>
 
-      {!isEditable && (
-        <div className="mt-3 text-xs text-muted-foreground rounded-lg border border-border bg-secondary/40 p-3">
-          Los clubes de {COMPETITIONS[division].name} todavía no tienen su propia tabla en la base de datos
-          (hoy sólo existe para Primera Nacional). Se pueden ver, pero cargar escudo/colores/edición acá
-          requiere primero crear esa tabla — decime y lo hacemos como siguiente paso.
-        </div>
-      )}
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-4">
         {list.map(t => (
-          <button key={t.id} onClick={() => { if (isEditable) { setEditing(t); setCreating(false); } }}
-            disabled={!isEditable}
-            className={`text-left rounded-xl bg-card border border-border p-3 flex items-center gap-3 transition ${isEditable ? "hover:border-celeste" : "opacity-70 cursor-default"}`}>
+          <button key={t.id} onClick={() => { setEditing(t); setCreating(false); }}
+            className="text-left rounded-xl bg-card border border-border p-3 flex items-center gap-3 transition hover:border-celeste">
             <Shield team={t} size={48} />
             <div className="flex-1 min-w-0">
               <div className="font-display text-lg truncate">{t.name}</div>
@@ -602,6 +592,7 @@ function TeamEditor({ initial, onClose, onSaved }: {
     name: initial?.name ?? "",
     short: initial?.short ?? "",
     city: initial?.city ?? "",
+    division: (initial?.division ?? "primera_nacional") as DivisionId,
     zone: (initial?.zone ?? "A") as "A" | "B",
     primary_color: initial?.primary ?? "#1a55a6",
     secondary_color: initial?.secondary ?? "#ffffff",
@@ -718,8 +709,9 @@ function TeamEditor({ initial, onClose, onSaved }: {
     setBusy(true); setErr(null);
     try {
       if (!form.id || !form.name || !form.short) throw new Error("ID, nombre y abreviatura son obligatorios");
-      const payload = {
+      const payload: any = {
         ...form,
+        division: form.division,
         logo_url: form.logo_url || null,
         full_name: form.full_name || null,
         founded_year: form.founded_year === "" ? null : Number(form.founded_year),
@@ -729,52 +721,18 @@ function TeamEditor({ initial, onClose, onSaved }: {
         primera_seasons: form.primera_seasons === "" ? null : Number(form.primera_seasons),
         achievements: form.achievements || null,
         history: form.history || null,
-      } as any;
-      const { error } = isNew
-        ? await supabase.from("teams").insert(payload)
-        : await supabase.from("teams").update(payload).eq("id", form.id);
-      if (error) throw error;
-      const nextRow: DbTeam = {
-        ...payload,
-        zone: payload.zone,
-        logo_url: payload.logo_url,
-        rivals: initial?.rivals ?? [],
-        sort_order: isNew ? 999 : TEAMS.findIndex(t => t.id === form.id),
-        goal_audio_urls: payload.goal_audio_urls,
-        hinchada_urls: payload.hinchada_urls,
-        narrators: payload.narrators ?? [],
-        flag_urls: payload.flag_urls ?? [],
       };
-      const withoutOld = TEAMS.filter(t => t.id !== form.id).map((t, i): DbTeam => ({
-        id: t.id,
-        name: t.name,
-        short: t.short,
-        city: t.city,
-        zone: t.zone,
-        primary_color: t.primary,
-        secondary_color: t.secondary,
-        stripe: t.stripe ?? "solid",
-        speed: t.stats.speed,
-        jump: t.stats.jump,
-        power: t.stats.power,
-        defense: t.stats.defense,
-        logo_url: t.logoUrl ?? null,
-        rivals: t.rivals ?? [],
-        sort_order: i,
-        goal_audio_urls: t.goalAudios ?? [],
-        hinchada_urls: t.hinchadas ?? [],
-        narrators: t.narrators ?? [],
-        flag_urls: t.flagUrls ?? [],
-        full_name: t.fullName ?? null,
-        founded_year: t.foundedYear ?? null,
-        province: t.province ?? null,
-        nickname: t.nickname ?? null,
-        rival_id: t.rivalId ?? null,
-        primera_seasons: t.primeraSeasons ?? null,
-        achievements: t.achievements ?? null,
-        history: t.history ?? null,
-      }));
-      syncTeamsFromDbRows([...withoutOld, nextRow].sort((a, b) => a.sort_order - b.sort_order));
+      if (isNew) {
+        payload.rivals = [];
+        payload.sort_order = getTeamsByDivision(form.division).length;
+        const { error } = await supabase.from("teams").insert(payload);
+        if (error) throw error;
+      } else {
+        delete payload.id;
+        delete payload.sort_order;
+        const { error } = await supabase.from("teams").update(payload).eq("id", form.id);
+        if (error) throw error;
+      }
       await onSaved();
       onClose();
     } catch (e) { setErr((e as Error).message); }
@@ -844,6 +802,13 @@ function TeamEditor({ initial, onClose, onSaved }: {
           </div>
 
           <div>
+            <label className="text-xs text-muted-foreground uppercase">División</label>
+            <select className="w-full h-9 rounded-md border border-input bg-transparent px-3" value={form.division}
+              onChange={e => setForm(f => ({ ...f, division: e.target.value as DivisionId }))}>
+              {DIVISION_ORDER.map(d => <option key={d} value={d}>{COMPETITIONS[d].name}</option>)}
+            </select>
+          </div>
+          <div>
             <label className="text-xs text-muted-foreground uppercase">ID</label>
             <Input value={form.id} disabled={!isNew}
               onChange={e => setForm(f => ({ ...f, id: e.target.value.toLowerCase().replace(/[^a-z0-9]/g, "") }))} />
@@ -860,13 +825,15 @@ function TeamEditor({ initial, onClose, onSaved }: {
             <label className="text-xs text-muted-foreground uppercase">Ciudad</label>
             <Input value={form.city} onChange={e => setForm(f => ({ ...f, city: e.target.value }))} />
           </div>
-          <div>
-            <label className="text-xs text-muted-foreground uppercase">Zona</label>
-            <select className="w-full h-9 rounded-md border border-input bg-transparent px-3"
-              value={form.zone} onChange={e => setForm(f => ({ ...f, zone: e.target.value as "A" | "B" }))}>
-              <option value="A">A</option><option value="B">B</option>
-            </select>
-          </div>
+          {COMPETITIONS[form.division].hasZones && (
+            <div>
+              <label className="text-xs text-muted-foreground uppercase">Zona</label>
+              <select className="w-full h-9 rounded-md border border-input bg-transparent px-3"
+                value={form.zone} onChange={e => setForm(f => ({ ...f, zone: e.target.value as "A" | "B" }))}>
+                {COMPETITIONS[form.division].zones.map(z => <option key={z} value={z}>{z}</option>)}
+              </select>
+            </div>
+          )}
           <div>
             <label className="text-xs text-muted-foreground uppercase">Color primario</label>
             <Input type="color" value={form.primary_color} onChange={e => setForm(f => ({ ...f, primary_color: e.target.value }))} />
@@ -978,7 +945,7 @@ function TeamEditor({ initial, onClose, onSaved }: {
                 <select className="w-full h-9 rounded-md border border-input bg-transparent px-3"
                   value={form.rival_id} onChange={e => setForm(f => ({ ...f, rival_id: e.target.value }))}>
                   <option value="">— sin rival —</option>
-                  {TEAMS.filter(t => t.id !== form.id).map(t => (
+                  {getTeamsByDivision(form.division).filter(t => t.id !== form.id).map(t => (
                     <option key={t.id} value={t.id}>{t.name}</option>
                   ))}
                 </select>
