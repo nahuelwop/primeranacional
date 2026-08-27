@@ -188,6 +188,68 @@
     font-size: 26px;
     border-left: 3px solid var(--scorebug-bg);
   }
+  /* Marcador Primera División — inspirado en la referencia enviada. Todo es HTML/CSS. */
+  .pd-scorebug {
+    display: grid;
+    grid-template-columns: minmax(130px, 1.15fr) minmax(90px, 1fr) 46px 46px minmax(90px, 1fr);
+    align-items: stretch;
+    width: min(100%, 500px);
+    min-height: 46px;
+    border-radius: 2px;
+    overflow: hidden;
+    box-shadow: 0 8px 18px rgba(0,0,0,.42);
+    font-family: var(--font-display);
+    letter-spacing: .02em;
+  }
+  .pd-scorebug-time {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 11px;
+    padding: 0 12px;
+    background: #f4f4ee;
+    color: #172038;
+    white-space: nowrap;
+  }
+  .pd-scorebug-half { font-size: 17px; font-weight: 900; }
+  .pd-scorebug-clock { font-size: 24px; line-height: 1; font-weight: 900; font-variant-numeric: tabular-nums; }
+  .pd-scorebug-team {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    min-width: 0;
+    padding: 0 8px;
+    background: linear-gradient(180deg, #27204a 0%, #17132f 100%);
+    color: white;
+    font-size: 22px;
+    font-weight: 900;
+  }
+  .pd-scorebug-team > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pd-scorebug-away { justify-content: center; }
+  .pd-scorebug-score {
+    display: grid;
+    place-items: center;
+    background: #f4f4ee;
+    color: #101629;
+    font-size: 31px;
+    line-height: 1;
+    font-weight: 900;
+  }
+  .pd-scorebug-score-away { border-left: 1px solid rgba(17,24,39,.14); }
+  @media (max-width: 760px) {
+    .pd-scorebug {
+      grid-template-columns: minmax(110px, 1.1fr) minmax(64px, .8fr) 34px 34px minmax(64px, .8fr);
+      min-height: 40px;
+    }
+    .pd-scorebug-time { gap: 7px; padding: 0 8px; }
+    .pd-scorebug-half { font-size: 14px; }
+    .pd-scorebug-clock { font-size: 19px; }
+    .pd-scorebug-team { gap: 4px; padding: 0 4px; font-size: 18px; }
+    .pd-scorebug-team img, .pd-scorebug-team svg { width: 20px !important; height: 20px !important; }
+    .pd-scorebug-score { font-size: 25px; }
+  }
+
   @media (max-width: 760px) {
     .scorebug {
       grid-template-columns: 38px minmax(46px, 1fr) 42px 16px 34px 34px 16px 42px minmax(46px, 1fr) 55px 30px;
