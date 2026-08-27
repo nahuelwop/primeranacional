@@ -52,7 +52,8 @@ export type CompetitionRules = {
   tier: number; // 1 = más alta
   hasZones: boolean;
   zones: string[]; // p.ej. ["A", "B"]; [] si no tiene
-  matchesPerTeam?: number; // si corresponde fijarlo (ida y vuelta, etc.)
+  matchesPerTeam?: number; // partidos de fase regular por equipo (si corresponde)
+  formatLabel?: string; // resumen legible del formato para UI
   promotion: PromotionRule[]; // a dónde puede ascender un equipo de esta división
   relegation: RelegationRule[]; // a dónde puede descender un equipo de esta división
   // true si esta división distingue entre afiliación metropolitana/federal
@@ -66,16 +67,11 @@ export type CompetitionRules = {
 // ============================================================================
 export const COMPETITIONS: Record<DivisionId, CompetitionRules> = {
   primera_division: {
-    division: "primera_division",
-    name: "Primera División",
-    shortName: "1ra. División",
-    tier: 1,
-    hasZones: false,
-    zones: [],
+    division: "primera_division", name: "Primera División", shortName: "1ra. División", tier: 1,
+    hasZones: true, zones: ["A", "B"], matchesPerTeam: 44,
+    formatLabel: "Apertura por 2 zonas de 15 + fecha interzonal; Clausura todos contra todos (29 fechas)",
     promotion: [],
-    relegation: [
-      { to: "primera_nacional", slots: 2 },
-    ],
+    relegation: [{ to: "primera_nacional", slots: 2 }],
     usesAffiliation: false,
   },
   primera_nacional: {
@@ -86,11 +82,11 @@ export const COMPETITIONS: Record<DivisionId, CompetitionRules> = {
     hasZones: true,
     zones: ["A", "B"],
     promotion: [
-      { to: "primera_division", directSlots: 2, playoffSlots: 1 },
+      { to: "primera_division", directSlots: 1, playoffSlots: 1 },
     ],
+    matchesPerTeam: 38,
+    formatLabel: "2 zonas de 19 · ida y vuelta",
     relegation: [
-      // Un club metropolitano que desciende de Primera Nacional va a Primera B;
-      // uno del sistema federal va a Federal A. No es "el mismo camino para todos".
       { to: "primera_b", affiliation: "metropolitano", slots: 2 },
       { to: "federal_a", affiliation: "federal", slots: 2 },
     ],
@@ -103,12 +99,10 @@ export const COMPETITIONS: Record<DivisionId, CompetitionRules> = {
     tier: 3,
     hasZones: false,
     zones: [],
-    promotion: [
-      { to: "primera_nacional", directSlots: 1, playoffSlots: 1 },
-    ],
-    relegation: [
-      { to: "primera_c", slots: 4 },
-    ],
+    promotion: [{ to: "primera_nacional", directSlots: 1, playoffSlots: 1 }],
+    relegation: [{ to: "primera_c", slots: 2 }],
+    matchesPerTeam: 42,
+    formatLabel: "Todos contra todos, ida y vuelta",
     usesAffiliation: false,
   },
   primera_c: {
@@ -118,12 +112,10 @@ export const COMPETITIONS: Record<DivisionId, CompetitionRules> = {
     tier: 4,
     hasZones: false,
     zones: [],
-    promotion: [
-      { to: "primera_b", directSlots: 1, playoffSlots: 1 },
-    ],
-    relegation: [
-      { to: "primera_d", slots: 2 },
-    ],
+    promotion: [{ to: "primera_b", directSlots: 1, playoffSlots: 1 }],
+    relegation: [],
+    matchesPerTeam: 48,
+    formatLabel: "Apertura y Clausura, todos contra todos a una rueda",
     usesAffiliation: false,
   },
   primera_d: {
@@ -133,10 +125,9 @@ export const COMPETITIONS: Record<DivisionId, CompetitionRules> = {
     tier: 5,
     hasZones: false,
     zones: [],
-    promotion: [
-      { to: "primera_c", directSlots: 1, playoffSlots: 1 },
-    ],
-    relegation: [], // última categoría del circuito metropolitano: no desciende
+    promotion: [{ to: "primera_c", directSlots: 1, playoffSlots: 1 }],
+    relegation: [], // última categoría modelada del circuito metropolitano
+    formatLabel: "Formato aún no especificado en el reglamento cargado",
     usesAffiliation: false,
   },
   federal_a: {
@@ -146,14 +137,9 @@ export const COMPETITIONS: Record<DivisionId, CompetitionRules> = {
     tier: 3, // paralela a Primera B dentro del sistema federal
     hasZones: true,
     zones: ["A", "B"],
-    promotion: [
-      { to: "primera_nacional", directSlots: 1, playoffSlots: 1 },
-    ],
-    relegation: [
-      { to: "federal_a", slots: 0 }, // placeholder: el reglamento federal regional
-      // no está modelado acá todavía (ligas regionales por debajo de Federal A
-      // no forman parte de este juego) — se deja en 0 a propósito, no se inventa.
-    ],
+    promotion: [{ to: "primera_nacional", directSlots: 1, playoffSlots: 1 }],
+    relegation: [],
+    formatLabel: "4 zonas geográficas · fase campeonato y reválida",
     usesAffiliation: false,
   },
 };
