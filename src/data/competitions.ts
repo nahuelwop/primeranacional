@@ -18,7 +18,8 @@ export type DivisionId =
   | "primera_b"
   | "primera_c"
   | "primera_d"
-  | "federal_a";
+  | "federal_a"
+  | "regional_federal_amateur";
 
 // Sistema de afiliación: determina qué ruta de ascenso/descenso le corresponde
 // a un club cuando la división de origen tiene más de un posible destino
