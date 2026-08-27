@@ -10,7 +10,7 @@ import { useAuth } from "@/lib/auth";
 import { Game, type MatchStats } from "@/components/Game";
 import {
   buildSeason, simulateRoundExceptUser, recordUserMatch, nextPendingMatchForUser,
-  isSeasonFinished, seasonChampion, budgetReward, type CareerState,
+  isSeasonFinished, seasonChampion, budgetReward, type CareerState, resolveLeagueMovements, initialLeagueRosters,
   STADIUM_UPGRADE_CATALOG, CORRUPTION_CATALOG,
   buyUpgrade, activateCorruption, tickCorruption, currentCorruptionEffects, incomeMultiplier,
   OBJETIVO_LABEL, type Objetivo, clubIndicators, currentRound, totalRounds,
@@ -100,6 +100,7 @@ function CarreraPage() {
           setBudget(save.budget);
           const loadedState = save.state as CareerState;
           if (!loadedState.division) loadedState.division = getTeamById(save.team_id)?.division ?? "primera_nacional";
+          loadedState.userTeamId = save.team_id;
           setState(loadedState);
         }
         setUnlocked(new Set(ach.map(a => a.key)));
@@ -119,7 +120,8 @@ function CarreraPage() {
 
   async function startCareer(tid: string, division: DivisionId = getTeamById(tid)?.division ?? "primera_nacional") {
     if (!user) return;
-    const s = buildSeason(tid, division);
+    const s = buildSeason(tid, division, initialLeagueRosters());
+    s.userTeamId = tid;
     setTeamId(tid); setSeason(1); setBudget(1000); setState(s);
     await upsertCareer({ user_id: user.id, team_id: tid, season: 1, budget: 1000, fixture_index: 0, state: s });
   }
@@ -218,48 +220,42 @@ function CarreraPage() {
   async function advanceSeason() {
     if (!state || !teamId || !user || !isSeasonFinished(state)) return;
 
-    const completed = recordSeasonSnapshot(state, season);
-    const currentDivision = careerDivision(completed, teamId);
-    let nextDivision = currentDivision;
-    const finalRows = sortStandings(completed.standings);
-    const userPos = finalRows.findIndex(r => r.teamId === teamId) + 1;
+    const completed = recordSeasonSnapshot({ ...state, userTeamId: teamId }, season);
+    const movement = resolveLeagueMovements(completed, season);
 
-    if (currentDivision === "primera_division") {
-      if (firstDivisionRelegated(completed).includes(teamId)) nextDivision = "primera_nacional";
-    } else if (currentDivision === "primera_nacional") {
-      // El campeón de zona tiene el ascenso directo en el modo carrera actual.
-      if (seasonChampion(completed) === teamId) nextDivision = "primera_division";
-      // El juego muestra los puestos de descenso por zona; el destino exacto se
-      // reserva a la afiliación cuando ese dato exista en el club.
-    } else {
-      const rules = COMPETITIONS[currentDivision];
-      const direct = rules.promotion[0]?.directSlots ?? 0;
-      const relegationSlots = rules.relegation.reduce((sum, r) => sum + r.slots, 0);
-      if (direct > 0 && userPos > 0 && userPos <= direct && rules.promotion[0]) {
-        nextDivision = rules.promotion[0].to;
-      } else if (relegationSlots > 0 && userPos > finalRows.length - relegationSlots) {
-        nextDivision = rules.relegation[0]?.to ?? currentDivision;
-      }
+    if (movement.ended) {
+      const endedState: CareerState = {
+        ...completed,
+        leagueRosters: movement.rosters,
+        careerEnded: true,
+        careerEndReason: movement.endReason,
+        userTeamId: teamId,
+      };
+      setState(endedState);
+      await persist(endedState, budget, season);
+      return;
     }
 
-    const fresh = buildSeason(teamId, nextDivision);
+    const nextDivision = movement.userNextDivision ?? careerDivision(completed, teamId);
+    const fresh = buildSeason(teamId, nextDivision, movement.rosters);
     fresh.totalGoalsScored = completed.totalGoalsScored;
     fresh.bestUnbeaten = completed.bestUnbeaten;
     fresh.streakUnbeaten = 0;
     fresh.zoneChampions = [...completed.zoneChampions];
     fresh.seasonHistory = [...(completed.seasonHistory ?? [])];
     fresh.difficulty = completed.difficulty;
-    fresh.objetivo = nextDivision === "primera_division" ? "salir_campeon" : "ascenso_directo";
+    fresh.objetivo = nextDivision === "primera_division" ? "salir_campeon" : nextDivision === "primera_nacional" ? "ascenso_directo" : "ascenso_directo";
     fresh.sponsor = completed.sponsor ?? null;
     fresh.stadiumUpgrades = completed.stadiumUpgrades;
     fresh.introVista = false;
+    fresh.leagueRosters = movement.rosters;
+    fresh.userTeamId = teamId;
 
     const champ = !isFirstDivision(completed, teamId) ? seasonChampion(completed) : null;
     if (champ && completed.zone) fresh.zoneChampions.push({ season, zone: completed.zone, teamId: champ });
 
     const nextSeason = season + 1;
-    setSeason(nextSeason); setState(fresh);
-    setTab("inicio");
+    setSeason(nextSeason); setState(fresh); setTab("inicio");
     await persist(fresh, budget, nextSeason);
   }
 
@@ -274,6 +270,19 @@ function CarreraPage() {
           <h1 className="font-display text-4xl mb-3">MODO CARRERA</h1>
           <p className="text-muted-foreground mb-5">Iniciá sesión para guardar tu progreso y desbloquear logros.</p>
           <Link to="/auth" className="inline-block px-6 py-3 rounded-xl bg-celeste text-primary-foreground font-display tracking-wider">Iniciar sesión</Link>
+        </div>
+      </Shell>
+    );
+  }
+
+  if (state?.careerEnded) {
+    return (
+      <Shell>
+        <div className="max-w-xl mx-auto mt-16 hud-panel p-8 text-center">
+          <div className="text-4xl mb-3">📉</div>
+          <h1 className="font-display text-4xl text-destructive mb-3">CARRERA FINALIZADA</h1>
+          <p className="text-muted-foreground">{state.careerEndReason ?? "La temporada terminó y tu club salió de las categorías jugables."}</p>
+          <button onClick={abandon} className="mt-6 px-6 py-3 rounded-xl bg-celeste text-primary-foreground font-display tracking-wider">VOLVER A ELEGIR CLUB</button>
         </div>
       </Shell>
     );
@@ -309,8 +318,11 @@ function CarreraPage() {
 
   if (playing && state && team && nextMatch && teamId) {
     const userIsHome = nextMatch.home === teamId;
-    const leftTeam = getTeamById(teamId);
-    const rightTeam = userIsHome ? getTeamById(nextMatch.away) : getTeamById(nextMatch.home);
+    const effectiveDivision = careerDivision(state, teamId);
+    const leftBase = getTeamById(teamId);
+    const rightBase = userIsHome ? getTeamById(nextMatch.away) : getTeamById(nextMatch.home);
+    const leftTeam = leftBase ? { ...leftBase, division: effectiveDivision } : undefined;
+    const rightTeam = rightBase ? { ...rightBase, division: effectiveDivision } : undefined;
     if (!leftTeam || !rightTeam) {
       return <Shell><div className="p-16 text-center text-destructive">No se pudo cargar uno de los equipos de esta división.</div></Shell>;
     }
@@ -434,8 +446,8 @@ function CarreraPage() {
         <Link to="/" className="flex items-center gap-2.5 pb-3 min-w-0">
           <span className="grid h-9 w-9 place-items-center rounded-lg border border-border bg-card font-display text-sm">{first ? "1D" : "PN"}</span>
           <span className="hidden sm:block leading-none">
-            <span className="block font-display text-sm tracking-widest">{first ? "PRIMERA" : "PRIMERA"}</span>
-            <span className="block font-display text-sm tracking-widest text-muted-foreground">{first ? "DIVISIÓN" : "NACIONAL"}</span>
+            <span className="block font-display text-sm tracking-widest">PRIMERA</span>
+            <span className="block font-display text-sm tracking-widest text-muted-foreground">{COMPETITIONS[division].shortName.toUpperCase()}</span>
           </span>
         </Link>
 
@@ -609,7 +621,7 @@ function InicioTab({ state, teamId, season, nextMatch, indicators, standings, bu
                 <div className="text-center mt-3">
                   <div className="font-display text-3xl tracking-wide">FECHA {nextMatch.round}</div>
                   <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground mt-1">
-                    Primera Nacional · Zona {state.zone}
+                    {COMPETITIONS[division].name}{state.zone ? ` · Zona ${state.zone}` : ""}
                     {nextMatch.isClasico && <span className="ml-2 text-accent">🔥 Clásico</span>}
                   </div>
                 </div>
@@ -660,7 +672,7 @@ function InicioTab({ state, teamId, season, nextMatch, indicators, standings, bu
                   return null;
                 })()}
                 <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
-                  {division !== "primera_division" && pos <= 8 && (
+                  {division === "primera_nacional" && pos <= 8 && (
                     <button onClick={onGoReducido}
                       className="px-8 py-3 rounded-xl hud-btn-play font-display text-lg tracking-[0.2em]">
                       🏆 IR AL REDUCIDO
@@ -671,7 +683,7 @@ function InicioTab({ state, teamId, season, nextMatch, indicators, standings, bu
                     NUEVA TEMPORADA
                   </button>
                 </div>
-                {division !== "primera_division" && pos <= 8 && (
+                {division === "primera_nacional" && pos <= 8 && (
                   <div className="text-[11px] text-muted-foreground mt-3 max-w-xs mx-auto">
                     Clasificaste al Reducido con tu tabla real de esta temporada. Podés jugarlo antes de arrancar una temporada nueva.
                   </div>
@@ -882,7 +894,7 @@ function CalendarioTab({ state, teamId }: { state: CareerState; teamId: string }
   return (
     <div className="hud-panel p-4">
       <div className="flex items-center justify-between mb-3">
-        <div className="text-[11px] uppercase tracking-widest text-muted-foreground">Calendario · Zona {state.zone}</div>
+        <div className="text-[11px] uppercase tracking-widest text-muted-foreground">Calendario · {COMPETITIONS[careerDivision(state, teamId)].name}{state.zone ? ` · Zona ${state.zone}` : ""}</div>
         <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
           <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-hud-green" />Ganado</span>
           <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-muted-foreground/60" />Empate</span>
