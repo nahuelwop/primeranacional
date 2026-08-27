@@ -1036,11 +1036,15 @@ function CompetitionMovementPanel({ division, state, teamId }: { division: Divis
   const relegated = divisionRelegationCandidates(state);
   const promoted = divisionPromotionCandidates(state);
   const relegationLabel = (() => {
-    if (division === "primera_division") return "2 descensos: 1 por último de la tabla anual y 1 por peor promedio histórico.";
-    if (division === "primera_nacional") return "Descensos definidos por afiliación: 2 metropolitanos a Primera B y 2 federales a Federal A.";
+    if (division === "primera_division") return "2 descensos: 1 por último de la tabla anual y 1 por peor promedio. Si coincide, la plaza anual pasa al 29°.";
+    if (division === "primera_nacional") return "4 descensos: 2 clubes metropolitanos a Primera B y 2 clubes del interior a Federal A.";
+    if (division === "primera_b") return "2 últimos de la tabla general descienden a Primera C.";
+    if (division === "primera_c") return "No hay descenso: es la última categoría metropolitana modelada.";
+    if (division === "federal_a") return "4 descensos: los peores de la reválida/promedios pasan al Regional Federal Amateur.";
     if (rules.relegation.length === 0 || rules.relegation.every(r => r.slots === 0)) return "No hay descenso modelado en esta categoría.";
     return `Descenso: ${rules.relegation.reduce((sum, r) => sum + r.slots, 0)} puestos por tabla.`;
   })();
+  const formatLabel = rules.formatLabel ?? (rules.hasZones ? `Zonas: ${rules.zones.join(" · ")}` : "Tabla general");
   const promotionLabel = rules.promotion.length === 0
     ? "No hay ascenso porque esta es la máxima categoría."
     : `${rules.promotion[0].directSlots} ascenso(s) directo(s)${rules.promotion[0].playoffSlots ? ` + ${rules.promotion[0].playoffSlots} por playoff/reducido` : ""} a ${COMPETITIONS[rules.promotion[0].to].name}.`;
@@ -1056,6 +1060,10 @@ function CompetitionMovementPanel({ division, state, teamId }: { division: Divis
             {relegated.includes(teamId) ? "DESCENSO" : promoted.includes(teamId) ? "ASCENSO" : "MANTIENE"}
           </span>
         )}
+      </div>
+      <div className="rounded-lg border border-border/60 bg-card/30 p-3 mb-2">
+        <div className="text-[10px] uppercase tracking-widest text-celeste mb-1">Formato</div>
+        <div className="text-xs text-foreground/90">{formatLabel}</div>
       </div>
       <div className="grid md:grid-cols-2 gap-2">
         <div className="rounded-lg border border-hud-green/20 bg-hud-green/5 p-3">
@@ -1184,9 +1192,15 @@ function TablaZona({ title, rows, highlight, matches, division = "primera_nacion
           ? "1° campeón · el descenso combina tabla anual y promedio"
           : division === "primera_nacional"
             ? "Ascenso: campeón de zona / Reducido · Descenso: según afiliación (metropolitano o federal)"
-            : COMPETITIONS[division].relegation.every(r => r.slots === 0)
-              ? "1° asciende según el reglamento · no hay descenso modelado en esta categoría"
-              : `Ascenso directo: ${COMPETITIONS[division].promotion[0]?.directSlots ?? 0} · Descenso: ${COMPETITIONS[division].relegation.reduce((sum, r) => sum + r.slots, 0)} puestos`}
+            : division === "primera_c"
+              ? "Ascenso: campeón del Apertura/Clausura y Reducido · no hay descenso"
+              : division === "federal_a"
+                ? "Ascenso: Fase Campeonato / playoffs · 4 descensos al Regional Federal Amateur"
+                : division === "primera_b"
+                  ? "Ascenso: campeón + Reducido · 2 últimos descienden a Primera C"
+                  : COMPETITIONS[division].relegation.every(r => r.slots === 0)
+                    ? "1° asciende según el reglamento · no hay descenso modelado en esta categoría"
+                    : `Ascenso directo: ${COMPETITIONS[division].promotion[0]?.directSlots ?? 0} · Descenso: ${COMPETITIONS[division].relegation.reduce((sum, r) => sum + r.slots, 0)} puestos`}
       </div>
     </div>
   );
