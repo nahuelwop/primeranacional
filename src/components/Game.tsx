@@ -70,6 +70,34 @@ const ScoreColorBars = ({ team, reverse = false }: { team: Team; reverse?: boole
     <span style={{ backgroundColor: reverse ? team.primary : team.secondary }} />
   </div>
 );
+
+// Marcador propio de Primera División: construido con HTML/CSS + escudos reales,
+// inspirado en el estilo visual de la referencia enviada (sin usar una imagen).
+function PrimeraDivisionScorebug({
+  home, away, score, time,
+}: {
+  home: Team; away: Team; score: { h: number; a: number }; time: number;
+}) {
+  const clock = `${String(Math.floor(time / 60)).padStart(2, "0")}:${String(time % 60).padStart(2, "0")}`;
+  return (
+    <div className="pd-scorebug" role="status" aria-label={`${home.short} ${score.h}, ${away.short} ${score.a}, ${clock}`}>
+      <div className="pd-scorebug-time">
+        <span className="pd-scorebug-half">1T</span>
+        <span className="pd-scorebug-clock">{clock}</span>
+      </div>
+      <div className="pd-scorebug-team">
+        <Shield team={home} size={24} eager />
+        <span>{home.short}</span>
+      </div>
+      <div className="pd-scorebug-score">{score.h}</div>
+      <div className="pd-scorebug-score pd-scorebug-score-away">{score.a}</div>
+      <div className="pd-scorebug-team pd-scorebug-away">
+        <span>{away.short}</span>
+        <Shield team={away} size={24} eager />
+      </div>
+    </div>
+  );
+}
 // Football Heads style arcade — sin poderes, físicas con postes y travesaño.
 export function Game({ home, away, duration = 60, weather = "clear", aiDifficulty = "normal", mode = "1vAI", sharedNarrator = false, crowdIntensity = "normal", matchLabel, startingScore, cancelOpponentGoals = 0, doubleGoalChance = 0, initialSharedName, initialHomeNarratorId, initialAwayNarratorId, initialNarratorVol, initialCrowdVol, onEnd, onExit }: Props) {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -1362,6 +1390,7 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
     window.dispatchEvent(ev);
   };
   const possA = 100 - stats.possessionH;
+  const isPrimeraDivisionMatch = home.division === "primera_division" && away.division === "primera_division";
   return (
     <div className="flex flex-col items-center gap-3 w-full relative">
       {matchLabel && (
@@ -1369,27 +1398,31 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
           ★ {matchLabel} ★
         </div>
       )}
-      <div className="scorebug" role="status" aria-label={`${home.short} ${score.h}, ${away.short} ${score.a}, ${time} segundos`}>
-        <div className="scorebug-brand">N</div>
-        <div className="scorebug-team scorebug-home">
-          <span className="scorebug-code">{home.short}</span>
+      {isPrimeraDivisionMatch ? (
+        <PrimeraDivisionScorebug home={home} away={away} score={score} time={time} />
+      ) : (
+        <div className="scorebug" role="status" aria-label={`${home.short} ${score.h}, ${away.short} ${score.a}, ${time} segundos`}>
+          <div className="scorebug-brand">N</div>
+          <div className="scorebug-team scorebug-home">
+            <span className="scorebug-code">{home.short}</span>
+          </div>
+          <div className="scorebug-shield scorebug-shield-home">
+            <Shield team={home} size={42} eager />
+          </div>
+          <ScoreColorBars team={home} />
+          <div className="scorebug-score">{score.h}</div>
+          <div className="scorebug-score">{score.a}</div>
+          <ScoreColorBars team={away} reverse />
+          <div className="scorebug-shield scorebug-shield-away">
+            <Shield team={away} size={42} eager />
+          </div>
+          <div className="scorebug-team scorebug-away">
+            <span className="scorebug-code">{away.short}</span>
+          </div>
+          <div className="scorebug-clock">{String(Math.floor(time / 60)).padStart(2, "0")}:{String(time % 60).padStart(2, "0")}</div>
+          <div className="scorebug-half">1T</div>
         </div>
-        <div className="scorebug-shield scorebug-shield-home">
-          <Shield team={home} size={42} eager />
-        </div>
-        <ScoreColorBars team={home} />
-        <div className="scorebug-score">{score.h}</div>
-        <div className="scorebug-score">{score.a}</div>
-        <ScoreColorBars team={away} reverse />
-        <div className="scorebug-shield scorebug-shield-away">
-          <Shield team={away} size={42} eager />
-        </div>
-        <div className="scorebug-team scorebug-away">
-          <span className="scorebug-code">{away.short}</span>
-        </div>
-        <div className="scorebug-clock">{String(Math.floor(time / 60)).padStart(2, "0")}:{String(time % 60).padStart(2, "0")}</div>
-        <div className="scorebug-half">1T</div>
-      </div>
+      )}
       <div className="relative w-full max-w-6xl">
         <canvas ref={ref} width={1400} height={520} className="w-full rounded-2xl border-2 border-border bg-black" />
 
