@@ -1,5 +1,6 @@
 import { TEAMS, TEAMS_BY_ID, type Team } from "./teams";
 import { OTHER_DIVISION_TEAMS } from "./teams-other-divisions";
+import { REGIONAL_FEDERAL_AMATEUR_TEAMS, REGIONAL_META } from "./regional-amateur";
 import type { DivisionId } from "./competitions";
 
 /**
@@ -30,6 +31,9 @@ export function getAllTeams(): Team[] {
   for (const team of OTHER_DIVISION_TEAMS) {
     if (!byId.has(team.id)) byId.set(team.id, team);
   }
+  for (const team of REGIONAL_FEDERAL_AMATEUR_TEAMS) {
+    if (!byId.has(team.id)) byId.set(team.id, team);
+  }
   return Array.from(byId.values());
 }
 
@@ -51,6 +55,9 @@ export function getTeamsByZone(
   division: DivisionId,
   zone: string,
 ): Team[] {
+  if (division === "regional_federal_amateur") {
+    return getTeamsByDivision(division).filter(team => team.regionalRegion === zone);
+  }
   return getTeamsByDivision(division).filter(
     (team) => team.zone === zone,
   );
@@ -106,3 +113,5 @@ export function getDivisionTeamSummary(): Record<string, number> {
     {},
   );
 }
+
+export function getRegionalTeamMeta(id: string) { return REGIONAL_META.get(id); }
