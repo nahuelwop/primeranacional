@@ -406,17 +406,38 @@ export function buildDivisionCareerFixture(division: DivisionId, teamIds: string
     const userZone = userTeamId && zm[userTeamId] === "B" ? "B" : "A";
     const own = userZone === "A" ? zoneA : zoneB;
     const other = userZone === "A" ? zoneB : zoneA;
-    const openingOwn = generateRoundRobin(own, userZone, 1).map(m => ({ ...m, phase: "apertura" as const }));
-    const openingOther = generateRoundRobin(other, userZone === "A" ? "B" : "A", 1).map(m => ({ ...m, phase: "apertura" as const }));
-    const classics = crossPairsWithRivals(zoneA, zoneB, 15);
-    const sortedRound = buildSecondInterzonalRound(classics, zoneA, zoneB, 16);
-    const userInter = [...classics, ...sortedRound];
-    const clausura = generateRoundRobin(ids, "PD-CLA", 17, true).map(m => ({ ...m, phase: "clausura" as const }));
+    // Apertura: 14 partidos contra la propia zona + 2 interzonales.
+    const aperturaOwn = generateRoundRobin(own, userZone, 1).map(m => ({ ...m, phase: "apertura" as const }));
+    const aperturaOther = generateRoundRobin(other, userZone === "A" ? "B" : "A", 1).map(m => ({ ...m, phase: "apertura" as const }));
+    const aperturaClassico = crossPairsWithRivals(zoneA, zoneB, 15).map(m => ({ ...m, phase: "apertura" as const }));
+    const aperturaInter = buildSecondInterzonalRound(aperturaClassico, zoneA, zoneB, 16).map(m => ({ ...m, phase: "apertura" as const }));
+    const aperturaInterzonal = [...aperturaClassico, ...aperturaInter];
+
+    // Clausura: exactamente el mismo formato, invirtiendo las localías.
+    const clausuraOwn = generateRoundRobin(own, userZone, 17, true).map(m => ({ ...m, phase: "clausura" as const }));
+    const clausuraOther = generateRoundRobin(other, userZone === "A" ? "B" : "A", 17, true).map(m => ({ ...m, phase: "clausura" as const }));
+    const clausuraInterzonal = aperturaInterzonal.map(m => ({
+      ...m,
+      id: m.id.replace("apertura", "clausura"),
+      round: m.round + 16,
+      home: m.away,
+      away: m.home,
+      phase: "clausura" as const,
+    }));
+
     const userIds = new Set(own);
-    const matches = [...openingOwn, ...userInter, ...clausura.filter(m => userIds.has(m.home) || userIds.has(m.away))]
+    const matches = [
+      ...aperturaOwn,
+      ...aperturaInterzonal,
+      ...clausuraOwn,
+      ...clausuraInterzonal,
+    ].filter(m => userIds.has(m.home) || userIds.has(m.away))
       .sort((a, b) => a.round - b.round || a.id.localeCompare(b.id));
-    const otherMatches = [...openingOther, ...clausura.filter(m => !userIds.has(m.home) && !userIds.has(m.away))]
-      .sort((a, b) => a.round - b.round || a.id.localeCompare(b.id));
+    // Los interzonales se mantienen en el calendario activo porque afectan a ambas zonas.
+    const otherMatches = [
+      ...aperturaOther,
+      ...clausuraOther,
+    ].sort((a, b) => a.round - b.round || a.id.localeCompare(b.id));
     return { matches, otherMatches, zone: userZone, activeTeamIds: ids, zoneMap: zm };
   }
 
