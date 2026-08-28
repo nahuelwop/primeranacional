@@ -1,7 +1,7 @@
 import { ZONE_A, ZONE_B, type Team } from "@/data/teams";
 import { getTeamsByDivision, getTeamById } from "@/data/teams-catalog";
 import { COMPETITIONS, type DivisionId } from "@/data/competitions";
-import { buildDivisionCareerFixture, simulateMatch, emptyStandings, applyMatchToStandings, sortStandings, type Match, type StandingRow } from "@/lib/tournament";
+import { buildDivisionCareerFixture, simulateMatch, simulateRegionalTournament, emptyStandings, applyMatchToStandings, sortStandings, type Match, type StandingRow } from "@/lib/tournament";
 
 // ============ Stadium upgrades ============
 export type StadiumUpgradeKey = keyof StadiumUpgrades;
@@ -116,7 +116,7 @@ export function isFirstDivision(state: CareerState | null | undefined, teamId?: 
 
 export function initialLeagueRosters(): Partial<Record<DivisionId, string[]>> {
   const result: Partial<Record<DivisionId, string[]>> = {};
-  const divisions: DivisionId[] = ["primera_division", "primera_nacional", "primera_b", "primera_c", "primera_d", "federal_a"];
+  const divisions: DivisionId[] = ["primera_division", "primera_nacional", "primera_b", "primera_c", "federal_a", "regional_federal_amateur"];
   for (const d of divisions) result[d] = getTeamsByDivision(d).map(t => t.id);
   return result;
 }
@@ -238,105 +238,94 @@ function topN(rows: StandingRow[], n: number): string[] { return sortStandings(r
 function bottomN(rows: StandingRow[], n: number): string[] { return sortStandings(rows).slice(-Math.min(n, rows.length)).map(r => r.teamId); }
 
 /** Simula y resuelve TODOS los movimientos de la pirámide jugable para la próxima temporada. */
+
 export function resolveLeagueMovements(currentState: CareerState, season: number): { rosters: Partial<Record<DivisionId, string[]>>; movements: LeagueMovement[]; userNextDivision: DivisionId | null; ended: boolean; endReason?: string } {
-  const division = careerDivision(currentState);
+  const currentDivision = careerDivision(currentState);
   const rosters: Partial<Record<DivisionId, string[]>> = {};
   const base = currentState.leagueRosters ?? initialLeagueRosters();
-  for (const d of ["primera_division", "primera_nacional", "primera_b", "primera_c", "primera_d", "federal_a"] as DivisionId[]) rosters[d] = rosterFor(base, d);
+  const divisions: DivisionId[] = ["primera_division", "primera_nacional", "primera_b", "primera_c", "federal_a", "regional_federal_amateur"];
+  for (const d of divisions) rosters[d] = rosterFor(base, d);
+  const seasonRosters: Partial<Record<DivisionId, string[]>> = Object.fromEntries(divisions.map(d => [d, [...(rosters[d] ?? [])]])) as Partial<Record<DivisionId, string[]>>;
   const results = new Map<DivisionId, LeagueSeasonResult>();
-
-  for (const d of ["primera_division", "primera_nacional", "primera_b", "primera_c", "primera_d", "federal_a"] as DivisionId[]) {
-    if (d === division) results.set(d, simulateDivisionSeason(d, rosters[d] ?? [], currentState));
+  for (const d of divisions) {
+    if (d === currentDivision) results.set(d, simulateDivisionSeason(d, rosters[d] ?? [], currentState));
     else results.set(d, simulateDivisionSeason(d, rosters[d] ?? []));
   }
 
   const moves: LeagueMovement[] = [];
   const move = (teamId: string, from: DivisionId, to: DivisionId | null, reason: string) => {
+    if (moves.some(m => m.teamId === teamId)) return;
     moves.push({ teamId, from, to, reason });
-    if (!to) {
-      rosters[from] = (rosters[from] ?? []).filter(id => id !== teamId);
-      return;
-    }
     rosters[from] = (rosters[from] ?? []).filter(id => id !== teamId);
-    rosters[to] = Array.from(new Set([...(rosters[to] ?? []), teamId]));
+    if (to) rosters[to] = Array.from(new Set([...(rosters[to] ?? []), teamId]));
   };
 
-  // Primera: descenso por anual + peor promedio.
+  // PRIMERA DIVISIÓN: 1 descenso anual + 1 por promedio, sin duplicar club.
   const pd = results.get("primera_division")!;
   const annual = sortStandings(pd.standings);
   const annualBottom = annual.at(-1)?.teamId;
-  const av = buildAverageTableForSeasonHistory(currentState, pd.standings);
-  let avgBottom = av.at(-1)?.teamId;
-  let annualDrop = annualBottom;
-  if (annualBottom && avgBottom === annualBottom) annualDrop = annual.at(-2)?.teamId;
-  if (annualDrop) move(annualDrop, "primera_division", "primera_nacional", "Descenso por Tabla Anual");
-  if (avgBottom && avgBottom !== annualDrop) move(avgBottom, "primera_division", "primera_nacional", "Descenso por Promedios");
+  const averageBottom = buildAverageTableForSeasonHistory(currentState, pd.standings).at(-1)?.teamId;
+  const annualDrop = annualBottom === averageBottom ? annual.at(-2)?.teamId : annualBottom;
+  if (annualDrop) move(annualDrop, "primera_division", "primera_nacional", "Descenso · último de la Tabla Anual");
+  if (averageBottom) move(averageBottom, "primera_division", "primera_nacional", "Descenso · último de la Tabla de Promedios");
 
-  // Nacional: 1 ascenso directo (simulamos la final de líderes) y 1 por reducido;
-  // además, dos últimos de cada zona descienden, repartidos por afiliación.
+  // PRIMERA NACIONAL: 2 ascensos y 4 descensos, repartidos por afiliación.
   const pn = results.get("primera_nacional")!;
-  const za = pn.standingsByZone.A ?? [], zb = pn.standingsByZone.B ?? [];
-  if (za[0] && zb[0]) {
-    const a = za[0].teamId, b = zb[0].teamId;
-    const scoreA = teamSimulationStrength(a) + Math.random() * 12;
-    const scoreB = teamSimulationStrength(b) + Math.random() * 12;
-    move(scoreA >= scoreB ? a : b, "primera_nacional", "primera_division", "Ascenso · ganador de la final de zonas");
-  }
-  const redCandidates = [...za.slice(1, 8), ...zb.slice(1, 8)].sort((a, b) => teamSimulationStrength(b.teamId) - teamSimulationStrength(a.teamId) + (Math.random() - 0.5) * 6);
-  const reducedWinner = redCandidates[0]?.teamId;
-  if (reducedWinner && !moves.some(m => m.teamId === reducedWinner)) move(reducedWinner, "primera_nacional", "primera_division", "Ascenso · ganador del Reducido");
-
-  for (const row of [...bottomN(za, 2), ...bottomN(zb, 2)]) {
-    if (moves.some(m => m.teamId === row)) continue;
-    const aff = nationalAffiliation(row);
-    move(row, "primera_nacional", aff === "metropolitano" ? "primera_b" : "federal_a", aff === "metropolitano" ? "Descenso · directo afiliado" : "Descenso · circuito federal");
+  const za = sortStandings(pn.standingsByZone.A ?? []), zb = sortStandings(pn.standingsByZone.B ?? []);
+  const leaders = [za[0], zb[0]].filter(Boolean) as StandingRow[];
+  leaders.sort((a,b) => teamSimulationStrength(b.teamId) - teamSimulationStrength(a.teamId) + (Math.random()-.5)*3);
+  if (leaders[0]) move(leaders[0].teamId, "primera_nacional", "primera_division", "Ascenso · campeón / final de zonas");
+  const reducedPool = [...za.slice(1,8), ...zb.slice(1,8)].sort((a,b) => teamSimulationStrength(b.teamId)-teamSimulationStrength(a.teamId)+(Math.random()-.5)*5);
+  if (reducedPool[0] && !moves.some(m => m.teamId === reducedPool[0].teamId)) move(reducedPool[0].teamId, "primera_nacional", "primera_division", "Ascenso · ganador del Reducido");
+  for (const row of [...za.slice(-2), ...zb.slice(-2)]) {
+    const aff = nationalAffiliation(row.teamId);
+    move(row.teamId, "primera_nacional", aff === "metropolitano" ? "primera_b" : "federal_a", aff === "metropolitano" ? "Descenso · Primera B Metropolitana" : "Descenso · Federal A");
   }
 
-  // Primera B: 1° + ganador simulado del reducido ascienden; 2 últimos bajan a C.
-  const pb = results.get("primera_b")!;
-  const pbRows = sortStandings(pb.standings);
-  if (pbRows[0]) move(pbRows[0].teamId, "primera_b", "primera_nacional", "Ascenso · campeón de Primera B");
-  if (pbRows[1] && !moves.some(m => m.teamId === pbRows[1].teamId)) move(pbRows[1].teamId, "primera_b", "primera_nacional", "Ascenso · Reducido de Primera B");
-  for (const id of bottomN(pbRows, 2)) if (!moves.some(m => m.teamId === id)) move(id, "primera_b", "primera_c", "Descenso · último de Primera B");
+  // PRIMERA B: 2 ascensos, 2 descensos.
+  const pbRows = sortStandings(results.get("primera_b")!.standings);
+  for (const row of pbRows.slice(0,2)) move(row.teamId, "primera_b", "primera_nacional", row === pbRows[0] ? "Ascenso · campeón Primera B" : "Ascenso · Reducido Primera B");
+  for (const row of pbRows.slice(-2)) move(row.teamId, "primera_b", "primera_c", "Descenso · últimos de Primera B");
 
-  // Primera C: campeón Apertura vs campeón Clausura; si hay dos clubes distintos,
-  // el ganador de la final asciende y el mejor restante de la tabla anual obtiene el segundo cupo.
+  // PRIMERA C: Apertura + Clausura. En vez de reciclar una tabla única, separamos por fase.
   const pc = results.get("primera_c")!;
-  const aperturaRows = sortStandings(pc.standings.map(r => ({ ...r })));
-  // Sin una tabla histórica de fase separada persistida, usamos una aproximación estable:
-  // mejor mitad del calendario = Apertura y segunda mitad = Clausura.
-  const pcMatches = pc.matches;
-  const ap = emptyStandings(rosters.primera_c ?? []), cl = emptyStandings(rosters.primera_c ?? []);
-  let apRows = ap, clRows = cl;
-  const maxR = Math.max(...pcMatches.map(m => m.round), 0);
-  const split = Math.floor(maxR / 2);
-  for (const m of pcMatches) {
+  const cRoster = seasonRosters.primera_c ?? [];
+  const openRows = emptyStandings(cRoster), closeRows = emptyStandings(cRoster);
+  const maxRoundC = Math.max(...pc.matches.map(m=>m.round), 0);
+  const split = Math.floor(maxRoundC / 2);
+  let apRows = openRows, clRows = closeRows;
+  for (const m of pc.matches) {
     if (!m.played) continue;
-    const { hg, ag } = simulateMatch(m.home, m.away);
-    const pm = { ...m, played: true, homeGoals: hg, awayGoals: ag };
-    if (m.round <= split) apRows = applyMatchToStandings(apRows, pm); else clRows = applyMatchToStandings(clRows, pm);
+    if (m.round <= split) apRows = applyMatchToStandings(apRows,m);
+    else clRows = applyMatchToStandings(clRows,m);
   }
-  const wa = sortStandings(apRows)[0]?.teamId, wc = sortStandings(clRows)[0]?.teamId;
-  const pcPromo = wa && wc ? (teamSimulationStrength(wa) + Math.random() * 8 >= teamSimulationStrength(wc) + Math.random() * 8 ? wa : wc) : (wa ?? wc);
-  if (pcPromo) move(pcPromo, "primera_c", "primera_b", "Ascenso · final Apertura/Clausura");
-  const secondC = sortStandings(pc.standings).find(r => r.teamId !== pcPromo)?.teamId;
-  if (secondC) move(secondC, "primera_c", "primera_b", "Ascenso · Reducido anual");
+  const apChamp = sortStandings(apRows)[0]?.teamId;
+  const clChamp = sortStandings(clRows)[0]?.teamId;
+  let cPromoted: string[] = [];
+  if (apChamp && clChamp && apChamp !== clChamp) {
+    const winner = teamSimulationStrength(apChamp) + Math.random()*6 >= teamSimulationStrength(clChamp)+Math.random()*6 ? apChamp : clChamp;
+    cPromoted.push(winner);
+  } else if (apChamp || clChamp) cPromoted.push(apChamp ?? clChamp!);
+  const annualC = sortStandings(pc.standings).map(r=>r.teamId);
+  const second = annualC.find(id => !cPromoted.includes(id));
+  if (second) cPromoted.push(second);
+  for (const id of cPromoted.slice(0,2)) move(id, "primera_c", "primera_b", "Ascenso · Apertura/Clausura y Reducido");
 
-  // Federal A: cuatro zonas; líderes juegan fase campeonato y se resuelve un playoff
-  // simulado para dos ascensos. Los 4 peores generales salen de la pirámide jugable.
+  // FEDERAL A: 4 zonas, 2 ascensos, 4 descensos a Regional.
   const fa = results.get("federal_a")!;
-  const leaders = Object.values(fa.standingsByZone).map(rows => rows[0]).filter(Boolean) as StandingRow[];
-  leaders.sort((a, b) => teamSimulationStrength(b.teamId) - teamSimulationStrength(a.teamId) + (Math.random() - 0.5) * 5);
-  for (const r of leaders.slice(0, 2)) move(r.teamId, "federal_a", "primera_nacional", "Ascenso · playoff Federal A");
-  for (const r of bottomN(fa.standings, 4)) if (!moves.some(m => m.teamId === r)) move(r, "federal_a", null, "Descenso · Regional Federal Amateur (no jugable)");
+  const faCandidates = Object.values(fa.standingsByZone).map(z => z[0]).filter(Boolean) as StandingRow[];
+  faCandidates.sort((a,b)=>teamSimulationStrength(b.teamId)-teamSimulationStrength(a.teamId)+(Math.random()-.5)*6);
+  for (const row of faCandidates.slice(0,2)) move(row.teamId, "federal_a", "primera_nacional", "Ascenso · Fase Campeonato / playoffs");
+  for (const row of sortStandings(fa.standings).slice(-4)) move(row.teamId, "federal_a", "regional_federal_amateur", "Descenso · Regional Federal Amateur");
+
+  // REGIONAL: simulación completa de 8 campeones regionales + 4 finales nacionales.
+  const regionalRoster = seasonRosters.regional_federal_amateur ?? [];
+  const regional = simulateRegionalTournament(regionalRoster);
+  for (const id of regional.promotedToFederalA) move(id, "regional_federal_amateur", "federal_a", "Ascenso · campeón de región + final nacional");
 
   const userId = currentState.userTeamId;
-  const actualUserMove = userId ? moves.find(m => m.teamId === userId) : undefined;
-  let userNextDivision: DivisionId | null = actualUserMove?.to ?? division;
-  let ended = false, endReason: string | undefined;
-  if (actualUserMove?.from === "federal_a" && actualUserMove.to === null) { ended = true; endReason = "Tu club descendió al Regional Federal Amateur. Esa categoría todavía no es jugable."; userNextDivision = null; }
-
-  return { rosters, movements: moves, userNextDivision, ended, endReason };
+  const userMove = userId ? moves.find(m=>m.teamId===userId) : undefined;
+  return { rosters, movements: moves, userNextDivision: userMove?.to ?? currentDivision, ended: false };
 }
 
 function buildAverageTableForSeasonHistory(state: CareerState, currentStandings: StandingRow[]): AverageRow[] {
