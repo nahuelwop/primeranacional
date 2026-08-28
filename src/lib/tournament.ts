@@ -77,11 +77,60 @@ export type RegionalSeasonResult = {
   matches: Match[];
 };
 
+const REGIONAL_REGIONS = [
+  "Norte", "Litoral Norte", "Litoral Sur", "Centro", "Cuyo",
+  "Pampeana Norte", "Pampeana Sur", "Patagonia",
+] as const;
+
+function hashText(value: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < value.length; i++) h = Math.imul(h ^ value.charCodeAt(i), 16777619);
+  return h >>> 0;
+}
+
+function inferredRegionalRegion(teamId: string): string {
+  const team = getTeamById(teamId);
+  const province = (team?.province ?? "").toLowerCase();
+  if (["tucumán", "salta", "jujuy", "catamarca"].some(p => province.includes(p))) return "Norte";
+  if (["formosa", "chaco", "corrientes", "misiones"].some(p => province.includes(p))) return "Litoral Norte";
+  if (["santa fe", "entre ríos"].some(p => province.includes(p))) return "Litoral Sur";
+  if (["santiago del estero"].some(p => province.includes(p))) return "Centro";
+  if (["mendoza", "san luis", "san juan"].some(p => province.includes(p))) return "Cuyo";
+  if (province.includes("la pampa") || province.includes("buenos aires")) {
+    // Para nuevos descendidos del Federal A sin región histórica disponible,
+    // se reparte de forma estable entre las dos regiones pampeanas.
+    return hashText(teamId) % 2 === 0 ? "Pampeana Norte" : "Pampeana Sur";
+  }
+  if (["río negro", "chubut", "santa cruz", "tierra del fuego", "neuquén"].some(p => province.includes(p))) return "Patagonia";
+  return REGIONAL_REGIONS[hashText(teamId) % REGIONAL_REGIONS.length];
+}
+
+function inferredRegionalGroup(teamId: string, region: string, existing: Record<string, string>): string {
+  const counts = new Map<string, number>();
+  for (const value of Object.values(existing)) {
+    const [r, g] = value.split("::");
+    if (r === region) counts.set(g, (counts.get(g) ?? 0) + 1);
+  }
+  const groups = Array.from({ length: 8 }, (_, i) => String(i + 1));
+  // Elegimos primero un grupo que aún tenga menos de 4 clubes, minimizando
+  // la variación para no romper las zonas oficiales ya cargadas.
+  groups.sort((a, b) => (counts.get(a) ?? 0) - (counts.get(b) ?? 0) || Number(a) - Number(b));
+  const candidates = groups.filter(g => (counts.get(g) ?? 0) < 4);
+  const pool = candidates.length ? candidates : groups;
+  return pool[hashText(`${teamId}:${region}`) % pool.length];
+}
+
 export function buildRegionalGroupMap(teamIds: string[]): Record<string, string> {
   const map: Record<string, string> = {};
   for (const id of teamIds) {
     const meta = getRegionalTeamMeta(id);
     if (meta) map[id] = `${meta.region}::${meta.group}`;
+  }
+  for (const id of teamIds) {
+    if (map[id]) continue;
+    const region = inferredRegionalRegion(id);
+    const group = inferredRegionalGroup(id, region, map);
+    map[id] = `${region}::${group}`;
   }
   return map;
 }
@@ -109,10 +158,10 @@ export function simulateRegionalTournament(roster: string[]): RegionalSeasonResu
   const allGroupMatches: Match[] = [];
   const byRegion = new Map<string, string[][]>();
   const groups = new Map<string, string[]>();
+  const regionalMap = buildRegionalGroupMap(roster);
   for (const id of roster) {
-    const meta = getRegionalTeamMeta(id);
-    if (!meta) continue;
-    const key = `${meta.region}::${meta.group}`;
+    const key = regionalMap[id];
+    if (!key) continue;
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key)!.push(id);
   }
@@ -139,7 +188,7 @@ export function simulateRegionalTournament(roster: string[]): RegionalSeasonResu
     // Campeones de zona + segundos; el corte se hace por rendimiento cuando hay más de 16.
     const seconds: StandingRow[] = [];
     for (const ids of regionGroups) {
-      const key = `${region}::${getRegionalTeamMeta(ids[0])?.group ?? ""}`;
+      const key = regionalMap[ids[0]];
       const rows = groupStandings[key] ?? [];
       if (rows[0]) candidates.push(rows[0].teamId);
       if (rows[1]) seconds.push(rows[1]);
