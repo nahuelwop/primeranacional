@@ -382,6 +382,15 @@ export function divisionRelegationCandidates(state: CareerState): string[] {
   if (!isSeasonFinished(state)) return [];
   const division = careerDivision(state);
   if (division === "primera_division") return firstDivisionRelegated(state);
+  if (division === "primera_nacional") {
+    const result = simulateDivisionSeasonCore(division, rosterFor(state.leagueRosters, division), state);
+    const a = sortStandings(result.standingsByZone.A ?? []);
+    const b = sortStandings(result.standingsByZone.B ?? []);
+    return [...a.slice(-2), ...b.slice(-2)].map(r => r.teamId);
+  }
+  if (division === "primera_b") return sortStandings(state.standings).slice(-2).map(r => r.teamId);
+  if (division === "primera_c") return [sortStandings(state.standings).at(-1)?.teamId].filter(Boolean) as string[];
+  if (division === "regional_federal_amateur") return [];
   const roster = rosterFor(state.leagueRosters, division);
   const result = simulateDivisionSeasonCore(division, roster, state);
   const resolved = resolveDivisionSeason(division, roster, result.standings, result.standingsByZone, result.matches, result.zoneMap);
