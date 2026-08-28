@@ -62,16 +62,16 @@ export function SeasonIntro({ season, teamId, objetivo, division = "primera_naci
           card: "El objetivo está claro: pelear arriba y acercarte un paso más al fútbol profesional.",
           accent: "#fb923c",
         };
-      case "primera_d":
+      case "regional_federal_amateur":
         return {
-          title: "PRIMERA D",
-          subtitle: "EL COMIENZO DEL CAMINO",
-          descriptor: "CLUBES · ASCENSO · COMPETENCIA",
-          trophy: "EL PRIMER GRAN PASO",
-          trophySub: "Construí una temporada para hacer historia.",
-          final: "El camino de tu club comienza en Primera D...",
-          card: "Cada partido cuenta para dar el salto hacia Primera C.",
-          accent: "#c084fc",
+          title: "TORNEO REGIONAL FEDERAL AMATEUR",
+          subtitle: "EL CAMINO DESDE TU REGIÓN",
+          descriptor: "8 REGIONES · GRUPOS · PLAYOFFS",
+          trophy: "4 ASCENSOS AL FEDERAL A",
+          trophySub: "Representá a tu región y avanzá ronda a ronda.",
+          final: "El torneo regional está por comenzar...",
+          card: "Zonas geográficas, eliminatorias y cuatro finales nacionales por el ascenso.",
+          accent: "#a78bfa",
         };
       case "federal_a":
         return {
