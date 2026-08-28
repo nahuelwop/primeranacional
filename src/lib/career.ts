@@ -135,7 +135,7 @@ export function buildSeason(
   const rosters = leagueRosters ?? initialLeagueRosters();
   const ids = rosterFor(rosters, division);
   if (!ids.includes(teamId)) ids.push(teamId);
-  if (division !== "regional_federal_amateur" && ids.length === 1 && division !== "primera_d") ids.push(...getTeamsByDivision(division).map(t => t.id).filter(id => id !== teamId));
+  if (ids.length === 1) ids.push(...getTeamsByDivision(division).map(t => t.id).filter(id => id !== teamId));
 
   const fixture = buildDivisionCareerFixture(division, ids, teamId, federalZoneMap);
   let standings = emptyStandings(fixture.activeTeamIds);
