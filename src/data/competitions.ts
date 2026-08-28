@@ -3,13 +3,10 @@
 // hardcodeado. Cada división declara sus propias reglas de ascenso/descenso,
 // no existe una "pirámide simple" implícita en el código.
 //
-// IMPORTANTE — estado actual (léase antes de asumir que algo ya funciona):
-// Esta capa define la ESTRUCTURA. Todavía no está conectada a ninguna pantalla
-// (Equipos, Amistoso, Carrera siguen funcionando exactamente igual que antes).
-// Sólo Primera Nacional tiene equipos reales cargados hoy (los 32 de siempre,
-// en TEAMS). El resto de las divisiones están declaradas con reglas reales
-// pero SIN equipos todavía — no se inventaron planteles/datos falsos para
-// rellenarlas, porque eso sería peor que no tenerlas.
+// IMPORTANTE: la pirámide jugable usa divisiones independientes y el Regional
+// reemplaza por completo a la antigua categoría inferior metropolitana. Los planteles
+// se leen del catálogo central y los movimientos de carrera modifican los
+// rosters de la temporada siguiente.
 // ============================================================================
 
 export type DivisionId =
@@ -17,7 +14,6 @@ export type DivisionId =
   | "primera_nacional"
   | "primera_b"
   | "primera_c"
-  | "primera_d"
   | "federal_a"
   | "regional_federal_amateur";
 
