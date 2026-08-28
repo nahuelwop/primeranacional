@@ -605,7 +605,7 @@ function TeamEditor({ initial, onClose, onSaved }: {
     short: initial?.short ?? "",
     city: initial?.city ?? "",
     division: (initial?.division ?? "primera_nacional") as DivisionId,
-    zone: (initial?.zone ?? "A") as "A" | "B",
+    zone: (initial?.zone ?? "A") as string,
     primary_color: initial?.primary ?? "#1a55a6",
     secondary_color: initial?.secondary ?? "#ffffff",
     stripe: (initial?.stripe ?? "solid") as string,
@@ -626,6 +626,8 @@ function TeamEditor({ initial, onClose, onSaved }: {
     primera_seasons: initial?.primeraSeasons ?? ("" as number | ""),
     achievements: initial?.achievements ?? "",
     history: initial?.history ?? "",
+    regional_region: initial?.regionalRegion ?? "",
+    regional_group: initial?.regionalGroup ?? initial?.zone ?? "",
   });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -634,8 +636,9 @@ function TeamEditor({ initial, onClose, onSaved }: {
     setBusy(true); setErr(null);
     try {
       const ext = file.name.split(".").pop() || "png";
-      const path = `${form.id || "new"}-${Date.now()}.${ext}`;
-      const { error } = await supabase.storage.from("team-logos").upload(path, file, { upsert: true });
+      const safeId = (form.id || "new").toLowerCase().replace(/[^a-z0-9_-]/g, "");
+      const path = `teams/${safeId}/logo.${ext}`;
+      const { error } = await supabase.storage.from("team-logos").upload(path, file, { upsert: true, contentType: file.type || undefined });
       if (error) throw error;
       const { data } = supabase.storage.from("team-logos").getPublicUrl(path);
       setForm(f => ({ ...f, logo_url: data.publicUrl }));
@@ -733,17 +736,21 @@ function TeamEditor({ initial, onClose, onSaved }: {
         primera_seasons: form.primera_seasons === "" ? null : Number(form.primera_seasons),
         achievements: form.achievements || null,
         history: form.history || null,
+        regional_region: form.division === "regional_federal_amateur" ? (form.regional_region || null) : null,
+        regional_group: form.division === "regional_federal_amateur" ? (form.regional_group || null) : null,
       };
       if (isNew) {
         payload.rivals = [];
         payload.sort_order = getTeamsByDivision(form.division).length;
-        const { error } = await supabase.from("teams").insert(payload);
+        const { data, error } = await supabase.from("teams").insert(payload).select("id").single();
         if (error) throw error;
+        if (!data?.id) throw new Error("No se pudo guardar el equipo en Supabase");
       } else {
         delete payload.id;
         delete payload.sort_order;
-        const { error } = await supabase.from("teams").update(payload).eq("id", form.id);
+        const { data, error } = await supabase.from("teams").update(payload).eq("id", form.id).select("id").maybeSingle();
         if (error) throw error;
+        if (!data?.id) throw new Error("El equipo no existe en Supabase y no pudo actualizarse. Ejecutá la migración de Regional Amateur.");
       }
       await onSaved();
       onClose();
@@ -837,14 +844,26 @@ function TeamEditor({ initial, onClose, onSaved }: {
             <label className="text-xs text-muted-foreground uppercase">Ciudad</label>
             <Input value={form.city} onChange={e => setForm(f => ({ ...f, city: e.target.value }))} />
           </div>
-          {COMPETITIONS[form.division].hasZones && (
+          {form.division !== "regional_federal_amateur" && COMPETITIONS[form.division].hasZones && (
             <div>
               <label className="text-xs text-muted-foreground uppercase">Zona</label>
               <select className="w-full h-9 rounded-md border border-input bg-transparent px-3"
-                value={form.zone} onChange={e => setForm(f => ({ ...f, zone: e.target.value as "A" | "B" }))}>
+                value={form.zone} onChange={e => setForm(f => ({ ...f, zone: e.target.value }))}>
                 {COMPETITIONS[form.division].zones.map(z => <option key={z} value={z}>{z}</option>)}
               </select>
             </div>
+          )}
+          {form.division === "regional_federal_amateur" && (
+            <>
+              <div>
+                <label className="text-xs text-muted-foreground uppercase">Región</label>
+                <Input value={form.regional_region} onChange={e => setForm(f => ({ ...f, regional_region: e.target.value }))} placeholder="Norte, Cuyo, Patagonia…" />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground uppercase">Grupo</label>
+                <Input value={form.regional_group} onChange={e => setForm(f => ({ ...f, regional_group: e.target.value }))} placeholder="1, 2, 3…" />
+              </div>
+            </>
           )}
           <div>
             <label className="text-xs text-muted-foreground uppercase">Color primario</label>
