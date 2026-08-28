@@ -96,6 +96,8 @@ export type DbTeam = {
   achievements?: string | null;
 
   history?: string | null;
+  regional_region?: string | null;
+  regional_group?: string | null;
 };
 
 type State = {
@@ -198,7 +200,10 @@ function rowToTeam(
       fallback?.city ||
       "",
 
-    zone: row.zone,
+    zone: row.zone || fallback?.zone || "A",
+
+    regionalRegion: row.regional_region ?? fallback?.regionalRegion ?? null,
+    regionalGroup: row.regional_group ?? fallback?.regionalGroup ?? null,
 
     division:
       (row.division as Team["division"]) ??
@@ -309,24 +314,23 @@ function rowToTeam(
 }
 
 function replaceTeams(teams: Team[]) {
-  const primera = teams.filter(t => (t.division ?? "primera_nacional") === "primera_nacional");
-
   TEAMS.length = 0;
   ZONE_A.length = 0;
   ZONE_B.length = 0;
   for (const key of Object.keys(TEAMS_BY_ID)) delete TEAMS_BY_ID[key];
 
-  for (const team of primera) {
-    TEAMS.push(team);
-    TEAMS_BY_ID[team.id] = team;
-    if (team.zone === "A") ZONE_A.push(team);
-    else ZONE_B.push(team);
-  }
-
+  const nonPn = teams.filter(t => (t.division ?? "primera_nacional") !== "primera_nacional");
   OTHER_DIVISION_TEAMS.length = 0;
-  for (const team of teams.filter(t => (t.division ?? "primera_nacional") !== "primera_nacional")) {
-    OTHER_DIVISION_TEAMS.push(team);
+
+  for (const team of teams) {
+    TEAMS_BY_ID[team.id] = team;
+    if ((team.division ?? "primera_nacional") === "primera_nacional") {
+      TEAMS.push(team);
+      if (team.zone === "A") ZONE_A.push(team);
+      else ZONE_B.push(team);
+    }
   }
+  OTHER_DIVISION_TEAMS.push(...nonPn);
 }
 
 function saveCache() {
@@ -498,84 +502,51 @@ function hydrateCache() {
   }
 }
 
-function applyDbRow(
-  row: DbTeam,
-) {
-  const team =
-    rowToTeam(row);
+function removeFromArrayById(list: Team[], id: string) {
+  const i = list.findIndex(t => t.id === id);
+  if (i >= 0) list.splice(i, 1);
+}
 
-  const existing =
-    TEAMS_BY_ID[
-      row.id
-    ];
+function applyDbRow(row: DbTeam) {
+  const team = rowToTeam(row);
+  const existing = TEAMS_BY_ID[row.id];
+  const oldDivision = existing?.division ?? "primera_nacional";
+  const newDivision = team.division ?? "primera_nacional";
 
-  if (existing) {
-    Object.assign(
-      existing,
-      team,
-    );
+  if (existing) Object.assign(existing, team);
+  else TEAMS_BY_ID[team.id] = team;
+
+  const live = TEAMS_BY_ID[team.id];
+  if (oldDivision === "primera_nacional" && newDivision !== "primera_nacional") {
+    removeFromArrayById(TEAMS, team.id);
+    removeFromArrayById(ZONE_A, team.id);
+    removeFromArrayById(ZONE_B, team.id);
+    if (!OTHER_DIVISION_TEAMS.some(t => t.id === team.id)) OTHER_DIVISION_TEAMS.push(live);
+  } else if (oldDivision !== "primera_nacional" && newDivision === "primera_nacional") {
+    removeFromArrayById(OTHER_DIVISION_TEAMS, team.id);
+    if (!TEAMS.some(t => t.id === team.id)) TEAMS.push(live);
+    if (live.zone === "A") { if (!ZONE_A.some(t => t.id === team.id)) ZONE_A.push(live); }
+    else { if (!ZONE_B.some(t => t.id === team.id)) ZONE_B.push(live); }
+  } else if (newDivision !== "primera_nacional") {
+    const oi = OTHER_DIVISION_TEAMS.findIndex(t => t.id === team.id);
+    if (oi >= 0) Object.assign(OTHER_DIVISION_TEAMS[oi], live);
+    else OTHER_DIVISION_TEAMS.push(live);
   } else {
-    TEAMS.push(team);
-
-    TEAMS_BY_ID[
-      team.id
-    ] = team;
-
-    if (
-      team.zone === "A"
-    ) {
-      ZONE_A.push(team);
-    } else {
-      ZONE_B.push(team);
-    }
+    const legacy = TEAMS.find(t => t.id === team.id);
+    if (legacy) Object.assign(legacy, live);
+    else TEAMS.push(live);
+    removeFromArrayById(ZONE_A, team.id);
+    removeFromArrayById(ZONE_B, team.id);
+    if (live.zone === "A") ZONE_A.push(live); else ZONE_B.push(live);
   }
 }
 
-function removeTeam(
-  id: string,
-) {
-  const index =
-    TEAMS.findIndex(
-      (team) =>
-        team.id === id,
-    );
-
-  if (index >= 0) {
-    TEAMS.splice(
-      index,
-      1,
-    );
-  }
-
-  delete TEAMS_BY_ID[
-    id
-  ];
-
-  const zoneAIndex =
-    ZONE_A.findIndex(
-      (team) =>
-        team.id === id,
-    );
-
-  if (zoneAIndex >= 0) {
-    ZONE_A.splice(
-      zoneAIndex,
-      1,
-    );
-  }
-
-  const zoneBIndex =
-    ZONE_B.findIndex(
-      (team) =>
-        team.id === id,
-    );
-
-  if (zoneBIndex >= 0) {
-    ZONE_B.splice(
-      zoneBIndex,
-      1,
-    );
-  }
+function removeTeam(id: string) {
+  removeFromArrayById(TEAMS, id);
+  removeFromArrayById(ZONE_A, id);
+  removeFromArrayById(ZONE_B, id);
+  removeFromArrayById(OTHER_DIVISION_TEAMS, id);
+  delete TEAMS_BY_ID[id];
 }
 
 let booted = false;
