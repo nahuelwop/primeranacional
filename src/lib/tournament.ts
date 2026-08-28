@@ -221,12 +221,33 @@ export function simulateRegionalTournament(roster: string[]): RegionalSeasonResu
   return { groupStandings, regionalChampions, promotedToFederalA: promotedToFederalA.slice(0, 4), matches: [...allGroupMatches, ...playoffMatches] };
 }
 
-/** Asigna de forma estable un plantel de Federal A a cuatro zonas. */
+/**
+ * Federal A 2026: 4 zonas geográficas de 10/9/9/9.
+ * Si el club ya tiene una zona A-D declarada en el catálogo, se respeta.
+ * Sólo los clubes nuevos (por ejemplo, ascendidos desde Regional) se asignan
+ * a la zona actualmente menos poblada, para mantener el reparto equilibrado.
+ */
 export function buildFederalZoneMap(teamIds: string[]): Record<string, string> {
-  const zones = ["A", "B", "C", "D"];
-  const sorted = [...teamIds].sort((a, b) => a.localeCompare(b));
+  const zones = ["A", "B", "C", "D"] as const;
   const map: Record<string, string> = {};
-  sorted.forEach((id, i) => { map[id] = zones[i % zones.length]; });
+  const counts: Record<string, number> = { A: 0, B: 0, C: 0, D: 0 };
+
+  for (const id of teamIds) {
+    const declared = getTeamById(id)?.zone;
+    if (declared && (zones as readonly string[]).includes(declared)) {
+      map[id] = declared;
+      counts[declared] += 1;
+    }
+  }
+
+  const unassigned = teamIds.filter(id => !map[id]).sort((a, b) => a.localeCompare(b));
+  for (const id of unassigned) {
+    const target = zones.reduce((best, zone) =>
+      counts[zone] < counts[best] ? zone : best, "A" as (typeof zones)[number]);
+    map[id] = target;
+    counts[target] += 1;
+  }
+
   return map;
 }
 
