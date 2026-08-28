@@ -395,9 +395,9 @@ function CarreraPage() {
 
           <div className="mt-8 pt-6 border-t border-border/60">
             <div className="font-display text-2xl text-celeste mb-1">OTRAS CATEGORÍAS</div>
-            <div className="text-xs text-muted-foreground mb-4">Empezá desde Primera B, Primera C, Primera D o Federal A.</div>
+            <div className="text-xs text-muted-foreground mb-4">Empezá desde Primera B, Primera C, Federal A o Regional Federal Amateur.</div>
             <div className="space-y-6">
-              {(["primera_b", "primera_c", "primera_d", "federal_a"] as DivisionId[]).map(d => {
+              {(["primera_b", "primera_c", "federal_a", "regional_federal_amateur"] as DivisionId[]).map(d => {
                 const teams = getTeamsByDivision(d);
                 const rules = COMPETITIONS[d];
                 return (
@@ -444,7 +444,7 @@ function CarreraPage() {
       {/* Barra superior tipo consola */}
       <header className="hud-in grid grid-cols-[auto_1fr_auto] items-center gap-4 border-b border-border/50 pb-0 mb-4">
         <Link to="/" className="flex items-center gap-2.5 pb-3 min-w-0">
-          <span className="grid h-9 w-9 place-items-center rounded-lg border border-border bg-card font-display text-sm">{first ? "1D" : "PN"}</span>
+          <span className="grid h-9 w-9 place-items-center rounded-lg border border-border bg-card font-display text-sm">{first ? "1D" : division === "regional_federal_amateur" ? "RFA" : division === "federal_a" ? "FA" : "PN"}</span>
           <span className="hidden sm:block leading-none">
             <span className="block font-display text-sm tracking-widest">PRIMERA</span>
             <span className="block font-display text-sm tracking-widest text-muted-foreground">{COMPETITIONS[division].shortName.toUpperCase()}</span>
@@ -1051,8 +1051,9 @@ function CompetitionMovementPanel({ division, state, teamId }: { division: Divis
     if (division === "primera_division") return "2 descensos: 1 por último de la tabla anual y 1 por peor promedio. Si coincide, la plaza anual pasa al 29°.";
     if (division === "primera_nacional") return "4 descensos: 2 clubes metropolitanos a Primera B y 2 clubes del interior a Federal A.";
     if (division === "primera_b") return "2 últimos de la tabla general descienden a Primera C.";
-    if (division === "primera_c") return "No hay descenso: es la última categoría metropolitana modelada.";
-    if (division === "federal_a") return "4 descensos: los peores de la reválida/promedios pasan al Regional Federal Amateur.";
+    if (division === "primera_c") return "No hay descenso: última categoría metropolitana.";
+    if (division === "regional_federal_amateur") return "No hay descenso modelado: es la última categoría federal jugable.";
+    if (division === "federal_a") return "4 descensos: los peores de la reválida pasan al Regional Federal Amateur.";
     if (rules.relegation.length === 0 || rules.relegation.every(r => r.slots === 0)) return "No hay descenso modelado en esta categoría.";
     return `Descenso: ${rules.relegation.reduce((sum, r) => sum + r.slots, 0)} puestos por tabla.`;
   })();
