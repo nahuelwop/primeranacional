@@ -15,6 +15,7 @@ import type { DivisionId } from "./competitions";
  * - Primera B Metropolitana
  * - Primera C
  * - Federal A
+ * - Regional Federal Amateur
  *
  * No modificamos TEAMS para evitar que teams-sync.ts
  * elimine los equipos estáticos de las otras categorías.
