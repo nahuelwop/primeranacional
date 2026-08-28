@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Nav } from "@/components/Nav";
 import { Shield } from "@/components/Shield";
 import { TEAMS, TEAMS_BY_ID, type Team } from "@/data/teams";
-import { getTeamsByDivision, getTeamById } from "@/data/teams-catalog";
+import { getTeamsByDivision, getTeamById, getRegionalTeamMeta } from "@/data/teams-catalog";
 import { COMPETITIONS, type DivisionId } from "@/data/competitions";
 import { useTeamsSync } from "@/lib/teams-sync";
 import { useAuth } from "@/lib/auth";
@@ -17,7 +17,7 @@ import {
   careerDivision, isFirstDivision, recordSeasonSnapshot, firstDivisionRelegated, firstDivisionRelegationDetails,
   divisionRelegationCandidates, divisionPromotionCandidates, buildAverageTable,
 } from "@/lib/career";
-import { sortStandings, simulateMatch, type Match, type StandingRow } from "@/lib/tournament";
+import { sortStandings, simulateMatch, emptyStandings, applyMatchToStandings, buildFederalZoneMap, type Match, type StandingRow } from "@/lib/tournament";
 import stadiumBg from "@/assets/stadium-night.jpg";
 import { ACHIEVEMENTS } from "@/lib/achievements";
 import {
@@ -972,28 +972,26 @@ function CompeticionTab({ state, teamId }: { state: CareerState; teamId: string 
           title={`Tabla anual · Temporada ${history.length ? Math.max(...history.map(h => h.season), 0) : seasonLabel(state)}`}
           rows={annual}
           highlight={teamId}
-          matches={state.matches}
+          matches={[...state.matches, ...(state.otherMatches ?? [])]}
           division={division}
           relegated={relegated}
         />
         <div className="grid lg:grid-cols-2 gap-3">
           <TablaPromedios rows={averages} highlight={teamId} />
           <div className="hud-panel overflow-hidden">
-            <div className="px-4 py-2.5 font-display text-sm uppercase tracking-widest text-celeste border-b border-border">Descenso · Primera División</div>
+            <div className="px-4 py-2.5 font-display text-sm uppercase tracking-widest text-celeste border-b border-border">Descensos · Primera División</div>
             <div className="p-3 space-y-2">
               {relegationDetails.length === 0 ? (
-                <div className="text-xs text-muted-foreground">Los descensos se definen al finalizar la temporada. El sistema combina la tabla anual y los promedios históricos.</div>
-              ) : (
-                relegationDetails.map((r, i) => {
-                  const t = getTeamById(r.teamId);
-                  return <div key={r.teamId} className="flex items-center gap-2 rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs">
-                    <span className="font-display text-destructive">{i + 1}</span>
-                    <Shield team={t} size={22} />
-                    <span className="font-semibold truncate">{t?.short ?? r.teamId}</span>
-                    <span className="ml-auto text-destructive/80 text-right">{r.reason}</span>
-                  </div>;
-                })
-              )}
+                <div className="text-xs text-muted-foreground">Al finalizar la temporada descienden 2 equipos: último de la tabla anual y peor promedio.</div>
+              ) : relegationDetails.map((r, i) => {
+                const t = getTeamById(r.teamId);
+                return <div key={r.teamId} className="flex items-center gap-2 rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs">
+                  <span className="font-display text-destructive">{i + 1}</span>
+                  <Shield team={t} size={22} />
+                  <span className="font-semibold truncate">{t?.short ?? r.teamId}</span>
+                  <span className="ml-auto text-destructive/80 text-right">{r.reason}</span>
+                </div>;
+              })}
             </div>
           </div>
           <div className="hud-panel overflow-hidden lg:col-span-2">
@@ -1002,7 +1000,7 @@ function CompeticionTab({ state, teamId }: { state: CareerState; teamId: string 
               {history.length === 0 ? <div className="text-xs text-muted-foreground">La tabla anual de la Temporada 1 quedará guardada al finalizar la temporada.</div> : history.map(h => {
                 const sorted = sortStandings(h.standings);
                 const me = sorted.findIndex(r => r.teamId === teamId) + 1;
-                return <div key={h.season} className="rounded-lg border border-border/60 bg-card/40 px-3 py-2 flex items-center justify-between text-xs">
+                return <div key={`${h.division}-${h.season}`} className="rounded-lg border border-border/60 bg-card/40 px-3 py-2 flex items-center justify-between text-xs">
                   <span className="font-display">Temporada {h.season}</span><span>{me ? `${me}° · ${sorted[me - 1]?.pts ?? 0} pts` : "Sin participación"}</span>
                 </div>;
               })}
@@ -1013,25 +1011,147 @@ function CompeticionTab({ state, teamId }: { state: CareerState; teamId: string 
     );
   }
 
+  // Primera Nacional: SIEMPRE se muestran las dos zonas separadas.
+  if (division === "primera_nacional") {
+    const allMatches = [...state.matches, ...(state.otherMatches ?? [])];
+    const zm = state.federalZoneMap ?? Object.fromEntries(getTeamsByDivision(division).map(t => [t.id, t.zone ?? "A"]));
+    const zoneTables = new Map<string, StandingRow[]>();
+    for (const z of ["A", "B"]) {
+      const ids = Object.keys(zm).filter(id => zm[id] === z);
+      let rows = emptyStandings(ids);
+      for (const m of allMatches) if (ids.includes(m.home) && ids.includes(m.away) && m.played) rows = applyMatchToStandings(rows, m);
+      // Los interzonales alimentan la tabla de ambos clubes.
+      for (const m of allMatches) if (m.played && ids.includes(m.home) !== ids.includes(m.away)) rows = applyMatchToStandings(rows, m);
+      zoneTables.set(z, sortStandings(rows));
+    }
+    // Si el mapa persistido no está disponible en saves antiguos, derivamos por las tablas existentes.
+    if ((zoneTables.get("A")?.length ?? 0) === 0 || (zoneTables.get("B")?.length ?? 0) === 0) {
+      zoneTables.set(state.zone || "A", sortStandings(state.standings));
+      if (state.otherStandings) zoneTables.set(state.zone === "A" ? "B" : "A", sortStandings(state.otherStandings));
+    }
+    const zoneA = zoneTables.get("A") ?? [];
+    const zoneB = zoneTables.get("B") ?? [];
+    const labels = (z: string) => z === "A" ? "Zona A · 1° = Final por 1er ascenso · 2°-8° = Reducido" : "Zona B · 1° = Final por 1er ascenso · 2°-8° = Reducido";
+    return (
+      <div className="space-y-3">
+        <CompetitionMovementPanel division={division} state={state} teamId={teamId} />
+        <div className="grid lg:grid-cols-2 gap-3">
+          <TablaZona title={labels("A")} rows={zoneA} highlight={teamId} matches={allMatches} division={division} statusMode="pn" />
+          <TablaZona title={labels("B")} rows={zoneB} highlight={teamId} matches={allMatches} division={division} statusMode="pn" />
+        </div>
+        <div className="hud-panel p-4">
+          <div className="font-display text-sm uppercase tracking-widest text-celeste mb-2">ASCENSO Y REDUCIDO · PRIMERA NACIONAL</div>
+          <div className="grid md:grid-cols-2 gap-2 text-xs text-muted-foreground">
+            <div className="rounded-lg border border-hud-green/20 bg-hud-green/5 p-3"><b className="text-hud-green">1° de Zona A + 1° de Zona B:</b> final a partido único en cancha neutral. El ganador asciende a Primera División.</div>
+            <div className="rounded-lg border border-celeste/20 bg-celeste/5 p-3"><b className="text-celeste">2° al 8° de A + 2° al 8° de B:</b> 14 equipos. Se cruzan entre zonas; los 7 ganadores se unen al perdedor de la final para formar 8 equipos de cuartos. De ahí salen semis y final por el 2° ascenso.</div>
+          </div>
+          <div className="mt-2 text-[10px] text-muted-foreground">Todos los cruces del Reducido son a partido único. En empate, ventaja deportiva para el mejor ubicado.</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Regional Amateur: cada grupo va por separado. Nunca se mezclan todos los clubes en una sola tabla.
+  if (division === "regional_federal_amateur") {
+    const roster = state.leagueRosters?.regional_federal_amateur ?? getTeamsByDivision(division).map(t => t.id);
+    const allMatches = [...state.matches, ...(state.otherMatches ?? [])];
+    const groups = new Map<string, string[]>();
+    for (const id of roster) {
+      const meta = getRegionalTeamMeta(id);
+      if (!meta) continue;
+      const key = `${meta.region}::${meta.group}`;
+      (groups.get(key) ?? groups.set(key, []).get(key)!).push(id);
+    }
+    const tables: Array<{ key: string; region: string; group: string; rows: StandingRow[] }> = [];
+    for (const [key, ids] of [...groups.entries()].sort(([a], [b]) => a.localeCompare(b, "es", { numeric: true }))) {
+      let rows = emptyStandings(ids);
+      for (const m of allMatches) if (m.played && ids.includes(m.home) && ids.includes(m.away)) rows = applyMatchToStandings(rows, m);
+      tables.push({ key, region: key.split("::")[0], group: key.split("::")[1], rows: sortStandings(rows) });
+    }
+    const byRegion = new Map<string, typeof tables>();
+    for (const t of tables) (byRegion.get(t.region) ?? byRegion.set(t.region, []).get(t.region)!).push(t);
+    return (
+      <div className="space-y-4">
+        <CompetitionMovementPanel division={division} state={state} teamId={teamId} />
+        {[...byRegion.entries()].map(([region, regionTables]) => (
+          <section key={region} className="space-y-2">
+            <div className="flex items-center justify-between px-1">
+              <div><div className="font-display text-xl text-celeste">{region}</div><div className="text-[10px] text-muted-foreground uppercase tracking-widest">Primera ronda · grupos geográficos de 3/4 · ida y vuelta</div></div>
+              <span className="text-[10px] text-muted-foreground">{regionTables.reduce((n, x) => n + x.rows.length, 0)} clubes</span>
+            </div>
+            <div className="grid lg:grid-cols-2 xl:grid-cols-3 gap-3">
+              {regionTables.map(t => (
+                <TablaZona key={t.key} title={`Grupo ${t.group}`} rows={t.rows} highlight={teamId} matches={allMatches} division={division} statusMode="regional" />
+              ))}
+            </div>
+          </section>
+        ))}
+        <div className="hud-panel p-4 text-xs text-muted-foreground">
+          <div className="font-display text-sm uppercase tracking-widest text-celeste mb-2">FORMATO REGIONAL FEDERAL AMATEUR</div>
+          <div>1ª ronda: grupos geográficos de 3/4, ida y vuelta. Después: eliminatorias regionales a doble partido hasta definir 8 campeones regionales. Los 8 campeones juegan 4 finales nacionales a partido único; los 4 ganadores ascienden al Federal A.</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Federal A: se muestran las cuatro zonas reales de la Fase 1, no una tabla nacional única.
+  if (division === "federal_a") {
+    const ids = state.leagueRosters?.federal_a ?? getTeamsByDivision(division).map(t => t.id);
+    const zm = state.federalZoneMap ?? buildFederalZoneMap(ids);
+    const allMatches = [...state.matches, ...(state.otherMatches ?? [])];
+    const zones = ["A", "B", "C", "D"].map(z => {
+      const zoneIds = ids.filter(id => zm[id] === z);
+      let rows = emptyStandings(zoneIds);
+      for (const m of allMatches) if (m.played && zoneIds.includes(m.home) && zoneIds.includes(m.away)) rows = applyMatchToStandings(rows, m);
+      return { z, rows: sortStandings(rows), count: zoneIds.length };
+    });
+    return (
+      <div className="space-y-3">
+        <CompetitionMovementPanel division={division} state={state} teamId={teamId} />
+        <div className="grid lg:grid-cols-2 gap-3">
+          {zones.map(({ z, rows, count }) => <TablaZona key={z} title={`Fase 1 · Zona ${z} (${count} equipos)`} rows={rows} highlight={teamId} matches={allMatches} division={division} statusMode="fa_phase1" />)}
+        </div>
+        <div className="grid md:grid-cols-2 gap-3">
+          <div className="hud-panel p-4"><div className="font-display text-sm uppercase tracking-widest text-hud-green mb-2">ZONA CAMPEONATO · 18</div><p className="text-xs text-muted-foreground">Entran 5° de la zona de 10, 4° de cada zona de 9 y el mejor 5° restante. Se forman 2 zonas de 9 a una rueda. Los 4 mejores de cada una van a cuartos, luego semis y final a doble partido por el 1° ascenso.</p></div>
+          <div className="hud-panel p-4"><div className="font-display text-sm uppercase tracking-widest text-celeste mb-2">FASE REVÁLIDA · 19</div><p className="text-xs text-muted-foreground">Los 19 restantes se dividen en grupos 9+10 a una rueda. Los 5 mejores de cada grupo pasan a eliminatorias por el 2° ascenso. Los 4 últimos de la Reválida descienden al Regional Amateur.</p></div>
+        </div>
+      </div>
+    );
+  }
+
+  if (division === "primera_c") {
+    const allMatches = [...state.matches, ...(state.otherMatches ?? [])];
+    const zm = state.federalZoneMap ?? Object.fromEntries(getTeamsByDivision(division).map(t => [t.id, t.zone ?? "A"]));
+    const tables = ["A", "B"].map(z => {
+      const ids = Object.keys(zm).filter(id => zm[id] === z);
+      let rows = emptyStandings(ids);
+      for (const m of allMatches) if (m.played && (ids.includes(m.home) || ids.includes(m.away))) rows = applyMatchToStandings(rows, m);
+      return { z, rows: sortStandings(rows) };
+    });
+    return (
+      <div className="space-y-3">
+        <CompetitionMovementPanel division={division} state={state} teamId={teamId} />
+        <div className="grid lg:grid-cols-2 gap-3">
+          {tables.map(({ z, rows }) => <TablaZona key={z} title={`Zona ${z} · 1° = Final · 2°-7° = Reducido`} rows={rows} highlight={teamId} matches={allMatches} division={division} statusMode="pc" />)}
+        </div>
+      </div>
+    );
+  }
+
+  // Primera B: una sola tabla, 42 fechas.
+  const allMatches = [...state.matches, ...(state.otherMatches ?? [])];
   return (
     <div className="space-y-3">
       <CompetitionMovementPanel division={division} state={state} teamId={teamId} />
       <TablaZona
-        title={rules.hasZones ? `Tabla de la temporada · Zona ${state.zone}` : `Tabla anual · ${rules.name}`}
+        title={`Tabla general · ${rules.name} · 42 fechas`}
         rows={sortStandings(state.standings)}
         highlight={teamId}
-        matches={state.matches}
+        matches={allMatches}
         division={division}
         relegated={divisionRelegationCandidates(state)}
+        statusMode="pb"
       />
-      {state.otherStandings && state.otherStandings.length > 0 && (
-        <TablaZona
-          title={`Zona ${state.zone === "A" ? "B" : "A"} (simulada)`}
-          rows={sortStandings(state.otherStandings)}
-          matches={state.otherMatches ?? []}
-          division={division}
-        />
-      )}
     </div>
   );
 }
@@ -1128,7 +1248,7 @@ function recentForm(teamId: string, matches: Match[]): ("V" | "E" | "D")[] {
     });
 }
 
-function TablaZona({ title, rows, highlight, matches, division = "primera_nacional", relegated = [] as string[] }: { title: string; rows: StandingRow[]; highlight?: string; matches: Match[]; division?: DivisionId; relegated?: string[] }) {
+function TablaZona({ title, rows, highlight, matches, division = "primera_nacional", relegated = [] as string[], statusMode = "generic" }: { title: string; rows: StandingRow[]; highlight?: string; matches: Match[]; division?: DivisionId; relegated?: string[]; statusMode?: "generic" | "pn" | "pb" | "pc" | "regional" | "fa_phase1" }) {
   return (
     <div className="hud-panel overflow-hidden">
       <div className="px-4 py-2.5 font-display text-sm uppercase tracking-widest text-celeste border-b border-border flex items-center justify-between">
@@ -1155,12 +1275,41 @@ function TablaZona({ title, rows, highlight, matches, division = "primera_nacion
               const pos = i + 1;
               const isChamp = pos === 1;
               const rules = COMPETITIONS[division];
-              const directSlots = rules.promotion[0]?.directSlots ?? 0;
-              const playoffSlots = rules.promotion[0]?.playoffSlots ?? 0;
-              const playoffRange = directSlots + playoffSlots * 4;
-              const inReducido = division !== "primera_division" && playoffSlots > 0 && pos > directSlots && pos <= playoffRange;
-              const isPromoted = division !== "primera_division" && directSlots > 0 && pos <= directSlots;
               const isRelegated = relegated.includes(r.teamId);
+              let status = "";
+              let isChamp = false;
+              let isPromoted = false;
+              let inReducido = false;
+              if (statusMode === "pn") {
+                status = pos === 1 ? "FINAL ASC." : pos <= 8 ? "REDUCIDO" : "";
+                isChamp = pos === 1;
+                inReducido = pos >= 2 && pos <= 8;
+              } else if (statusMode === "pb") {
+                status = pos === 1 ? "ASC. DIRECTO" : pos >= 2 && pos <= 9 ? "REDUCIDO" : "";
+                isChamp = pos === 1;
+                isPromoted = pos === 1;
+                inReducido = pos >= 2 && pos <= 9;
+              } else if (statusMode === "pc") {
+                status = pos === 1 ? "FINAL ASC." : pos >= 2 && pos <= 7 ? "REDUCIDO" : "";
+                isChamp = pos === 1;
+                inReducido = pos >= 2 && pos <= 7;
+              } else if (statusMode === "regional") {
+                status = pos <= 2 ? "CLASIF." : "";
+                isChamp = pos === 1;
+                inReducido = pos <= 2;
+              } else if (statusMode === "fa_phase1") {
+                status = pos <= 4 ? "CAMPEONATO" : pos === 5 ? "REPECHAJE" : "REVÁLIDA";
+                isPromoted = pos <= 4;
+                inReducido = pos <= 5;
+              } else {
+                const directSlots = rules.promotion[0]?.directSlots ?? 0;
+                const playoffSlots = rules.promotion[0]?.playoffSlots ?? 0;
+                const playoffRange = directSlots + playoffSlots * 8;
+                inReducido = division !== "primera_division" && playoffSlots > 0 && pos > directSlots && pos <= playoffRange;
+                isPromoted = division !== "primera_division" && directSlots > 0 && pos <= directSlots;
+                isChamp = pos === 1;
+                status = isRelegated ? "DESC." : isChamp ? "CAMPEÓN" : isPromoted ? "ASC." : inReducido ? "PLAYOFF" : "";
+              }
               const form = recentForm(r.teamId, matches);
               return (
                 <tr key={r.teamId} className={`border-t border-border/40 transition-colors ${
@@ -1193,7 +1342,7 @@ function TablaZona({ title, rows, highlight, matches, division = "primera_nacion
                       ))}
                     </div>
                   </td>
-                  <td className="px-2 py-1.5 text-center text-[10px] font-display">{isRelegated ? <span className="text-destructive">DESC.</span> : isChamp ? <span className="text-accent">CAMPEÓN</span> : isPromoted ? <span className="text-hud-green">ASC.</span> : inReducido ? <span className="text-celeste">PLAYOFF</span> : ""}</td>
+                  <td className="px-2 py-1.5 text-center text-[10px] font-display">{isRelegated ? <span className="text-destructive">DESC.</span> : status ? <span className={isChamp || isPromoted ? "text-hud-green" : inReducido ? "text-celeste" : "text-muted-foreground"}>{status}</span> : ""}</td>
                 </tr>
               );
             })}
