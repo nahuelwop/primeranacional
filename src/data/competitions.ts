@@ -137,7 +137,7 @@ export const COMPETITIONS: Record<DivisionId, CompetitionRules> = {
     zones: ["A", "B", "C", "D"],
     promotion: [{ to: "primera_nacional", directSlots: 2, playoffSlots: 0 }],
     relegation: [{ to: "regional_federal_amateur", slots: 4 }],
-    formatLabel: "4 zonas geográficas · 4 ruedas · fase campeonato/playoffs y reválida",
+    formatLabel: "37 equipos · 4 zonas geográficas (10+9+9+9) · Fase 1 ida y vuelta + Campeonato/Reválida",
     usesAffiliation: false,
   },
 };
