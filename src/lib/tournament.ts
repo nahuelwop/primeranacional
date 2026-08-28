@@ -1,8 +1,8 @@
-import { getTeamById } from "@/data/teams-catalog";
+import { getTeamById, getRegionalTeamMeta } from "@/data/teams-catalog";
 import { FIXTURE_2026, isClasicoMatch } from "@/data/fixture2026";
 import type { DivisionId } from "@/data/competitions";
 
-export type MatchPhase = "apertura" | "interzonal" | "clausura" | "liga" | "reducido" | "federal";
+export type MatchPhase = "apertura" | "interzonal" | "clausura" | "liga" | "reducido" | "federal" | "regional" | "regional_playoff" | "regional_final";
 
 export function buildOfficialFixture(): Match[] {
   return FIXTURE_2026.map(([round, home, away]) => {
@@ -69,6 +69,109 @@ export function generateMultiRoundRobin(teamIds: string[], zone: string, wheels 
   return out;
 }
 
+
+export type RegionalSeasonResult = {
+  groupStandings: Record<string, StandingRow[]>;
+  regionalChampions: string[];
+  promotedToFederalA: string[];
+  matches: Match[];
+};
+
+export function buildRegionalGroupMap(teamIds: string[]): Record<string, string> {
+  const map: Record<string, string> = {};
+  for (const id of teamIds) {
+    const meta = getRegionalTeamMeta(id);
+    if (meta) map[id] = `${meta.region}::${meta.group}`;
+  }
+  return map;
+}
+
+function simulateTie(a: string, b: string): { winner: string; matches: Match[] } {
+  const h1 = simulateMatch(a, b);
+  const h2 = simulateMatch(b, a);
+  const aTotal = h1.hg + h2.ag;
+  const bTotal = h1.ag + h2.hg;
+  let winner: string;
+  if (aTotal > bTotal) winner = a;
+  else if (bTotal > aTotal) winner = b;
+  else winner = teamSimulationStrength(a) >= teamSimulationStrength(b) ? a : b;
+  return {
+    winner,
+    matches: [
+      { id: `RFE-${a}-${b}-1`, round: 1, home: a, away: b, homeGoals: h1.hg, awayGoals: h1.ag, played: true, phase: "regional_playoff" },
+      { id: `RFE-${b}-${a}-2`, round: 2, home: b, away: a, homeGoals: h2.hg, awayGoals: h2.ag, played: true, phase: "regional_playoff" },
+    ],
+  };
+}
+
+export function simulateRegionalTournament(roster: string[]): RegionalSeasonResult {
+  const groupStandings: Record<string, StandingRow[]> = {};
+  const allGroupMatches: Match[] = [];
+  const byRegion = new Map<string, string[][]>();
+  const groups = new Map<string, string[]>();
+  for (const id of roster) {
+    const meta = getRegionalTeamMeta(id);
+    if (!meta) continue;
+    const key = `${meta.region}::${meta.group}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(id);
+  }
+  for (const [key, ids] of groups) {
+    const played = generateDoubleRoundRobin(ids, `RFE-${key}`).map(m => ({ ...m, phase: "regional" as const }));
+    let rows = emptyStandings(ids);
+    for (const m of played) {
+      const { hg, ag } = simulateMatch(m.home, m.away);
+      const pm = { ...m, played: true, homeGoals: hg, awayGoals: ag };
+      allGroupMatches.push(pm);
+      rows = applyMatchToStandings(rows, pm);
+    }
+    groupStandings[key] = sortStandings(rows);
+    const region = key.split("::")[0];
+    const list = byRegion.get(region) ?? [];
+    list.push(rows.map(r => r.teamId));
+    byRegion.set(region, list);
+  }
+
+  const regionalChampions: string[] = [];
+  const playoffMatches: Match[] = [];
+  for (const [region, regionGroups] of byRegion) {
+    const candidates: string[] = [];
+    // Campeones de zona + segundos; el corte se hace por rendimiento cuando hay más de 16.
+    const seconds: StandingRow[] = [];
+    for (const ids of regionGroups) {
+      const key = `${region}::${getRegionalTeamMeta(ids[0])?.group ?? ""}`;
+      const rows = groupStandings[key] ?? [];
+      if (rows[0]) candidates.push(rows[0].teamId);
+      if (rows[1]) seconds.push(rows[1]);
+    }
+    const desired = Math.max(2, Math.min(16, 2 ** Math.ceil(Math.log2(Math.max(2, candidates.length + seconds.length)))));
+    for (const row of seconds.sort((a,b) => teamSimulationStrength(b.teamId)-teamSimulationStrength(a.teamId)).slice(0, Math.max(0, desired - candidates.length))) candidates.push(row.teamId);
+    let current = [...candidates];
+    while (current.length > 1) {
+      const next: string[] = [];
+      for (let i = 0; i < current.length; i += 2) {
+        if (!current[i + 1]) { next.push(current[i]); continue; }
+        const tie = simulateTie(current[i], current[i + 1]);
+        playoffMatches.push(...tie.matches.map(m => ({ ...m, id: `${region}-${m.id}` })));
+        next.push(tie.winner);
+      }
+      current = next;
+    }
+    if (current[0]) regionalChampions.push(current[0]);
+  }
+
+  // Ocho campeones regionales -> cuatro finales nacionales a partido único.
+  const promotedToFederalA: string[] = [];
+  for (let i = 0; i + 1 < regionalChampions.length; i += 2) {
+    const a = regionalChampions[i], b = regionalChampions[i + 1];
+    const sa = simulateMatch(a, b);
+    const winner = sa.hg > sa.ag ? a : sa.ag > sa.hg ? b : (teamSimulationStrength(a) >= teamSimulationStrength(b) ? a : b);
+    promotedToFederalA.push(winner);
+    playoffMatches.push({ id: `RFE-NAC-${a}-${b}`, round: 99, home: a, away: b, homeGoals: sa.hg, awayGoals: sa.ag, played: true, phase: "regional_final" });
+  }
+  return { groupStandings, regionalChampions, promotedToFederalA: promotedToFederalA.slice(0, 4), matches: [...allGroupMatches, ...playoffMatches] };
+}
+
 /** Asigna de forma estable un plantel de Federal A a cuatro zonas. */
 export function buildFederalZoneMap(teamIds: string[]): Record<string, string> {
   const zones = ["A", "B", "C", "D"];
@@ -124,6 +227,19 @@ export function buildDivisionCareerFixture(division: DivisionId, teamIds: string
     const baseRounds = Math.max(0, apertura.reduce((n, m) => Math.max(n, m.round), 0));
     const clausura = generateRoundRobin(ids, "C-Clausura").map(m => ({ ...m, round: m.round + baseRounds, id: `C-clausura-r${m.round + baseRounds}-${m.home}-${m.away}`, phase: "clausura" as const }));
     return { matches: [...apertura, ...clausura], otherMatches: [], zone: "A", activeTeamIds: ids };
+  }
+
+  if (division === "regional_federal_amateur") {
+    const meta = getRegionalTeamMeta(userTeamId ?? "");
+    const userGroup = meta ? `${meta.region}::${meta.group}` : "Norte::1";
+    const matches = generateDoubleRoundRobin(ids.filter(id => buildRegionalGroupMap(ids)[id] === userGroup), `RFE-${userGroup}`).map(m => ({ ...m, phase: "regional" as const }));
+    const other = ids.filter(id => buildRegionalGroupMap(ids)[id] !== userGroup);
+    const otherMatches: Match[] = [];
+    const groupMap = buildRegionalGroupMap(ids);
+    const grouped = new Map<string,string[]>();
+    for (const id of other) { const key = groupMap[id]; if (key) (grouped.get(key) ?? grouped.set(key, []).get(key)!).push(id); }
+    for (const [key, group] of grouped) otherMatches.push(...generateDoubleRoundRobin(group, `RFE-${key}`).map(m => ({ ...m, phase: "regional" as const })));
+    return { matches, otherMatches, zone: meta?.region ?? "Norte", activeTeamIds: ids.filter(id => groupMap[id] === userGroup) };
   }
 
   if (division === "federal_a") {
