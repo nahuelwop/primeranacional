@@ -47,19 +47,18 @@ export const REGIONAL_CLUBS: RegionalClubSeed[] = [
   R("vialidad-salta-r4", "Vialidad", "Rosario de la Frontera", "Salta", "Norte", "4"),
   R("mitre-salta-r5", "Mitre", "Salta", "Salta", "Norte", "5"),
   R("ceferino-r5", "Ceferino", "Cafayate", "Salta", "Norte", "5"),
-  R("laflorida-r5", "La Florida", "Joaquín V. González", "Salta", "Norte", "5"),
+  R("laflorida-r5", "La Florida", "Cafayate", "Salta", "Norte", "5"),
   R("redesdelapatria-r5", "Redes de la Patria", "El Bordo", "Salta", "Norte", "5"),
-  R("gimnasiatiro-yavi-r6", "Gimnasia y Tiro", "Yavi", "Jujuy", "Norte", "6"),
+  R("gimnasiatiro-yavi-r6", "Gimnasia y Tiro", "La Quiaca", "Jujuy", "Norte", "6"),
   R("losperales-r6", "Los Perales", "San Salvador de Jujuy", "Jujuy", "Norte", "6"),
-  R("deportivolujan-jujuy-r6", "Deportivo Luján", "San Salvador de Jujuy", "Jujuy", "Norte", "6"),
-  R("unionalberdi-r6", "Unión Alberdi", "San Salvador de Jujuy", "Jujuy", "Norte", "6"),
+  R("deportivolujan-jujuy-r6", "Deportivo Luján", "Tilcara", "Jujuy", "Norte", "6"),
   R("lamona44-r7", "La Mona 44", "Perico", "Jujuy", "Norte", "7"),
   R("talleresperico-r7", "Talleres", "Perico", "Jujuy", "Norte", "7"),
   R("altoshornoszapla-r7", "Altos Hornos Zapla", "San Salvador de Jujuy", "Jujuy", "Norte", "7"),
   R("defensoresfrailepintado-r7", "Defensores de Fraile Pintado", "Fraile Pintado", "Jujuy", "Norte", "7"),
   R("sportivoalberdi-r8", "Sportivo Alberdi", "Libertador Gral. San Martín", "Jujuy", "Norte", "8"),
   R("centralnorte-libertador-r8", "Central Norte", "Libertador Gral. San Martín", "Jujuy", "Norte", "8"),
-  R("tiroygimnasia-salta-r8", "Tiro y Gimnasia", "Salta", "Salta", "Norte", "8"),
+  R("tiroygimnasia-salta-r8", "Tiro y Gimnasia", "San Pedro de Jujuy", "Jujuy", "Norte", "8"),
   R("atleticosanpedro-r8", "Atlético San Pedro", "San Pedro de Jujuy", "Jujuy", "Norte", "8"),
 
   // LITORAL NORTE
@@ -67,7 +66,7 @@ export const REGIONAL_CLUBS: RegionalClubSeed[] = [
   R("8dediciembre-r1", "8 de Diciembre", "Formosa", "Formosa", "Litoral Norte", "1"),
   R("estrellaslaishi-r2", "Estrellas de Laishí", "San Francisco de Laishí", "Formosa", "Litoral Norte", "2"),
   R("estudiantes-pirane-r2", "Estudiantes", "Pirané", "Formosa", "Litoral Norte", "2"),
-  R("municipal-laleonesa-r2", "Municipal", "La Leonesa", "Chaco", "Litoral Norte", "2"),
+  R("municipal-laleonesa-r2", "Municipal", "San Francisco de Laishí", "Formosa", "Litoral Norte", "2"),
   R("resistenciacentral-r3", "Resistencia Central", "Resistencia", "Chaco", "Litoral Norte", "3"),
   R("centralnorteargentino-r3", "Central Norte Argentino", "Resistencia", "Chaco", "Litoral Norte", "3"),
   R("deportivolujan-resistencia-r3", "Deportivo Luján", "Resistencia", "Chaco", "Litoral Norte", "3"),
@@ -86,6 +85,10 @@ export const REGIONAL_CLUBS: RegionalClubSeed[] = [
   R("guaraniantoniofranco-r8", "Guaraní Antonio Franco", "Posadas", "Misiones", "Litoral Norte", "8"),
   R("crucerodelnorte-r8", "Crucero del Norte", "Garupá", "Misiones", "Litoral Norte", "8"),
   R("barrioobrero-misiones-r8", "Barrio Obrero", "Puerto Esperanza", "Misiones", "Litoral Norte", "8"),
+  R("lacantera-misiones-r8", "La Cantera", "Puerto Esperanza", "Misiones", "Litoral Norte", "8"),
+  R("lapicada-misiones-r8", "La Picada", "Posadas", "Misiones", "Litoral Norte", "8"),
+  R("jorgegibsonbrown-misiones-r8", "Jorge Gibson Brown", "Posadas", "Misiones", "Litoral Norte", "8"),
+  R("nacional-piray-r8", "Nacional (Piray)", "Puerto Piray", "Misiones", "Litoral Norte", "8"),
 
   // LITORAL SUR
   R("losandes-alcorta-r1", "Los Andes", "Alcorta", "Santa Fe", "Litoral Sur", "1"),
@@ -163,8 +166,6 @@ export const REGIONAL_CLUBS: RegionalClubSeed[] = [
   R("martinezmoreno-r3", "Martínez Moreno", "El Jagüel", "Buenos Aires", "Pampeana Norte", "3"),
   R("sportivobaradero-r4", "Sportivo Baradero", "Baradero", "Buenos Aires", "Pampeana Norte", "4"),
   R("atleticobaradero-r4", "Atlético Baradero", "Baradero", "Buenos Aires", "Pampeana Norte", "4"),
-  R("atletico-mitre-sanpedro-r4", "Atl. Mitre", "San Pedro", "Buenos Aires", "Pampeana Norte", "4"),
-  R("paranalfc-sanpedro-r4", "Paraná FC", "San Pedro", "Buenos Aires", "Pampeana Norte", "4"),
   R("carmenareco-r5", "Recreativo Carmen de Areco", "Carmen de Areco", "Buenos Aires", "Pampeana Norte", "5"),
   R("sportsman-carmen-r5", "Sportsman", "Carmen de Areco", "Buenos Aires", "Pampeana Norte", "5"),
   R("elfronton-r5", "El Frontón", "San Andrés de Giles", "Buenos Aires", "Pampeana Norte", "5"),
@@ -236,35 +237,40 @@ export const REGIONAL_CLUBS: RegionalClubSeed[] = [
   R("lasserre-r6", "Lasserre", "Ushuaia", "Tierra del Fuego", "Patagonia", "6"),
 ];
 
-function seededStat(seed: string, min: number, span: number): number {
-  let h = 2166136261;
-  for (let i = 0; i < seed.length; i++) h = Math.imul(h ^ seed.charCodeAt(i), 16777619);
-  return min + (Math.abs(h) % span);
+type RegionalRating = readonly [number, number, number, number];
+
+// Ratings entregados por el usuario para la nómina depurada del Regional.
+// Ordenados exactamente igual que REGIONAL_CLUBS; no se generan aleatoriamente.
+const REGIONAL_RATINGS: RegionalRating[] = [
+  // Norte (30)
+  [66,62,68,65],[63,60,61,62],[60,65,63,64],[64,61,62,61],[62,63,60,61],[61,60,62,63],[63,64,61,65],[65,67,64,68],[67,66,65,64],[64,62,63,62],[66,65,64,66],[62,63,61,62],[63,64,62,63],[61,62,60,61],[64,63,65,64],[68,67,69,68],[59,58,60,58],[58,57,59,60],[63,62,61,62],[66,65,67,64],[62,63,61,62],[61,60,62,61],[62,61,63,62],[65,64,65,65],[66,67,68,67],[59,60,58,60],[61,62,61,63],[64,63,64,64],[60,61,60,62],[62,63,62,63],
+  // Litoral Norte (27)
+  [63,62,61,64],[65,64,66,65],[61,60,63,62],[60,59,61,60],[62,61,60,62],[65,66,64,65],[66,65,67,66],[64,63,64,65],[62,61,63,63],[61,60,62,61],[63,62,64,62],[64,63,63,62],[68,67,69,68],[66,65,64,65],[65,64,66,64],[63,62,61,62],[62,61,63,61],[61,60,62,60],[64,63,62,63],[63,62,63,62],[70,71,69,68],[71,70,72,69],[61,60,62,60],[60,59,61,60],[62,61,62,61],[60,59,61,60],[59,60,61,60],
+  // Litoral Sur (18)
+  [64,63,62,63],[63,62,64,62],[62,61,61,62],[65,66,64,65],[64,63,63,64],[63,62,64,63],[64,63,65,64],[63,62,63,62],[61,60,62,61],[66,64,65,66],[62,61,63,62],[63,62,64,63],[65,64,66,64],[64,63,65,63],[66,67,65,66],[64,63,64,63],[65,64,65,64],[63,62,64,63],
+  // Centro (16)
+  [61,60,62,60],[60,59,61,59],[62,61,60,61],[60,59,61,60],[61,60,62,60],[61,60,61,60],[62,63,61,62],[60,59,60,60],[61,60,62,61],[62,61,62,62],[61,60,61,60],[60,59,60,60],[61,60,61,61],[62,63,60,62],[63,62,61,62],[61,60,62,61],
+  // Cuyo (22)
+  [64,63,65,64],[63,62,64,63],[62,61,63,62],[65,64,66,65],[62,61,62,61],[63,62,63,62],[64,63,64,63],[63,62,63,62],[64,63,65,64],[65,64,65,65],[63,62,64,63],[62,61,62,62],[64,63,64,64],[63,62,63,63],[62,61,62,62],[61,60,62,60],[62,63,61,62],[61,60,61,61],[61,60,61,61],[64,63,65,64],[63,62,64,63],[62,61,62,62],
+  // Pampeana Norte (24)
+  [61,60,62,61],[60,59,61,60],[62,63,61,62],[61,60,62,61],[60,59,60,61],[63,62,64,63],[62,61,63,62],[61,60,62,60],[60,59,61,60],[62,63,62,62],[61,60,61,60],[63,64,63,64],[62,61,62,62],[61,60,62,60],[60,59,61,60],[62,61,63,62],[61,60,62,61],[62,61,63,62],[60,59,62,60],[62,61,63,62],[60,59,60,60],[61,60,62,61],[60,59,61,60],[62,61,62,62],
+  // Pampeana Sur (23)
+  [60,59,61,60],[61,60,62,61],[62,61,60,62],[59,58,60,59],[60,59,60,60],[59,58,59,59],[61,60,62,61],[62,61,61,62],[60,59,60,60],[61,60,62,61],[60,59,60,60],[62,61,63,62],[61,60,62,61],[61,60,61,61],[60,59,60,60],[59,58,60,59],[60,59,61,60],[62,61,62,62],[60,59,60,60],[61,60,62,61],[60,59,60,60],[59,58,59,59],[60,59,60,60],
+  // Patagonia (31)
+  [60,59,60,60],[59,58,60,59],[59,58,59,59],[62,61,63,62],[61,60,62,61],[63,62,64,63],[60,59,61,60],[60,59,60,60],[59,58,60,59],[60,59,61,60],[60,59,60,60],[62,61,63,62],[61,60,62,61],[62,61,62,62],[60,59,61,60],[61,60,62,61],[60,59,60,60],[59,58,59,59],[61,60,62,61],[60,59,61,60],[62,61,63,62],[61,60,62,61],[60,59,61,60],[60,59,61,60],[60,59,61,60],[59,58,60,59],[58,57,59,58],[63,62,63,63],[62,61,62,61],[61,60,62,60],[60,59,61,60],
+];
+
+if (REGIONAL_RATINGS.length !== REGIONAL_CLUBS.length) {
+  throw new Error(`Regional ratings mismatch: ${REGIONAL_RATINGS.length} ratings for ${REGIONAL_CLUBS.length} clubs`);
 }
 
-export const REGIONAL_FEDERAL_AMATEUR_TEAMS: Team[] = REGIONAL_CLUBS.map((c) => {
-  const base = seededStat(c.id, 48, 15);
+export const REGIONAL_FEDERAL_AMATEUR_TEAMS: Team[] = REGIONAL_CLUBS.map((c, index) => {
+  const [speed, jump, power, defense] = REGIONAL_RATINGS[index];
   return {
-    id: c.id,
-    name: c.name,
-    short: c.short,
-    city: c.city,
-    province: c.province,
-    regionalRegion: c.region,
-    regionalGroup: c.group,
-    zone: c.group,
-    division: "regional_federal_amateur",
-    primary: "#6b7280",
-    secondary: "#111827",
-    stripe: "solid",
-    stats: {
-      speed: base + 3,
-      jump: base + 1,
-      power: base + 2,
-      defense: Math.max(45, base),
-    },
-    rivals: [],
-    logoUrl: null,
+    id: c.id, name: c.name, short: c.short, city: c.city, province: c.province,
+    regionalRegion: c.region, regionalGroup: c.group, zone: c.group, division: "regional_federal_amateur",
+    primary: "#6b7280", secondary: "#111827", stripe: "solid",
+    stats: { speed, jump, power, defense }, rivals: [], logoUrl: null,
   };
 });
 
