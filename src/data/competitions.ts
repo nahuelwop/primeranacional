@@ -119,16 +119,17 @@ export const COMPETITIONS: Record<DivisionId, CompetitionRules> = {
     formatLabel: "Apertura y Clausura, todos contra todos a una rueda",
     usesAffiliation: false,
   },
-  primera_d: {
-    division: "primera_d",
-    name: "Primera D",
-    shortName: "Primera D",
-    tier: 5,
-    hasZones: false,
-    zones: [],
-    promotion: [{ to: "primera_c", directSlots: 1, playoffSlots: 1 }],
-    relegation: [], // última categoría modelada del circuito metropolitano
-    formatLabel: "Formato aún no especificado en el reglamento cargado",
+  regional_federal_amateur: {
+    division: "regional_federal_amateur",
+    name: "Torneo Regional Federal Amateur",
+    shortName: "Regional Federal",
+    tier: 4,
+    hasZones: true,
+    zones: ["Norte", "Litoral Norte", "Litoral Sur", "Centro", "Cuyo", "Pampeana Norte", "Pampeana Sur", "Patagonia"],
+    promotion: [{ to: "federal_a", directSlots: 4, playoffSlots: 0 }],
+    relegation: [],
+    matchesPerTeam: 6,
+    formatLabel: "8 regiones · zonas de 3/4 ida y vuelta · eliminatorias regionales a doble partido · 4 finales nacionales",
     usesAffiliation: false,
   },
   federal_a: {
@@ -137,10 +138,10 @@ export const COMPETITIONS: Record<DivisionId, CompetitionRules> = {
     shortName: "Federal A",
     tier: 3, // paralela a Primera B dentro del sistema federal
     hasZones: true,
-    zones: ["A", "B"],
-    promotion: [{ to: "primera_nacional", directSlots: 1, playoffSlots: 1 }],
-    relegation: [],
-    formatLabel: "4 zonas geográficas · fase campeonato y reválida",
+    zones: ["A", "B", "C", "D"],
+    promotion: [{ to: "primera_nacional", directSlots: 2, playoffSlots: 0 }],
+    relegation: [{ to: "regional_federal_amateur", slots: 4 }],
+    formatLabel: "4 zonas geográficas · 4 ruedas · fase campeonato/playoffs y reválida",
     usesAffiliation: false,
   },
 };
@@ -151,8 +152,8 @@ export const DIVISION_ORDER: DivisionId[] = [
   "primera_nacional",
   "primera_b",
   "primera_c",
-  "primera_d",
   "federal_a",
+  "regional_federal_amateur",
 ];
 
 // ============================================================================
