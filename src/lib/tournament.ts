@@ -2,73 +2,230 @@ import { getTeamById, getRegionalTeamMeta } from "@/data/teams-catalog";
 import { FIXTURE_2026, isClasicoMatch } from "@/data/fixture2026";
 import type { DivisionId } from "@/data/competitions";
 
-export type MatchPhase = "apertura" | "interzonal" | "clausura" | "liga" | "reducido" | "federal" | "regional" | "regional_playoff" | "regional_final";
+export type MatchPhase =
+  | "apertura" | "interzonal" | "clausura" | "liga" | "reducido"
+  | "federal" | "regional" | "regional_playoff" | "regional_final";
+
+export type Match = {
+  id: string;
+  round: number;
+  home: string;
+  away: string;
+  homeGoals?: number;
+  awayGoals?: number;
+  played: boolean;
+  isClasico?: boolean;
+  phase?: MatchPhase;
+};
+
+export type StandingRow = {
+  teamId: string;
+  pj: number;
+  pg: number;
+  pe: number;
+  pp: number;
+  gf: number;
+  gc: number;
+  dg: number;
+  pts: number;
+};
+
+export type DivisionResolution = {
+  promoted: string[];
+  relegated: string[];
+  extraPromoted?: string[];
+  championshipWinner?: string | null;
+  secondaryChampion?: string | null;
+  phaseStandings?: Record<string, StandingRow[]>;
+  matches?: Match[];
+};
+
+const REGIONAL_REGIONS = [
+  "Norte", "Litoral Norte", "Litoral Sur", "Centro", "Cuyo",
+  "Pampeana Norte", "Pampeana Sur", "Patagonia",
+] as const;
 
 export function buildOfficialFixture(): Match[] {
   return FIXTURE_2026.map(([round, home, away]) => {
     const ht = getTeamById(home);
-    return { id: `F${round}-${home}-${away}`, round, home, away, played: false, isClasico: !!(ht?.rivals?.includes(away)) || isClasicoMatch(home, away) };
+    return {
+      id: `F${round}-${home}-${away}`,
+      round,
+      home,
+      away,
+      played: false,
+      isClasico: !!ht?.rivals?.includes(away) || isClasicoMatch(home, away),
+    };
   });
 }
 
-export type Match = {
-  id: string; round: number; home: string; away: string;
-  homeGoals?: number; awayGoals?: number; played: boolean;
-  isClasico?: boolean; phase?: MatchPhase;
-};
+function stableSortIds(teamIds: string[]): string[] {
+  return [...teamIds].sort((a, b) => {
+    const an = getTeamById(a)?.name ?? a;
+    const bn = getTeamById(b)?.name ?? b;
+    return an.localeCompare(bn, "es") || a.localeCompare(b);
+  });
+}
 
-export type StandingRow = {
-  teamId: string; pj: number; pg: number; pe: number; pp: number;
-  gf: number; gc: number; dg: number; pts: number;
-};
+function balancedMap(teamIds: string[], sizes: number[]): Record<string, string> {
+  const ids = stableSortIds(teamIds);
+  const labels = sizes.map((_, i) => String.fromCharCode(65 + i));
+  const map: Record<string, string> = {};
+  let cursor = 0;
+  // Serpentina estable para que clubes similares no queden siempre juntos.
+  const order: string[] = [];
+  const remaining = [...labels];
+  for (let i = 0; i < ids.length; i++) {
+    const row = Math.floor(i / labels.length);
+    const pos = row % 2 === 0 ? i % labels.length : labels.length - 1 - (i % labels.length);
+    order.push(labels[pos]);
+  }
+  const counts = Object.fromEntries(labels.map(l => [l, 0])) as Record<string, number>;
+  for (const id of ids) {
+    let target = order[cursor] ?? labels[0];
+    if (counts[target] >= (sizes[labels.indexOf(target)] ?? ids.length)) {
+      target = labels.find(l => counts[l] < (sizes[labels.indexOf(l)] ?? ids.length)) ?? labels[0];
+    }
+    map[id] = target;
+    counts[target]++;
+    cursor++;
+  }
+  void remaining;
+  return map;
+}
 
-export function generateRoundRobin(teamIds: string[], zone: "A" | "B" | string): Match[] {
+export function generateRoundRobin(teamIds: string[], zone: "A" | "B" | string, startRound = 1, invertHome = false): Match[] {
   const ids = [...teamIds];
   if (ids.length < 2) return [];
   if (ids.length % 2 === 1) ids.push("__BYE__");
-  const n = ids.length, rounds = n - 1, half = n / 2;
+  const n = ids.length;
+  const rounds = n - 1;
+  const half = n / 2;
   const matches: Match[] = [];
   let arr = [...ids];
   for (let r = 0; r < rounds; r++) {
     for (let i = 0; i < half; i++) {
       const a0 = arr[i], b0 = arr[n - 1 - i];
       if (a0 === "__BYE__" || b0 === "__BYE__") continue;
-      const swap = (r + i) % 2 === 0;
+      const swap = ((r + i) % 2 === 0) !== invertHome;
       const home = swap ? a0 : b0;
       const away = swap ? b0 : a0;
       const ht = getTeamById(home);
-      matches.push({ id: `${zone}-r${r + 1}-${home}-${away}`, round: r + 1, home, away, played: false, isClasico: !!(ht?.rivals?.includes(away)) || isClasicoMatch(home, away) });
+      matches.push({
+        id: `${zone}-r${startRound + r}-${home}-${away}`,
+        round: startRound + r,
+        home,
+        away,
+        played: false,
+        isClasico: !!ht?.rivals?.includes(away) || isClasicoMatch(home, away),
+      });
     }
     arr = [arr[0], ...arr.slice(-1), ...arr.slice(1, -1)];
   }
   return matches;
 }
 
-export function generateDoubleRoundRobin(teamIds: string[], zone: string): Match[] {
-  const first = generateRoundRobin(teamIds, zone);
-  const rounds = Math.max(0, first.reduce((m, x) => Math.max(m, x.round), 0));
-  const second = first.map(m => ({ ...m, id: `${zone}-r${m.round + rounds}-${m.away}-${m.home}`, round: m.round + rounds, home: m.away, away: m.home }));
+export function generateDoubleRoundRobin(teamIds: string[], zone: string, startRound = 1): Match[] {
+  const first = generateRoundRobin(teamIds, zone, startRound, false);
+  const rounds = Math.max(0, first.reduce((m, x) => Math.max(m, x.round), startRound - 1) - startRound + 1);
+  const second = first.map(m => ({
+    ...m,
+    id: `${zone}-r${m.round + rounds}-${m.away}-${m.home}`,
+    round: m.round + rounds,
+    home: m.away,
+    away: m.home,
+    isClasico: m.isClasico,
+  }));
   return [...first, ...second];
 }
 
-export function generateMultiRoundRobin(teamIds: string[], zone: string, wheels = 4): Match[] {
-  const base = generateRoundRobin(teamIds, zone);
-  const rounds = Math.max(0, base.reduce((m, x) => Math.max(m, x.round), 0));
+export function generateMultiRoundRobin(teamIds: string[], zone: string, wheels = 4, startRound = 1): Match[] {
+  const base = generateRoundRobin(teamIds, zone, startRound, false);
+  const rounds = base.length ? Math.max(...base.map(m => m.round)) - startRound + 1 : 0;
   const out: Match[] = [...base];
   for (let wheel = 1; wheel < wheels; wheel++) {
     const offset = rounds * wheel;
-    const copy = base.map((m, i) => ({
+    out.push(...base.map(m => ({
       ...m,
       id: `${zone}-w${wheel + 1}-r${m.round + offset}-${m.away}-${m.home}`,
       round: m.round + offset,
       home: wheel % 2 === 1 ? m.away : m.home,
       away: wheel % 2 === 1 ? m.home : m.away,
-    }));
-    out.push(...copy);
+    })));
   }
   return out;
 }
 
+function buildPerfectCrossZoneRounds(zoneA: string[], zoneB: string[], count: number, prefix: string, startRound: number): Match[] {
+  const a = stableSortIds(zoneA), b = stableSortIds(zoneB);
+  const n = Math.min(a.length, b.length);
+  const matches: Match[] = [];
+  const usedPairs = new Set<string>();
+  for (let round = 0; round < count; round++) {
+    for (let i = 0; i < n; i++) {
+      // Rotación para que cada club cambie de rival entre rondas.
+      const j = (i + round) % n;
+      const home = round % 2 === 0 ? a[i] : b[j];
+      const away = round % 2 === 0 ? b[j] : a[i];
+      const pairKey = [home, away].sort().join("::");
+      if (usedPairs.has(pairKey)) continue;
+      usedPairs.add(pairKey);
+      matches.push({ id: `${prefix}-r${startRound + round}-${home}-${away}`, round: startRound + round, home, away, played: false });
+    }
+  }
+  return matches;
+}
+
+function crossPairsWithRivals(zoneA: string[], zoneB: string[], startRound: number): Match[] {
+  const a = stableSortIds(zoneA);
+  const b = stableSortIds(zoneB);
+  const bSet = new Set(b);
+  const usedA = new Set<string>();
+  const usedB = new Set<string>();
+  const pairs: Array<[string, string]> = [];
+
+  // Primero intentamos respetar los clásicos/rivalidades declarados.
+  for (const aid of a) {
+    const rival = getTeamById(aid)?.rivals?.find(r => bSet.has(r));
+    if (rival && !usedA.has(aid) && !usedB.has(rival)) {
+      pairs.push([aid, rival]);
+      usedA.add(aid); usedB.add(rival);
+    }
+  }
+  const freeA = a.filter(id => !usedA.has(id));
+  const freeB = b.filter(id => !usedB.has(id));
+  for (let i = 0; i < Math.min(freeA.length, freeB.length); i++) {
+    pairs.push([freeA[i], freeB[i]]);
+  }
+  const out: Match[] = [];
+  for (let i = 0; i < pairs.length; i++) {
+    const [aId, bId] = pairs[i];
+    out.push({ id: `PD-CLAS-r${startRound}-${aId}-${bId}`, round: startRound, home: aId, away: bId, played: false, isClasico: !!getTeamById(aId)?.rivals?.includes(bId), phase: "interzonal" });
+  }
+  return out;
+}
+
+function buildSecondInterzonalRound(firstPairs: Match[], zoneA: string[], zoneB: string[], startRound: number): Match[] {
+  const used = new Set(firstPairs.map(m => [m.home, m.away].sort().join("::")));
+  const a = stableSortIds(zoneA), b = stableSortIds(zoneB);
+  const out: Match[] = [];
+  for (let shift = 0; shift < b.length; shift++) {
+    const candidate: Array<[string, string]> = [];
+    for (let i = 0; i < a.length; i++) candidate.push([a[i], b[(i + shift) % b.length]]);
+    const valid = candidate.filter(([x, y]) => !used.has([x, y].sort().join("::")));
+    if (valid.length === a.length) {
+      for (const [x, y] of valid) out.push({ id: `PD-SORT-r${startRound}-${x}-${y}`, round: startRound, home: y, away: x, played: false, phase: "interzonal" });
+      return out;
+    }
+  }
+  // Fallback determinista.
+  for (let i = 0; i < Math.min(a.length, b.length); i++) {
+    let j = (i + 1) % b.length;
+    while (j !== i && used.has([a[i], b[j]].sort().join("::"))) j = (j + 1) % b.length;
+    out.push({ id: `PD-SORT-r${startRound}-${b[j]}-${a[i]}`, round: startRound, home: b[j], away: a[i], played: false, phase: "interzonal" });
+  }
+  return out;
+}
 
 export type RegionalSeasonResult = {
   groupStandings: Record<string, StandingRow[]>;
@@ -77,265 +234,276 @@ export type RegionalSeasonResult = {
   matches: Match[];
 };
 
-const REGIONAL_REGIONS = [
-  "Norte", "Litoral Norte", "Litoral Sur", "Centro", "Cuyo",
-  "Pampeana Norte", "Pampeana Sur", "Patagonia",
-] as const;
-
-function hashText(value: string): number {
-  let h = 2166136261;
-  for (let i = 0; i < value.length; i++) h = Math.imul(h ^ value.charCodeAt(i), 16777619);
-  return h >>> 0;
-}
-
-function inferredRegionalRegion(teamId: string): string {
-  const team = getTeamById(teamId);
-  const province = (team?.province ?? "").toLowerCase();
-  if (["tucumán", "salta", "jujuy", "catamarca"].some(p => province.includes(p))) return "Norte";
-  if (["formosa", "chaco", "corrientes", "misiones"].some(p => province.includes(p))) return "Litoral Norte";
-  if (["santa fe", "entre ríos"].some(p => province.includes(p))) return "Litoral Sur";
-  if (["santiago del estero"].some(p => province.includes(p))) return "Centro";
-  if (["mendoza", "san luis", "san juan"].some(p => province.includes(p))) return "Cuyo";
-  if (province.includes("la pampa") || province.includes("buenos aires")) {
-    // Para nuevos descendidos del Federal A sin región histórica disponible,
-    // se reparte de forma estable entre las dos regiones pampeanas.
-    return hashText(teamId) % 2 === 0 ? "Pampeana Norte" : "Pampeana Sur";
-  }
-  if (["río negro", "chubut", "santa cruz", "tierra del fuego", "neuquén"].some(p => province.includes(p))) return "Patagonia";
-  return REGIONAL_REGIONS[hashText(teamId) % REGIONAL_REGIONS.length];
-}
-
-function inferredRegionalGroup(teamId: string, region: string, existing: Record<string, string>): string {
-  const counts = new Map<string, number>();
-  for (const value of Object.values(existing)) {
-    const [r, g] = value.split("::");
-    if (r === region) counts.set(g, (counts.get(g) ?? 0) + 1);
-  }
-  const groups = Array.from({ length: 8 }, (_, i) => String(i + 1));
-  // Elegimos primero un grupo que aún tenga menos de 4 clubes, minimizando
-  // la variación para no romper las zonas oficiales ya cargadas.
-  groups.sort((a, b) => (counts.get(a) ?? 0) - (counts.get(b) ?? 0) || Number(a) - Number(b));
-  const candidates = groups.filter(g => (counts.get(g) ?? 0) < 4);
-  const pool = candidates.length ? candidates : groups;
-  return pool[hashText(`${teamId}:${region}`) % pool.length];
-}
-
 export function buildRegionalGroupMap(teamIds: string[]): Record<string, string> {
   const map: Record<string, string> = {};
   for (const id of teamIds) {
     const meta = getRegionalTeamMeta(id);
     if (meta) map[id] = `${meta.region}::${meta.group}`;
   }
+  // Los clubes que ingresan desde Federal A conservan una región razonable por provincia.
+  const byProvince: Record<string, string> = {
+    tucuman: "Norte", salta: "Norte", jujuy: "Norte", catamarca: "Norte",
+    formosa: "Litoral Norte", chaco: "Litoral Norte", corrientes: "Litoral Norte", misiones: "Litoral Norte",
+    "santa fe": "Litoral Sur", "entre rios": "Litoral Sur",
+    "santiago del estero": "Centro",
+    mendoza: "Cuyo", "san luis": "Cuyo", "san juan": "Cuyo",
+    "la pampa": "Pampeana Sur", "buenos aires": "Pampeana Norte",
+    "rio negro": "Patagonia", chubut: "Patagonia", "santa cruz": "Patagonia", "tierra del fuego": "Patagonia", neuquen: "Patagonia",
+  };
+  const counts = new Map<string, number>();
+  for (const value of Object.values(map)) {
+    const [r] = value.split("::"); counts.set(`${r}::new`, (counts.get(`${r}::new`) ?? 0) + 1);
+  }
   for (const id of teamIds) {
     if (map[id]) continue;
-    const region = inferredRegionalRegion(id);
-    const group = inferredRegionalGroup(id, region, map);
+    const team = getTeamById(id);
+    const key = (team?.province ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const region = byProvince[key] ?? REGIONAL_REGIONS[0];
+    const existingGroups = Array.from({ length: 8 }, (_, i) => String(i + 1));
+    const group = existingGroups
+      .map(g => `${g}`)
+      .sort((a, b) => {
+        const ca = teamIds.filter(t => map[t] === `${region}::${a}`).length;
+        const cb = teamIds.filter(t => map[t] === `${region}::${b}`).length;
+        return ca - cb || Number(a) - Number(b);
+      })[0] ?? "1";
     map[id] = `${region}::${group}`;
   }
   return map;
 }
 
-function simulateTie(a: string, b: string): { winner: string; matches: Match[] } {
-  const h1 = simulateMatch(a, b);
-  const h2 = simulateMatch(b, a);
-  const aTotal = h1.hg + h2.ag;
-  const bTotal = h1.ag + h2.hg;
-  let winner: string;
-  if (aTotal > bTotal) winner = a;
-  else if (bTotal > aTotal) winner = b;
-  else winner = teamSimulationStrength(a) >= teamSimulationStrength(b) ? a : b;
+function tieBreakOnAggregate(a: string, b: string, aTotal: number, bTotal: number): string {
+  if (aTotal > bTotal) return a;
+  if (bTotal > aTotal) return b;
+  return teamSimulationStrength(a) >= teamSimulationStrength(b) ? a : b;
+}
+
+function simulateTwoLegSeries(a: string, b: string, tag: string, roundBase = 1): { winner: string; matches: Match[] } {
+  const first = simulateMatch(a, b);
+  const second = simulateMatch(b, a);
+  const winner = tieBreakOnAggregate(a, b, first.hg + second.ag, first.ag + second.hg);
   return {
     winner,
     matches: [
-      { id: `RFE-${a}-${b}-1`, round: 1, home: a, away: b, homeGoals: h1.hg, awayGoals: h1.ag, played: true, phase: "regional_playoff" },
-      { id: `RFE-${b}-${a}-2`, round: 2, home: b, away: a, homeGoals: h2.hg, awayGoals: h2.ag, played: true, phase: "regional_playoff" },
+      { id: `${tag}-1-${a}-${b}`, round: roundBase, home: a, away: b, homeGoals: first.hg, awayGoals: first.ag, played: true, phase: "regional_playoff" },
+      { id: `${tag}-2-${b}-${a}`, round: roundBase + 1, home: b, away: a, homeGoals: second.hg, awayGoals: second.ag, played: true, phase: "regional_playoff" },
     ],
   };
 }
 
+function simulateSingleMatch(a: string, b: string, tag: string, round: number, neutral = false): { winner: string; match: Match } {
+  const score = simulateMatch(a, b, neutral);
+  const winner = score.hg > score.ag ? a : score.ag > score.hg ? b : teamSimulationStrength(a) >= teamSimulationStrength(b) ? a : b;
+  return {
+    winner,
+    match: { id: `${tag}-${a}-${b}`, round, home: a, away: b, homeGoals: score.hg, awayGoals: score.ag, played: true, phase: neutral ? "regional_final" : "reducido" },
+  };
+}
+
 export function simulateRegionalTournament(roster: string[]): RegionalSeasonResult {
+  const regionalMap = buildRegionalGroupMap(roster);
   const groupStandings: Record<string, StandingRow[]> = {};
   const allGroupMatches: Match[] = [];
-  const byRegion = new Map<string, string[][]>();
+  const byRegion = new Map<string, Array<{ key: string; rows: StandingRow[] }>>();
+
   const groups = new Map<string, string[]>();
-  const regionalMap = buildRegionalGroupMap(roster);
   for (const id of roster) {
     const key = regionalMap[id];
     if (!key) continue;
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key)!.push(id);
+    (groups.get(key) ?? groups.set(key, []).get(key)!).push(id);
   }
   for (const [key, ids] of groups) {
-    const played = generateDoubleRoundRobin(ids, `RFE-${key}`).map(m => ({ ...m, phase: "regional" as const }));
+    const fixtures = generateDoubleRoundRobin(ids, `RFE-${key}`).map(m => ({ ...m, phase: "regional" as const }));
     let rows = emptyStandings(ids);
-    for (const m of played) {
-      const { hg, ag } = simulateMatch(m.home, m.away);
-      const pm = { ...m, played: true, homeGoals: hg, awayGoals: ag };
-      allGroupMatches.push(pm);
-      rows = applyMatchToStandings(rows, pm);
+    for (const m of fixtures) {
+      const s = simulateMatch(m.home, m.away);
+      const played = { ...m, played: true, homeGoals: s.hg, awayGoals: s.ag };
+      rows = applyMatchToStandings(rows, played);
+      allGroupMatches.push(played);
     }
     groupStandings[key] = sortStandings(rows);
     const region = key.split("::")[0];
-    const list = byRegion.get(region) ?? [];
-    list.push(rows.map(r => r.teamId));
-    byRegion.set(region, list);
+    (byRegion.get(region) ?? byRegion.set(region, []).get(region)!).push({ key, rows: groupStandings[key] });
   }
 
   const regionalChampions: string[] = [];
   const playoffMatches: Match[] = [];
   for (const [region, regionGroups] of byRegion) {
-    const candidates: string[] = [];
-    // Campeones de zona + segundos; el corte se hace por rendimiento cuando hay más de 16.
-    const seconds: StandingRow[] = [];
-    for (const ids of regionGroups) {
-      const key = regionalMap[ids[0]];
-      const rows = groupStandings[key] ?? [];
-      if (rows[0]) candidates.push(rows[0].teamId);
-      if (rows[1]) seconds.push(rows[1]);
-    }
-    const desired = Math.max(2, Math.min(16, 2 ** Math.ceil(Math.log2(Math.max(2, candidates.length + seconds.length)))));
-    for (const row of seconds.sort((a,b) => teamSimulationStrength(b.teamId)-teamSimulationStrength(a.teamId)).slice(0, Math.max(0, desired - candidates.length))) candidates.push(row.teamId);
-    let current = [...candidates];
+    const seeds = regionGroups.flatMap(g => [g.rows[0], g.rows[1]].filter(Boolean)) as StandingRow[];
+    const ordered = [...seeds].sort((a, b) => {
+      const ap = a.pts / Math.max(1, a.pj), bp = b.pts / Math.max(1, b.pj);
+      return bp - ap || b.dg - a.dg || teamSimulationStrength(b.teamId) - teamSimulationStrength(a.teamId);
+    });
+    const target = 2 ** Math.ceil(Math.log2(Math.max(2, Math.min(32, ordered.length))));
+    const current = ordered.slice(0, Math.min(target, ordered.length)).map(r => r.teamId);
+    let round = 10;
     while (current.length > 1) {
       const next: string[] = [];
       for (let i = 0; i < current.length; i += 2) {
         if (!current[i + 1]) { next.push(current[i]); continue; }
-        const tie = simulateTie(current[i], current[i + 1]);
-        playoffMatches.push(...tie.matches.map(m => ({ ...m, id: `${region}-${m.id}` })));
+        const tie = simulateTwoLegSeries(current[i], current[i + 1], `RFE-${region}-R${round}`, round);
+        playoffMatches.push(...tie.matches);
         next.push(tie.winner);
       }
-      current = next;
+      current.splice(0, current.length, ...next);
+      round += 2;
     }
     if (current[0]) regionalChampions.push(current[0]);
   }
 
-  // Ocho campeones regionales -> cuatro finales nacionales a partido único.
   const promotedToFederalA: string[] = [];
   for (let i = 0; i + 1 < regionalChampions.length; i += 2) {
     const a = regionalChampions[i], b = regionalChampions[i + 1];
-    const sa = simulateMatch(a, b);
-    const winner = sa.hg > sa.ag ? a : sa.ag > sa.hg ? b : (teamSimulationStrength(a) >= teamSimulationStrength(b) ? a : b);
-    promotedToFederalA.push(winner);
-    playoffMatches.push({ id: `RFE-NAC-${a}-${b}`, round: 99, home: a, away: b, homeGoals: sa.hg, awayGoals: sa.ag, played: true, phase: "regional_final" });
+    const single = simulateSingleMatch(a, b, "RFE-NAC", 99, true);
+    promotedToFederalA.push(single.winner);
+    playoffMatches.push(single.match);
   }
-  return { groupStandings, regionalChampions, promotedToFederalA: promotedToFederalA.slice(0, 4), matches: [...allGroupMatches, ...playoffMatches] };
+  return { groupStandings, regionalChampions, promotedToFederalA, matches: [...allGroupMatches, ...playoffMatches] };
 }
 
-/**
- * Federal A 2026: 4 zonas geográficas de 10/9/9/9.
- * Si el club ya tiene una zona A-D declarada en el catálogo, se respeta.
- * Sólo los clubes nuevos (por ejemplo, ascendidos desde Regional) se asignan
- * a la zona actualmente menos poblada, para mantener el reparto equilibrado.
- */
 export function buildFederalZoneMap(teamIds: string[]): Record<string, string> {
   const zones = ["A", "B", "C", "D"] as const;
+  const target = { A: 10, B: 9, C: 9, D: 9 } as const;
   const map: Record<string, string> = {};
-  const counts: Record<string, number> = { A: 0, B: 0, C: 0, D: 0 };
-
+  const counts = { A: 0, B: 0, C: 0, D: 0 };
   for (const id of teamIds) {
-    const declared = getTeamById(id)?.zone;
-    if (declared && (zones as readonly string[]).includes(declared)) {
-      map[id] = declared;
-      counts[declared] += 1;
+    const z = getTeamById(id)?.zone;
+    if (z && zones.includes(z as any) && counts[z as keyof typeof counts] < target[z as keyof typeof target]) {
+      map[id] = z;
+      counts[z as keyof typeof counts]++;
     }
   }
-
-  const unassigned = teamIds.filter(id => !map[id]).sort((a, b) => a.localeCompare(b));
-  for (const id of unassigned) {
-    const target = zones.reduce((best, zone) =>
-      counts[zone] < counts[best] ? zone : best, "A" as (typeof zones)[number]);
-    map[id] = target;
-    counts[target] += 1;
+  for (const id of stableSortIds(teamIds.filter(id => !map[id]))) {
+    // Prefer province-compatible existing zones where possible.
+    const province = (getTeamById(id)?.province ?? "").toLowerCase();
+    const preferred = province.includes("misiones") || province.includes("corrientes") || province.includes("chaco") || province.includes("formosa") ? "A"
+      : province.includes("cordoba") || province.includes("mendoza") || province.includes("san luis") ? "B"
+      : province.includes("buenos aires") || province.includes("santa fe") || province.includes("entre rios") ? "C"
+      : province.includes("rio negro") || province.includes("chubut") || province.includes("neuquen") || province.includes("la pampa") ? "D" : null;
+    const candidate = preferred && counts[preferred] < target[preferred]
+      ? preferred
+      : zones.slice().sort((x, y) => counts[x] - counts[y])[0];
+    map[id] = candidate;
+    counts[candidate]++;
   }
-
+  // Si el catálogo declara una combinación extraña, igual mantenemos 10+9+9+9.
   return map;
 }
 
-/** Fixture realista por división. Cada división usa exclusivamente sus propios clubes. */
 export function buildDivisionCareerFixture(division: DivisionId, teamIds: string[], userTeamId?: string, persistedZoneMap?: Record<string, string>): {
-  matches: Match[]; zone: string; otherMatches: Match[]; activeTeamIds: string[]; zoneMap?: Record<string, string>;
+  matches: Match[];
+  zone: string;
+  otherMatches: Match[];
+  activeTeamIds: string[];
+  zoneMap?: Record<string, string>;
 } {
-  const ids = [...teamIds];
+  const ids = [...new Set(teamIds)];
 
   if (division === "primera_division") {
-    const sorted = [...ids].sort((a, b) => a.localeCompare(b));
-    const mid = Math.ceil(sorted.length / 2);
-    const zoneA = sorted.slice(0, mid), zoneB = sorted.slice(mid);
-    const zone = userTeamId && zoneB.includes(userTeamId) ? "B" : "A";
-    const own = zone === "A" ? zoneA : zoneB;
-    const other = zone === "A" ? zoneB : zoneA;
-    const openingOwn = generateRoundRobin(own, zone).map(m => ({ ...m, phase: "apertura" as const }));
-    const openingOther = generateRoundRobin(other, zone === "A" ? "B" : "A").map(m => ({ ...m, phase: "apertura" as const }));
-    const openingRounds = Math.max(...openingOwn.map(m => m.round), ...openingOther.map(m => m.round), 0);
-    const interRound = openingRounds + 1;
-    const inter: Match[] = [];
-    for (let i = 0; i < Math.min(zoneA.length, zoneB.length); i++) {
-      const home = zoneA[i], away = zoneB[i];
-      const ht = getTeamById(home);
-      inter.push({ id: `PD-INT-r${interRound}-${home}-${away}`, round: interRound, home, away, played: false, phase: "interzonal", isClasico: !!(ht?.rivals?.includes(away)) || isClasicoMatch(home, away) });
-    }
-    const clausuraStart = interRound + 1;
-    const clausura = generateRoundRobin(sorted, "PD").map(m => ({ ...m, round: m.round + clausuraStart - 1, id: `PD-CLA-r${m.round + clausuraStart - 1}-${m.home}-${m.away}`, phase: "clausura" as const }));
-    return { matches: [...openingOwn, ...openingOther, ...inter, ...clausura].sort((a, b) => a.round - b.round || a.id.localeCompare(b.id)), otherMatches: [], zone, activeTeamIds: sorted };
+    const zm = balancedMap(ids, [Math.ceil(ids.length / 2), Math.floor(ids.length / 2)]);
+    const zoneA = ids.filter(id => zm[id] === "A");
+    const zoneB = ids.filter(id => zm[id] === "B");
+    const userZone = userTeamId && zm[userTeamId] === "B" ? "B" : "A";
+    const own = userZone === "A" ? zoneA : zoneB;
+    const other = userZone === "A" ? zoneB : zoneA;
+    const openingOwn = generateRoundRobin(own, userZone, 1).map(m => ({ ...m, phase: "apertura" as const }));
+    const openingOther = generateRoundRobin(other, userZone === "A" ? "B" : "A", 1).map(m => ({ ...m, phase: "apertura" as const }));
+    const classics = crossPairsWithRivals(zoneA, zoneB, 15);
+    const sortedRound = buildSecondInterzonalRound(classics, zoneA, zoneB, 16);
+    const userInter = [...classics, ...sortedRound];
+    const clausura = generateRoundRobin(ids, "PD-CLA", 17, true).map(m => ({ ...m, phase: "clausura" as const }));
+    const userIds = new Set(own);
+    const matches = [...openingOwn, ...userInter, ...clausura.filter(m => userIds.has(m.home) || userIds.has(m.away))]
+      .sort((a, b) => a.round - b.round || a.id.localeCompare(b.id));
+    const otherMatches = [...openingOther, ...clausura.filter(m => !userIds.has(m.home) && !userIds.has(m.away))]
+      .sort((a, b) => a.round - b.round || a.id.localeCompare(b.id));
+    return { matches, otherMatches, zone: userZone, activeTeamIds: ids, zoneMap: zm };
   }
 
   if (division === "primera_nacional") {
-    const zone = userTeamId && ids.includes(userTeamId) && getTeamById(userTeamId)?.zone === "B" ? "B" : "A";
-    const ownIds = ids.filter(id => (getTeamById(id)?.zone ?? "A") === zone);
-    const otherIds = ids.filter(id => (getTeamById(id)?.zone ?? "A") !== zone);
-    const own = generateDoubleRoundRobin(ownIds, zone).map(m => ({ ...m, phase: "liga" as const }));
-    const other = generateDoubleRoundRobin(otherIds, zone === "A" ? "B" : "A").map(m => ({ ...m, phase: "liga" as const }));
-    return { matches: own, otherMatches: other, zone, activeTeamIds: ownIds };
+    const zm = balancedMap(ids, [Math.ceil(ids.length / 2), Math.floor(ids.length / 2)]);
+    const zoneA = ids.filter(id => zm[id] === "A");
+    const zoneB = ids.filter(id => zm[id] === "B");
+    const userZone = userTeamId && zm[userTeamId] === "B" ? "B" : "A";
+    const own = userZone === "A" ? zoneA : zoneB;
+    const other = userZone === "A" ? zoneB : zoneA;
+    const ownRegular = generateDoubleRoundRobin(own, `PN-${userZone}`, 1).map(m => ({ ...m, phase: "liga" as const }));
+    const otherRegular = generateDoubleRoundRobin(other, `PN-${userZone === "A" ? "B" : "A"}`, 1).map(m => ({ ...m, phase: "liga" as const }));
+    const inter = buildPerfectCrossZoneRounds(zoneA, zoneB, 2, "PN-INT", ownRegular.length ? Math.max(...ownRegular.map(m => m.round)) + 1 : 35).map(m => ({ ...m, phase: "interzonal" as const }));
+    const userIds = new Set(own);
+    return {
+      matches: [...ownRegular, ...inter].filter(m => userIds.has(m.home) || userIds.has(m.away)).sort((a, b) => a.round - b.round),
+      otherMatches: [...otherRegular, ...inter].filter(m => !userIds.has(m.home) && !userIds.has(m.away)).sort((a, b) => a.round - b.round),
+      zone: userZone,
+      activeTeamIds: own,
+      zoneMap: zm,
+    };
   }
 
   if (division === "primera_b") {
-    return { matches: generateDoubleRoundRobin(ids, "B").map(m => ({ ...m, phase: "liga" as const })), otherMatches: [], zone: "A", activeTeamIds: ids };
+    const matches = generateDoubleRoundRobin(ids, "PB", 1).map(m => ({ ...m, phase: "liga" as const }));
+    return { matches, otherMatches: [], zone: "A", activeTeamIds: ids };
   }
 
   if (division === "primera_c") {
-    const apertura = generateRoundRobin(ids, "C-Apertura").map(m => ({ ...m, phase: "apertura" as const }));
-    const baseRounds = Math.max(0, apertura.reduce((n, m) => Math.max(n, m.round), 0));
-    const clausura = generateRoundRobin(ids, "C-Clausura").map(m => ({ ...m, round: m.round + baseRounds, id: `C-clausura-r${m.round + baseRounds}-${m.home}-${m.away}`, phase: "clausura" as const }));
-    return { matches: [...apertura, ...clausura], otherMatches: [], zone: "A", activeTeamIds: ids };
-  }
-
-  if (division === "regional_federal_amateur") {
-    const meta = getRegionalTeamMeta(userTeamId ?? "");
-    const userGroup = meta ? `${meta.region}::${meta.group}` : "Norte::1";
-    const matches = generateDoubleRoundRobin(ids.filter(id => buildRegionalGroupMap(ids)[id] === userGroup), `RFE-${userGroup}`).map(m => ({ ...m, phase: "regional" as const }));
-    const other = ids.filter(id => buildRegionalGroupMap(ids)[id] !== userGroup);
-    const otherMatches: Match[] = [];
-    const groupMap = buildRegionalGroupMap(ids);
-    const grouped = new Map<string,string[]>();
-    for (const id of other) { const key = groupMap[id]; if (key) (grouped.get(key) ?? grouped.set(key, []).get(key)!).push(id); }
-    for (const [key, group] of grouped) otherMatches.push(...generateDoubleRoundRobin(group, `RFE-${key}`).map(m => ({ ...m, phase: "regional" as const })));
-    return { matches, otherMatches, zone: meta?.region ?? "Norte", activeTeamIds: ids.filter(id => groupMap[id] === userGroup) };
+    const zm = balancedMap(ids, [Math.ceil(ids.length / 2), Math.floor(ids.length / 2)]);
+    const zoneA = ids.filter(id => zm[id] === "A");
+    const zoneB = ids.filter(id => zm[id] === "B");
+    const userZone = userTeamId && zm[userTeamId] === "B" ? "B" : "A";
+    const own = userZone === "A" ? zoneA : zoneB;
+    const other = userZone === "A" ? zoneB : zoneA;
+    const ownRegular = generateDoubleRoundRobin(own, `PC-${userZone}`, 1).map(m => ({ ...m, phase: "liga" as const }));
+    const otherRegular = generateDoubleRoundRobin(other, `PC-${userZone === "A" ? "B" : "A"}`, 1).map(m => ({ ...m, phase: "liga" as const }));
+    const inter = buildPerfectCrossZoneRounds(zoneA, zoneB, 6, "PC-INT", 27).map(m => ({ ...m, phase: "interzonal" as const }));
+    const userIds = new Set(own);
+    return {
+      matches: [...ownRegular, ...inter].filter(m => userIds.has(m.home) || userIds.has(m.away)).sort((a, b) => a.round - b.round),
+      otherMatches: [...otherRegular, ...inter].filter(m => !userIds.has(m.home) && !userIds.has(m.away)).sort((a, b) => a.round - b.round),
+      zone: userZone,
+      activeTeamIds: own,
+      zoneMap: zm,
+    };
   }
 
   if (division === "federal_a") {
     const zoneMap = persistedZoneMap ?? buildFederalZoneMap(ids);
-    const groups = new Map<string, string[]>();
-    for (const z of ["A", "B", "C", "D"]) groups.set(z, []);
-    for (const id of ids) groups.get(zoneMap[id] ?? "A")!.push(id);
+    const groups = new Map<string, string[]>([["A", []], ["B", []], ["C", []], ["D", []]]);
+    for (const id of ids) (groups.get(zoneMap[id] ?? "A") ?? groups.get("A")!).push(id);
     const userZone = zoneMap[userTeamId ?? ""] ?? "A";
-    const matches: Match[] = [];
-    const otherMatches: Match[] = [];
-    for (const [z, group] of groups) {
-      const fs = generateMultiRoundRobin(group, `FA-${z}`, 4).map(m => ({ ...m, phase: "federal" as const }));
-      if (z === userZone) matches.push(...fs); else otherMatches.push(...fs);
-    }
-    return { matches: matches.sort((a, b) => a.round - b.round), otherMatches: otherMatches.sort((a, b) => a.round - b.round), zone: userZone, activeTeamIds: groups.get(userZone) ?? [], zoneMap };
+    const all: Match[] = [];
+    for (const [z, group] of groups) all.push(...generateDoubleRoundRobin(group, `FA-${z}`, 1).map(m => ({ ...m, phase: "federal" as const })));
+    const active = new Set(groups.get(userZone) ?? []);
+    return {
+      matches: all.filter(m => active.has(m.home) || active.has(m.away)).sort((a, b) => a.round - b.round),
+      otherMatches: all.filter(m => !active.has(m.home) && !active.has(m.away)).sort((a, b) => a.round - b.round),
+      zone: userZone,
+      activeTeamIds: groups.get(userZone) ?? [],
+      zoneMap,
+    };
   }
 
-  return { matches: generateDoubleRoundRobin(ids, "D").map(m => ({ ...m, phase: "liga" as const })), otherMatches: [], zone: "A", activeTeamIds: ids };
+  const metaMap = buildRegionalGroupMap(ids);
+  const userKey = metaMap[userTeamId ?? ""] ?? `${REGIONAL_REGIONS[0]}::1`;
+  const userIds = new Set(ids.filter(id => metaMap[id] === userKey));
+  const all = ids.flatMap(id => [] as Match[]);
+  void all;
+  const userMatches = generateDoubleRoundRobin([...userIds], `RFE-${userKey}`, 1).map(m => ({ ...m, phase: "regional" as const }));
+  const otherMatches: Match[] = [];
+  const groups = new Map<string, string[]>();
+  for (const id of ids) (groups.get(metaMap[id]) ?? groups.set(metaMap[id], []).get(metaMap[id])!).push(id);
+  for (const [key, group] of groups) {
+    if (key === userKey) continue;
+    otherMatches.push(...generateDoubleRoundRobin(group, `RFE-${key}`, 1).map(m => ({ ...m, phase: "regional" as const })));
+  }
+  return { matches: userMatches, otherMatches, zone: userKey.split("::")[0], activeTeamIds: [...userIds] };
 }
 
 function clubPrestige(id: string): number {
   const prestige: Record<string, number> = {
-    riverplate: 10, bocajuniors: 10, racingclub: 8, independiente: 8, sanlorenzo: 7,
-    estudiantesdelaplata: 7, velezsarsfield: 7, rosariocentral: 6, newellsoldboys: 6,
-    argentinosjuniors: 6, lanus: 6, huracan: 5, belgrano: 5, talleresdecordoba: 5,
-    colon: 5, gimnasialaplata: 5, "gimnasiayesgrimalaplata": 5,
+    riverplate: 10, bocajuniors: 10, racingclub: 8, independiente: 8, sanlorenzo: 8,
+    estudiantesdelaplata: 8, velezsarsfield: 8, rosariocentral: 7, newellsoldboys: 7,
+    argentinosjuniors: 7, lanus: 7, huracan: 6, belgrano: 6, talleresdecordoba: 7,
+    colon: 6, gimnasialaplata: 6, gimnasia: 6, sanmartintucuman: 6,
   };
   return prestige[id] ?? 0;
 }
@@ -344,26 +512,32 @@ export function teamSimulationStrength(teamId: string): number {
   const t = getTeamById(teamId);
   if (!t) return 50;
   const raw = (t.stats.speed + t.stats.jump + t.stats.power + t.stats.defense) / 4;
-  // 85% estadísticas del equipo + 15% jerarquía histórica. Esto SOLO se usa para simulaciones.
-  return raw * 0.85 + (50 + clubPrestige(teamId) * 2.2) * 0.15;
+  return raw * 0.90 + (50 + clubPrestige(teamId) * 2.5) * 0.10;
 }
 
-export function simulateMatch(homeId: string, awayId: string): { hg: number; ag: number } {
-  const h = getTeamById(homeId), a = getTeamById(awayId);
-  if (!h || !a) return { hg: 0, ag: 0 };
-  const diff = Math.max(-14, Math.min(14, (teamSimulationStrength(homeId) - teamSimulationStrength(awayId)) * 0.45));
-  const hLambda = Math.max(0.30, Math.min(2.25, 1.16 + diff * 0.045 + 0.10));
-  const aLambda = Math.max(0.22, Math.min(1.85, 0.92 - diff * 0.040));
-  const poisson = (lambda: number) => {
-    const L = Math.exp(-lambda); let k = 0, p = 1;
-    do { k++; p *= Math.random(); } while (p > L);
-    return Math.min(7, k - 1);
-  };
-  let hg = poisson(hLambda), ag = poisson(aLambda);
-  // Evita temporadas absurdas de favoritos: los equipos de élite tienen menos probabilidad de caer en goleadas inexplicables.
+function poisson(lambda: number): number {
+  const L = Math.exp(-lambda);
+  let k = 0, p = 1;
+  do { k++; p *= Math.random(); } while (p > L);
+  return Math.min(7, k - 1);
+}
+
+export function simulateMatch(homeId: string, awayId: string, neutral = false): { hg: number; ag: number } {
+  const home = getTeamById(homeId), away = getTeamById(awayId);
+  if (!home || !away) return { hg: 0, ag: 0 };
+  const h = teamSimulationStrength(homeId);
+  const a = teamSimulationStrength(awayId);
+  const diff = Math.max(-15, Math.min(15, h - a));
+  const homeAdv = neutral ? 0 : 0.12;
+  const hLambda = Math.max(0.35, Math.min(2.05, 1.02 + homeAdv + diff * 0.032));
+  const aLambda = Math.max(0.30, Math.min(1.65, 0.82 - diff * 0.028));
+  let hg = poisson(hLambda);
+  let ag = poisson(aLambda);
+
+  // Menos varianza para clubes de nivel muy alto: evita temporadas absurdas sin volverlos invencibles.
   const hp = clubPrestige(homeId), ap = clubPrestige(awayId);
-  if (hp >= 8 && hg + 2 < ag && Math.random() < 0.70) hg = Math.max(ag - 1, 0);
-  if (ap >= 8 && ag + 2 < hg && Math.random() < 0.70) ag = Math.max(hg - 1, 0);
+  if (hp >= 8 && h >= a + 7 && hg < ag && Math.random() < 0.60) hg = Math.max(ag - 1, 0);
+  if (ap >= 8 && a >= h + 7 && ag < hg && Math.random() < 0.60) ag = Math.max(hg - 1, 0);
   return { hg, ag };
 }
 
@@ -378,28 +552,40 @@ export function applyMatchToStandings(rows: StandingRow[], m: Match): StandingRo
     const isHome = r.teamId === m.home;
     const gf = isHome ? m.homeGoals! : m.awayGoals!;
     const gc = isHome ? m.awayGoals! : m.homeGoals!;
-    const win = gf > gc, draw = gf === gc;
-    return { ...r, pj: r.pj + 1, pg: r.pg + (win ? 1 : 0), pe: r.pe + (draw ? 1 : 0), pp: r.pp + (!win && !draw ? 1 : 0), gf: r.gf + gf, gc: r.gc + gc, dg: (r.gf + gf) - (r.gc + gc), pts: r.pts + (win ? 3 : draw ? 1 : 0) };
+    const win = gf > gc;
+    const draw = gf === gc;
+    return {
+      ...r,
+      pj: r.pj + 1,
+      pg: r.pg + (win ? 1 : 0),
+      pe: r.pe + (draw ? 1 : 0),
+      pp: r.pp + (!win && !draw ? 1 : 0),
+      gf: r.gf + gf,
+      gc: r.gc + gc,
+      dg: (r.gf + gf) - (r.gc + gc),
+      pts: r.pts + (win ? 3 : draw ? 1 : 0),
+    };
   });
 }
 
-export function sortStandings(rows: StandingRow[]) {
-  return [...rows].sort((a, b) => b.pts - a.pts || b.dg - a.dg || b.gf - a.gf || teamSimulationStrength(b.teamId) - teamSimulationStrength(a.teamId) || (getTeamById(a.teamId)?.name ?? "").localeCompare(getTeamById(b.teamId)?.name ?? ""));
+export function sortStandings(rows: StandingRow[]): StandingRow[] {
+  return [...rows].sort((a, b) =>
+    b.pts - a.pts || b.dg - a.dg || b.gf - a.gf ||
+    teamSimulationStrength(b.teamId) - teamSimulationStrength(a.teamId) ||
+    (getTeamById(a.teamId)?.name ?? "").localeCompare(getTeamById(b.teamId)?.name ?? ""));
 }
 
 export type Bracket = { octavos: Pair[]; cuartos: Pair[]; semis: Pair[]; final: Pair[] };
 export type Pair = { a?: string; b?: string; winner?: string; ag?: number; bg?: number };
 
 export function buildReducido(standA: StandingRow[], standB: StandingRow[], extraSeed?: string): Bracket {
-  const top8A = sortStandings(standA).slice(1, 8).map(r => r.teamId);
-  const top8B = sortStandings(standB).slice(1, 8).map(r => r.teamId);
-  const ninthA = sortStandings(standA)[8]?.teamId;
-  const seeds = [extraSeed, ...top8A, ...top8B, ninthA].filter(Boolean) as string[];
-  const aSide = seeds.filter(id => standA.some(r => r.teamId === id));
-  const bSide = seeds.filter(id => standB.some(r => r.teamId === id));
-  while (aSide.length < 8 && bSide.length) aSide.push(bSide.pop()!);
-  while (bSide.length < 8 && aSide.length) bSide.push(aSide.pop()!);
-  const octavos: Pair[] = aSide.slice(0, 8).map((a, i) => ({ a, b: bSide[i] }));
+  const a = sortStandings(standA), b = sortStandings(standB);
+  const seedsA = a.slice(1, 8).map(r => r.teamId);
+  const seedsB = b.slice(1, 8).map(r => r.teamId);
+  const octavos: Pair[] = [];
+  for (let i = 0; i < 6; i++) octavos.push({ a: seedsA[i], b: seedsB[6 - i] });
+  if (seedsA[6] && seedsB[0]) octavos.push({ a: seedsA[6], b: seedsB[0] });
+  void extraSeed;
   return { octavos, cuartos: [], semis: [], final: [] };
 }
 
@@ -410,3 +596,196 @@ export function buildFixture(zoneA: string[], zoneB: string[], interzonales: Arr
   const inter = interzonales.map(([home, away]) => ({ id: `INT-r${interRound}-${home}-${away}`, round: interRound, home, away, played: false, isClasico: true, phase: "interzonal" as const }));
   return [...a, ...b, ...inter];
 }
+
+function simulateAllMatches(matches: Match[]): { rows: StandingRow[]; played: Match[] } {
+  const ids = Array.from(new Set(matches.flatMap(m => [m.home, m.away])));
+  let rows = emptyStandings(ids);
+  const played: Match[] = [];
+  for (const m of matches) {
+    const s = simulateMatch(m.home, m.away);
+    const pm = { ...m, played: true, homeGoals: s.hg, awayGoals: s.ag };
+    rows = applyMatchToStandings(rows, pm);
+    played.push(pm);
+  }
+  return { rows, played };
+}
+
+function simulateElimination(ids: string[], tag: string, legs: 1 | 2, neutralFinal = false): { winner: string; matches: Match[] } {
+  let current = stableSortIds(ids);
+  const matches: Match[] = [];
+  let round = 1;
+  while (current.length > 1) {
+    const next: string[] = [];
+    for (let i = 0; i < current.length; i += 2) {
+      if (!current[i + 1]) { next.push(current[i]); continue; }
+      if (legs === 2) {
+        const r = simulateTwoLegSeries(current[i], current[i + 1], `${tag}-R${round}`, round * 2);
+        matches.push(...r.matches); next.push(r.winner);
+      } else {
+        const r = simulateSingleMatch(current[i], current[i + 1], `${tag}-R${round}`, round, neutralFinal && current.length === 2);
+        matches.push(r.match); next.push(r.winner);
+      }
+    }
+    current = next; round++;
+  }
+  return { winner: current[0] ?? "", matches };
+}
+
+function resolvePrimeraDivision(standingsByZone: Record<string, StandingRow[]>, allRegularMatches: Match[]): DivisionResolution {
+  const a = sortStandings(standingsByZone.A ?? []), b = sortStandings(standingsByZone.B ?? []);
+  const playRound = (zoneA: StandingRow[], zoneB: StandingRow[]) => {
+    const seeds: string[] = [];
+    for (let i = 0; i < 8; i++) { if (zoneA[i]) seeds.push(zoneA[i].teamId); if (zoneB[i]) seeds.push(zoneB[i].teamId); }
+    const winners: string[] = [];
+    const matches: Match[] = [];
+    for (let i = 0; i < 8; i++) {
+      const home = zoneA[i]?.teamId, away = zoneB[7 - i]?.teamId;
+      if (!home || !away) continue;
+      const r = simulateSingleMatch(home, away, "PD-OCT", i + 1, false);
+      winners.push(r.winner); matches.push(r.match);
+    }
+    const q = simulateElimination(winners, "PD-Q", 1);
+    const s = simulateElimination(q.winner ? [q.winner] : [], "PD-S", 1, true);
+    return { winner: s.winner || q.winner || winners[0], matches: [...matches, ...q.matches, ...s.matches] };
+  };
+  const apertura = playRound(a, b);
+  const clausura = playRound(b, a);
+  const annualWinner = sortStandings(Array.from(new Map([...a, ...b].map(r => [r.teamId, r])).values()))[0]?.teamId ?? null;
+  return {
+    promoted: [],
+    relegated: [],
+    championshipWinner: annualWinner,
+    secondaryChampion: clausura.winner || null,
+    phaseStandings: { A: a, B: b },
+    matches: [...allRegularMatches, ...apertura.matches, ...clausura.matches],
+  };
+}
+
+function resolvePrimeraNacional(standingsByZone: Record<string, StandingRow[]>): DivisionResolution {
+  const a = sortStandings(standingsByZone.A ?? []), b = sortStandings(standingsByZone.B ?? []);
+  const final = a[0] && b[0] ? simulateSingleMatch(a[0].teamId, b[0].teamId, "PN-FINAL", 100, true) : null;
+  const first = final?.winner ?? a[0]?.teamId ?? b[0]?.teamId;
+  const loser = final && final.winner ? (final.winner === a[0]?.teamId ? b[0]?.teamId : a[0]?.teamId) : undefined;
+  const seedsA = a.slice(1, 8).map(r => r.teamId), seedsB = b.slice(1, 8).map(r => r.teamId);
+  const firstPhase: string[] = [];
+  for (let i = 0; i < 7; i++) if (seedsA[i] && seedsB[6 - i]) firstPhase.push(simulateSingleMatch(seedsA[i], seedsB[6 - i], `PN-R1-${i}`, 101 + i, false).winner);
+  const qSeeds = loser ? [...firstPhase, loser] : firstPhase;
+  const second = simulateElimination(qSeeds, "PN-R", 1);
+  const matches = [...(final ? [final.match] : []), ...second.matches];
+  return { promoted: [first, second.winner].filter((x, i, arr) => x && arr.indexOf(x) === i) as string[], relegated: [], phaseStandings: { A: a, B: b }, matches };
+}
+
+function resolvePrimeraB(standings: StandingRow[]): DivisionResolution {
+  const rows = sortStandings(standings);
+  const direct = rows[0]?.teamId;
+  const reduced = rows.slice(1, 9).map(r => r.teamId);
+  const playoff = reduced.length ? simulateElimination(reduced, "PB-RED", 2).winner : "";
+  return { promoted: [direct, playoff].filter(Boolean) as string[], relegated: rows.slice(-2).map(r => r.teamId) };
+}
+
+function resolvePrimeraC(standingsByZone: Record<string, StandingRow[]>): DivisionResolution {
+  const a = sortStandings(standingsByZone.A ?? []), b = sortStandings(standingsByZone.B ?? []);
+  const final = a[0] && b[0] ? simulateTwoLegSeries(a[0].teamId, b[0].teamId, "PC-FINAL", 100) : null;
+  const direct = final?.winner ?? a[0]?.teamId ?? b[0]?.teamId;
+  const loser = final ? (final.winner === a[0]?.teamId ? b[0]?.teamId : a[0]?.teamId) : undefined;
+  const pool = [...a.slice(1, 7), ...b.slice(1, 7)].map(r => r.teamId);
+  if (loser) pool.push(loser);
+  const reduced = simulateElimination(pool, "PC-RED", 2);
+  return { promoted: [direct, reduced.winner].filter((x, i, arr) => x && arr.indexOf(x) === i) as string[], relegated: [], phaseStandings: { A: a, B: b }, matches: final ? final.matches : [] };
+}
+
+function resolveFederalA(zoneMap: Record<string, string>, phase1StandingsByZone: Record<string, StandingRow[]>): DivisionResolution {
+  const allPhase1 = Object.values(phase1StandingsByZone).flatMap(x => x);
+  const zoneLists = Object.fromEntries(["A", "B", "C", "D"].map(z => [z, sortStandings(phase1StandingsByZone[z] ?? [])])) as Record<string, StandingRow[]>;
+  const championshipIds: string[] = [];
+  for (const z of ["A", "B", "C", "D"]) championshipIds.push(...zoneLists[z].slice(0, 4).map(r => r.teamId));
+  if (zoneLists.A[4]) championshipIds.push(zoneLists.A[4].teamId);
+  const remainingFifths = [zoneLists.B[4], zoneLists.C[4], zoneLists.D[4]].filter(Boolean) as StandingRow[];
+  remainingFifths.sort((x, y) => y.pts - x.pts || y.dg - x.dg);
+  if (remainingFifths[0] && !championshipIds.includes(remainingFifths[0].teamId)) championshipIds.push(remainingFifths[0].teamId);
+  const championship = championshipIds.slice(0, 18);
+  const rev = allPhase1.filter(r => !championship.includes(r.teamId)).map(r => r.teamId);
+  const makeGroups = (ids: string[], sizes: number[]) => {
+    const sorted = ids.sort((a, b) => teamSimulationStrength(b) - teamSimulationStrength(a));
+    const groups: string[][] = sizes.map(() => []);
+    let cursor = 0;
+    for (const id of sorted) { groups[cursor % groups.length].push(id); cursor++; }
+    // Balance sizes exactly.
+    for (let i = 0; i < groups.length; i++) while (groups[i].length > sizes[i]) {
+      const moved = groups[i].pop()!;
+      const target = groups.findIndex((g, j) => g.length < sizes[j]);
+      if (target >= 0) groups[target].push(moved);
+    }
+    return groups;
+  };
+  const cc = makeGroups(championship, [9, 9]);
+  const rr = makeGroups(rev, [9, 10]);
+  const phaseStandings: Record<string, StandingRow[]> = {};
+  for (let i = 0; i < cc.length; i++) phaseStandings[`campeonato_${i}`] = simulateAllMatches(generateRoundRobin(cc[i], `FAC${i}`, 1).map(m => ({ ...m, phase: "federal" as const }))).rows;
+  for (let i = 0; i < rr.length; i++) phaseStandings[`revalida_${i}`] = simulateAllMatches(generateRoundRobin(rr[i], `FAR${i}`, 1).map(m => ({ ...m, phase: "federal" as const }))).rows;
+  const champQual = [0, 1].flatMap(i => sortStandings(phaseStandings[`campeonato_${i}`] ?? []).slice(0, 4).map(r => r.teamId));
+  const revQual = [0, 1].flatMap(i => sortStandings(phaseStandings[`revalida_${i}`] ?? []).slice(0, 5).map(r => r.teamId));
+  const first = simulateElimination(champQual, "FA-CAM", 2);
+  const second = simulateElimination(revQual, "FA-REV", 2);
+  const revalAll = [0, 1].flatMap(i => phaseStandings[`revalida_${i}`] ?? []);
+  const relegated = sortStandings(revalAll).slice(-4).map(r => r.teamId);
+  void zoneMap;
+  return { promoted: [first.winner, second.winner].filter(Boolean), relegated, phaseStandings, matches: [...first.matches, ...second.matches] };
+}
+
+export function simulateDivisionSeason(division: DivisionId, roster: string[], userState?: { zone: string; standings: StandingRow[]; otherStandings?: StandingRow[]; matches: Match[]; otherMatches?: Match[]; federalZoneMap?: Record<string, string> }): LeagueSeasonResult {
+  if (userState) {
+    const allPlayed = [...userState.matches, ...(userState.otherMatches ?? [])];
+    const allIds = Array.from(new Set(roster));
+    let rows = emptyStandings(allIds);
+    for (const m of allPlayed) rows = applyMatchToStandings(rows, m);
+    const byZone: Record<string, StandingRow[]> = {};
+    if (division === "primera_division" || division === "primera_nacional" || division === "primera_c") {
+      const zm = buildDivisionCareerFixture(division, roster, undefined).zoneMap ?? balancedMap(roster, [Math.ceil(roster.length / 2), Math.floor(roster.length / 2)]);
+      for (const id of roster) (byZone[zm[id] ?? "A"] ??= []).push(rows.find(r => r.teamId === id)!);
+    } else if (division === "federal_a") {
+      const zm = userState.federalZoneMap ?? buildFederalZoneMap(roster);
+      for (const id of roster) (byZone[zm[id] ?? "A"] ??= []).push(rows.find(r => r.teamId === id)!);
+    } else if (division === "regional_federal_amateur") {
+      const gm = buildRegionalGroupMap(roster);
+      for (const id of roster) (byZone[gm[id] ?? "Norte::1"] ??= []).push(rows.find(r => r.teamId === id)!);
+    } else byZone.A = sortStandings(rows);
+    for (const k of Object.keys(byZone)) byZone[k] = sortStandings(byZone[k].filter(Boolean));
+    return { division, standings: sortStandings(rows), standingsByZone: byZone, matches: allPlayed, zoneMap: userState.federalZoneMap };
+  }
+
+  const fixture = buildDivisionCareerFixture(division, roster);
+  const all = [...fixture.matches, ...fixture.otherMatches];
+  const { rows, played } = simulateAllMatches(all);
+  const byZone: Record<string, StandingRow[]> = {};
+  if (division === "primera_division" || division === "primera_nacional" || division === "primera_c") {
+    const zm = fixture.zoneMap ?? balancedMap(roster, [Math.ceil(roster.length / 2), Math.floor(roster.length / 2)]);
+    for (const id of roster) (byZone[zm[id] ?? "A"] ??= []).push(rows.find(r => r.teamId === id)!);
+  } else if (division === "federal_a") {
+    const zm = fixture.zoneMap ?? buildFederalZoneMap(roster);
+    for (const id of roster) (byZone[zm[id] ?? "A"] ??= []).push(rows.find(r => r.teamId === id)!);
+  } else if (division === "regional_federal_amateur") {
+    const gm = buildRegionalGroupMap(roster);
+    for (const id of roster) (byZone[gm[id] ?? "Norte::1"] ??= []).push(rows.find(r => r.teamId === id)!);
+  } else byZone.A = sortStandings(rows);
+  for (const k of Object.keys(byZone)) byZone[k] = sortStandings(byZone[k].filter(Boolean));
+  return { division, standings: sortStandings(rows), standingsByZone: byZone, matches: played, zoneMap: fixture.zoneMap };
+}
+
+export function resolveDivisionSeason(division: DivisionId, roster: string[], standings: StandingRow[], standingsByZone: Record<string, StandingRow[]>, regularMatches: Match[], zoneMap?: Record<string, string>): DivisionResolution {
+  if (division === "primera_division") return resolvePrimeraDivision(standingsByZone, regularMatches);
+  if (division === "primera_nacional") return resolvePrimeraNacional(standingsByZone);
+  if (division === "primera_b") return resolvePrimeraB(standings);
+  if (division === "primera_c") return resolvePrimeraC(standingsByZone);
+  if (division === "federal_a") return resolveFederalA(zoneMap ?? buildFederalZoneMap(roster), standingsByZone);
+  const reg = simulateRegionalTournament(roster);
+  return { promoted: reg.promotedToFederalA, relegated: [], matches: reg.matches };
+}
+
+export type LeagueSeasonResult = {
+  division: DivisionId;
+  standings: StandingRow[];
+  standingsByZone: Record<string, StandingRow[]>;
+  matches: Match[];
+  zoneMap?: Record<string, string>;
+};
