@@ -18,7 +18,7 @@ export type Team = {
   name: string;
   short: string;
   city: string;
-  zone: "A" | "B";
+  zone: string;
   division?: import("./competitions").DivisionId;
 
   primary: string;
@@ -37,6 +37,8 @@ export type Team = {
   fullName?: string | null;
   foundedYear?: number | null;
   province?: string | null;
+  regionalRegion?: string | null;
+  regionalGroup?: string | null;
   nickname?: string | null;
   rivalId?: string | null;
   primeraSeasons?: number | null;
