@@ -79,11 +79,56 @@ export function getTeamById(
 export function getZonesByDivision(
   division: DivisionId,
 ): string[] {
+  if (division === "regional_federal_amateur") {
+    return [
+      "Norte",
+      "Litoral Norte",
+      "Litoral Sur",
+      "Centro",
+      "Cuyo",
+      "Pampeana Norte",
+      "Pampeana Sur",
+      "Patagonia",
+    ];
+  }
+
   const zones = getTeamsByDivision(division)
     .map((team) => team.zone)
     .filter(Boolean);
 
   return Array.from(new Set(zones)).sort();
+}
+
+export function getRegionalGroups(region: string): string[] {
+  return Array.from(
+    new Set(
+      getTeamsByDivision("regional_federal_amateur")
+        .filter((team) => team.regionalRegion === region)
+        .map((team) => team.regionalGroup)
+        .filter((group): group is string => Boolean(group)),
+    ),
+  ).sort((a, b) => Number(a) - Number(b));
+}
+
+export function getRegionalTeams(region: string, group?: string): Team[] {
+  return getTeamsByDivision("regional_federal_amateur").filter(
+    (team) =>
+      team.regionalRegion === region &&
+      (group == null || team.regionalGroup === group),
+  );
+}
+
+export function getZoneDisplayName(division: DivisionId, zone: string): string {
+  if (division === "federal_a") {
+    const names: Record<string, string> = {
+      A: "Norte · Litoral",
+      B: "Centro · Cuyo",
+      C: "Centro-Este · Pampeana",
+      D: "Pampeana Sur · Patagonia",
+    };
+    return names[zone] ?? zone;
+  }
+  return zone;
 }
 
 // -----------------------------------------------------------------------------
