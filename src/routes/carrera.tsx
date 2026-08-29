@@ -1031,7 +1031,7 @@ function CompeticionTab({ state, teamId }: { state: CareerState; teamId: string 
     }
     const zoneA = zoneTables.get("A") ?? [];
     const zoneB = zoneTables.get("B") ?? [];
-    const labels = (z: string) => z === "A" ? "Zona A · 1° = Final por 1er ascenso · 2°-8° = Reducido" : "Zona B · 1° = Final por 1er ascenso · 2°-8° = Reducido";
+    const labels = (z: string) => `${z === "A" ? "Zona A" : "Zona B"} · 1° = Final por 1er ascenso · 2°-8° = Reducido`;
     return (
       <div className="space-y-3">
         <CompetitionMovementPanel division={division} state={state} teamId={teamId} />
@@ -1248,7 +1248,7 @@ function recentForm(teamId: string, matches: Match[]): ("V" | "E" | "D")[] {
     });
 }
 
-function TablaZona({ title, rows, highlight, matches, division = "primera_nacional", relegated = [] as string[], statusMode = "generic" }: { title: string; rows: StandingRow[]; highlight?: string; matches: Match[]; division?: DivisionId; relegated?: string[]; statusMode?: "generic" | "pn" | "pb" | "pc" | "regional" | "fa_phase1" }) {
+function TablaZona({ title, rows, highlight, matches, division = "primera_nacional", relegated = [] as string[], statusMode = "generic" }: { key?: string; title: string; rows: StandingRow[]; highlight?: string; matches: Match[]; division?: DivisionId; relegated?: string[]; statusMode?: "generic" | "pn" | "pb" | "pc" | "regional" | "fa_phase1" }) {
   return (
     <div className="hud-panel overflow-hidden">
       <div className="px-4 py-2.5 font-display text-sm uppercase tracking-widest text-celeste border-b border-border flex items-center justify-between">
@@ -1273,7 +1273,6 @@ function TablaZona({ title, rows, highlight, matches, division = "primera_nacion
               const t = getTeamById(r.teamId);
               const mine = r.teamId === highlight;
               const pos = i + 1;
-              const isChamp = pos === 1;
               const rules = COMPETITIONS[division];
               const isRelegated = relegated.includes(r.teamId);
               let status = "";
