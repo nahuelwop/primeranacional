@@ -110,6 +110,20 @@ export function careerDivision(state: CareerState | null | undefined, teamId?: s
   return state?.division ?? (teamId ? (getTeamById(teamId)?.division ?? "primera_nacional") : "primera_nacional");
 }
 
+function combinedStandings(state: CareerState): StandingRow[] {
+  const all = [...state.standings, ...(state.otherStandings ?? [])];
+  const map = new Map<string, StandingRow>();
+  for (const row of all) {
+    const cur = map.get(row.teamId);
+    if (!cur) map.set(row.teamId, { ...row });
+    else map.set(row.teamId, {
+      ...cur, pj: cur.pj + row.pj, pg: cur.pg + row.pg, pe: cur.pe + row.pe, pp: cur.pp + row.pp,
+      gf: cur.gf + row.gf, gc: cur.gc + row.gc, dg: cur.dg + row.dg, pts: cur.pts + row.pts,
+    });
+  }
+  return sortStandings([...map.values()]);
+}
+
 export function isFirstDivision(state: CareerState | null | undefined, teamId?: string): boolean {
   return careerDivision(state, teamId) === "primera_division";
 }
@@ -307,7 +321,7 @@ export function recordSeasonSnapshot(state: CareerState, season: number): Career
   if (!isSeasonFinished(state)) return state;
   const division = careerDivision(state);
   const snapshot: SeasonSnapshot = {
-    season, division, standings: state.standings.map(r => ({ ...r })),
+    season, division, standings: combinedStandings(state).map(r => ({ ...r })),
   };
   const previous = (state.seasonHistory ?? []).filter(s => !(s.season === season && s.division === division));
   return { ...state, seasonHistory: [...previous, snapshot].sort((a, b) => a.season - b.season) };
@@ -321,7 +335,7 @@ export function buildAverageTable(state: CareerState, division: DivisionId = car
     snapshots.unshift({
       season: Number.MAX_SAFE_INTEGER,
       division,
-      standings: state.standings.map(r => ({ ...r })),
+      standings: combinedStandings(state).map(r => ({ ...r })),
     });
   }
   const lastThree = snapshots.slice(0, 3);
@@ -351,7 +365,7 @@ export type RelegationDetail = {
 
 export function firstDivisionRelegationDetails(state: CareerState): RelegationDetail[] {
   if (!isFirstDivision(state) || !isSeasonFinished(state)) return [];
-  const annual = sortStandings(state.standings);
+  const annual = combinedStandings(state);
   const annualBottom = annual[annual.length - 1]?.teamId;
   const annualFallback = annual[annual.length - 2]?.teamId;
   const averages = buildAverageTable(state, "primera_division");
