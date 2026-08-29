@@ -65,7 +65,7 @@ export type CompetitionRules = {
 export const COMPETITIONS: Record<DivisionId, CompetitionRules> = {
   primera_division: {
     division: "primera_division", name: "Primera División", shortName: "1ra. División", tier: 1,
-    hasZones: true, zones: ["A", "B"], matchesPerTeam: 32,
+    hasZones: true, zones: ["A", "B"], matchesPerTeam: 16,
     formatLabel: "Apertura y Clausura: 2 zonas de 15, 16 partidos por torneo (14 de zona + 2 interzonales) y playoffs de 16; localías invertidas en el Clausura",
     promotion: [],
     relegation: [{ to: "primera_nacional", slots: 2 }],
