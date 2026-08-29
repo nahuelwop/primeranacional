@@ -293,7 +293,8 @@ function simulateTwoLegSeries(a: string, b: string, tag: string, roundBase = 1):
 
 function simulateSingleMatch(a: string, b: string, tag: string, round: number, neutral = false): { winner: string; match: Match } {
   const score = simulateMatch(a, b, neutral);
-  const winner = score.hg > score.ag ? a : score.ag > score.hg ? b : teamSimulationStrength(a) >= teamSimulationStrength(b) ? a : b;
+  // En partido único no neutral, empate = ventaja deportiva del local.
+  const winner = score.hg > score.ag ? a : score.ag > score.hg ? b : (neutral ? (teamSimulationStrength(a) >= teamSimulationStrength(b) ? a : b) : a);
   return {
     winner,
     match: { id: `${tag}-${a}-${b}`, round, home: a, away: b, homeGoals: score.hg, awayGoals: score.ag, played: true, phase: neutral ? "regional_final" : "reducido" },
@@ -601,13 +602,18 @@ export type Pair = { a?: string; b?: string; winner?: string; ag?: number; bg?: 
 
 export function buildReducido(standA: StandingRow[], standB: StandingRow[], extraSeed?: string): Bracket {
   const a = sortStandings(standA), b = sortStandings(standB);
-  const seedsA = a.slice(1, 8).map(r => r.teamId);
-  const seedsB = b.slice(1, 8).map(r => r.teamId);
+  const seedsA = a.slice(1, 8).map((r, i) => ({ id: r.teamId, rank: i + 2 }));
+  const seedsB = b.slice(1, 8).map((r, i) => ({ id: r.teamId, rank: i + 2 }));
   const octavos: Pair[] = [];
-  for (let i = 0; i < 6; i++) octavos.push({ a: seedsA[i], b: seedsB[6 - i] });
-  if (seedsA[6] && seedsB[0]) octavos.push({ a: seedsA[6], b: seedsB[0] });
-  void extraSeed;
-  return { octavos, cuartos: [], semis: [], final: [] };
+  for (let i = 0; i < 7; i++) {
+    const aa = seedsA[i];
+    const bb = seedsB[6 - i];
+    if (!aa || !bb) continue;
+    octavos.push(aa.rank <= bb.rank ? { a: aa.id, b: bb.id } : { a: bb.id, b: aa.id });
+  }
+  const cuartos: Pair[] = [];
+  if (extraSeed) cuartos.push({ a: extraSeed });
+  return { octavos, cuartos, semis: [], final: [] };
 }
 
 export function buildFixture(zoneA: string[], zoneB: string[], interzonales: Array<[string, string]> = []): Match[] {
@@ -686,14 +692,33 @@ function resolvePrimeraNacional(standingsByZone: Record<string, StandingRow[]>):
   const a = sortStandings(standingsByZone.A ?? []), b = sortStandings(standingsByZone.B ?? []);
   const final = a[0] && b[0] ? simulateSingleMatch(a[0].teamId, b[0].teamId, "PN-FINAL", 100, true) : null;
   const first = final?.winner ?? a[0]?.teamId ?? b[0]?.teamId;
-  const loser = final && final.winner ? (final.winner === a[0]?.teamId ? b[0]?.teamId : a[0]?.teamId) : undefined;
-  const seedsA = a.slice(1, 8).map(r => r.teamId), seedsB = b.slice(1, 8).map(r => r.teamId);
+  const loser = final?.winner && a[0] && b[0]
+    ? (final.winner === a[0].teamId ? b[0].teamId : a[0].teamId)
+    : undefined;
+
+  const seedsA = a.slice(1, 8).map((r, i) => ({ id: r.teamId, rank: i + 2 }));
+  const seedsB = b.slice(1, 8).map((r, i) => ({ id: r.teamId, rank: i + 2 }));
   const firstPhase: string[] = [];
-  for (let i = 0; i < 7; i++) if (seedsA[i] && seedsB[6 - i]) firstPhase.push(simulateSingleMatch(seedsA[i], seedsB[6 - i], `PN-R1-${i}`, 101 + i, false).winner);
+  const firstPhaseMatches: Match[] = [];
+  for (let i = 0; i < 7; i++) {
+    const aa = seedsA[i];
+    const bb = seedsB[6 - i];
+    if (!aa || !bb) continue;
+    const home = aa.rank <= bb.rank ? aa.id : bb.id;
+    const away = home === aa.id ? bb.id : aa.id;
+    const r = simulateSingleMatch(home, away, `PN-R1-${i + 1}`, 101 + i, false);
+    firstPhase.push(r.winner);
+    firstPhaseMatches.push(r.match);
+  }
+
   const qSeeds = loser ? [...firstPhase, loser] : firstPhase;
-  const second = simulateElimination(qSeeds, "PN-R", 1);
-  const matches = [...(final ? [final.match] : []), ...second.matches];
-  return { promoted: [first, second.winner].filter((x, i, arr) => x && arr.indexOf(x) === i) as string[], relegated: [], phaseStandings: { A: a, B: b }, matches };
+  const second = simulateElimination(qSeeds, "PN-R2", 1);
+  return {
+    promoted: [first, second.winner].filter((x, i, arr) => x && arr.indexOf(x) === i) as string[],
+    relegated: [],
+    phaseStandings: { A: a, B: b },
+    matches: [...(final ? [final.match] : []), ...firstPhaseMatches, ...second.matches],
+  };
 }
 
 function resolvePrimeraB(standings: StandingRow[]): DivisionResolution {
