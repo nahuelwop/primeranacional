@@ -17,7 +17,7 @@ const CACHE_KEY =
 const CATALOG_FALLBACK =
   new Map<string, Team>();
 
-for (const team of TEAMS) {
+for (const team of [...TEAMS, ...OTHER_DIVISION_TEAMS]) {
   CATALOG_FALLBACK.set(team.id, {
     ...team,
 
@@ -57,6 +57,8 @@ export type DbTeam = {
   zone: "A" | "B";
 
   division?: string | null;
+  regional_region?: string | null;
+  regional_group?: string | null;
 
   primary_color: string;
   secondary_color: string;
@@ -96,8 +98,6 @@ export type DbTeam = {
   achievements?: string | null;
 
   history?: string | null;
-  regional_region?: string | null;
-  regional_group?: string | null;
 };
 
 type State = {
@@ -200,15 +200,22 @@ function rowToTeam(
       fallback?.city ||
       "",
 
-    zone: row.zone || fallback?.zone || "A",
-
-    regionalRegion: row.regional_region ?? fallback?.regionalRegion ?? null,
-    regionalGroup: row.regional_group ?? fallback?.regionalGroup ?? null,
+    zone: row.zone,
 
     division:
       (row.division as Team["division"]) ??
       fallback?.division ??
       "primera_nacional",
+
+    regionalRegion:
+      row.regional_region ??
+      fallback?.regionalRegion ??
+      null,
+
+    regionalGroup:
+      row.regional_group ??
+      fallback?.regionalGroup ??
+      null,
 
     primary:
       row.primary_color ||
@@ -314,23 +321,24 @@ function rowToTeam(
 }
 
 function replaceTeams(teams: Team[]) {
+  const primera = teams.filter(t => (t.division ?? "primera_nacional") === "primera_nacional");
+
   TEAMS.length = 0;
   ZONE_A.length = 0;
   ZONE_B.length = 0;
   for (const key of Object.keys(TEAMS_BY_ID)) delete TEAMS_BY_ID[key];
 
-  const nonPn = teams.filter(t => (t.division ?? "primera_nacional") !== "primera_nacional");
-  OTHER_DIVISION_TEAMS.length = 0;
-
-  for (const team of teams) {
+  for (const team of primera) {
+    TEAMS.push(team);
     TEAMS_BY_ID[team.id] = team;
-    if ((team.division ?? "primera_nacional") === "primera_nacional") {
-      TEAMS.push(team);
-      if (team.zone === "A") ZONE_A.push(team);
-      else ZONE_B.push(team);
-    }
+    if (team.zone === "A") ZONE_A.push(team);
+    else ZONE_B.push(team);
   }
-  OTHER_DIVISION_TEAMS.push(...nonPn);
+
+  OTHER_DIVISION_TEAMS.length = 0;
+  for (const team of teams.filter(t => (t.division ?? "primera_nacional") !== "primera_nacional")) {
+    OTHER_DIVISION_TEAMS.push(team);
+  }
 }
 
 function saveCache() {
@@ -502,51 +510,84 @@ function hydrateCache() {
   }
 }
 
-function removeFromArrayById(list: Team[], id: string) {
-  const i = list.findIndex(t => t.id === id);
-  if (i >= 0) list.splice(i, 1);
-}
+function applyDbRow(
+  row: DbTeam,
+) {
+  const team =
+    rowToTeam(row);
 
-function applyDbRow(row: DbTeam) {
-  const team = rowToTeam(row);
-  const existing = TEAMS_BY_ID[row.id];
-  const oldDivision = existing?.division ?? "primera_nacional";
-  const newDivision = team.division ?? "primera_nacional";
+  const existing =
+    TEAMS_BY_ID[
+      row.id
+    ];
 
-  if (existing) Object.assign(existing, team);
-  else TEAMS_BY_ID[team.id] = team;
-
-  const live = TEAMS_BY_ID[team.id];
-  if (oldDivision === "primera_nacional" && newDivision !== "primera_nacional") {
-    removeFromArrayById(TEAMS, team.id);
-    removeFromArrayById(ZONE_A, team.id);
-    removeFromArrayById(ZONE_B, team.id);
-    if (!OTHER_DIVISION_TEAMS.some(t => t.id === team.id)) OTHER_DIVISION_TEAMS.push(live);
-  } else if (oldDivision !== "primera_nacional" && newDivision === "primera_nacional") {
-    removeFromArrayById(OTHER_DIVISION_TEAMS, team.id);
-    if (!TEAMS.some(t => t.id === team.id)) TEAMS.push(live);
-    if (live.zone === "A") { if (!ZONE_A.some(t => t.id === team.id)) ZONE_A.push(live); }
-    else { if (!ZONE_B.some(t => t.id === team.id)) ZONE_B.push(live); }
-  } else if (newDivision !== "primera_nacional") {
-    const oi = OTHER_DIVISION_TEAMS.findIndex(t => t.id === team.id);
-    if (oi >= 0) Object.assign(OTHER_DIVISION_TEAMS[oi], live);
-    else OTHER_DIVISION_TEAMS.push(live);
+  if (existing) {
+    Object.assign(
+      existing,
+      team,
+    );
   } else {
-    const legacy = TEAMS.find(t => t.id === team.id);
-    if (legacy) Object.assign(legacy, live);
-    else TEAMS.push(live);
-    removeFromArrayById(ZONE_A, team.id);
-    removeFromArrayById(ZONE_B, team.id);
-    if (live.zone === "A") ZONE_A.push(live); else ZONE_B.push(live);
+    TEAMS.push(team);
+
+    TEAMS_BY_ID[
+      team.id
+    ] = team;
+
+    if (
+      team.zone === "A"
+    ) {
+      ZONE_A.push(team);
+    } else {
+      ZONE_B.push(team);
+    }
   }
 }
 
-function removeTeam(id: string) {
-  removeFromArrayById(TEAMS, id);
-  removeFromArrayById(ZONE_A, id);
-  removeFromArrayById(ZONE_B, id);
-  removeFromArrayById(OTHER_DIVISION_TEAMS, id);
-  delete TEAMS_BY_ID[id];
+function removeTeam(
+  id: string,
+) {
+  const index =
+    TEAMS.findIndex(
+      (team) =>
+        team.id === id,
+    );
+
+  if (index >= 0) {
+    TEAMS.splice(
+      index,
+      1,
+    );
+  }
+
+  delete TEAMS_BY_ID[
+    id
+  ];
+
+  const zoneAIndex =
+    ZONE_A.findIndex(
+      (team) =>
+        team.id === id,
+    );
+
+  if (zoneAIndex >= 0) {
+    ZONE_A.splice(
+      zoneAIndex,
+      1,
+    );
+  }
+
+  const zoneBIndex =
+    ZONE_B.findIndex(
+      (team) =>
+        team.id === id,
+    );
+
+  if (zoneBIndex >= 0) {
+    ZONE_B.splice(
+      zoneBIndex,
+      1,
+    );
+  }
 }
 
 let booted = false;
