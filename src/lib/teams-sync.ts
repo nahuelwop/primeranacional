@@ -11,52 +11,61 @@ import {
 } from "@/data/teams";
 import { OTHER_DIVISION_TEAMS } from "@/data/teams-other-divisions";
 
-const CACHE_KEY =
-  "primera-heads-teams-cache-v4";
+const CACHE_KEY = "primera-heads-teams-cache-v5";
+
+// ============================================================================
+// FALLBACK ESTÁTICO
+// ============================================================================
 
 const CATALOG_FALLBACK =
   new Map<string, Team>();
 
-for (const team of [...TEAMS, ...OTHER_DIVISION_TEAMS]) {
+for (
+  const team of [
+    ...TEAMS,
+    ...OTHER_DIVISION_TEAMS,
+  ]
+) {
   CATALOG_FALLBACK.set(team.id, {
     ...team,
-
     stats: {
       ...team.stats,
     },
-
     rivals: [
       ...(team.rivals ?? []),
     ],
-
     flagUrls: [
       ...(team.flagUrls ?? []),
     ],
-
     goalAudios: [
       ...(team.goalAudios ?? []),
     ],
-
     hinchadas: [
       ...(team.hinchadas ?? []),
     ],
-
     narrators: [
       ...(team.narrators ?? []),
     ],
   });
 }
 
+// ============================================================================
+// TIPO DE FILA DE SUPABASE
+// ============================================================================
+
 export type DbTeam = {
   id: string;
-
   name: string;
   short: string;
   city: string;
 
-  zone: "A" | "B";
+  // Primera Nacional / divisiones zonificadas.
+  // Regional actualmente mantiene zone como compatibilidad interna,
+  // mientras regional_region y regional_group contienen la estructura real.
+  zone: string;
 
   division?: string | null;
+
   regional_region?: string | null;
   regional_group?: string | null;
 
@@ -78,27 +87,22 @@ export type DbTeam = {
   sort_order: number;
 
   goal_audio_urls?: string[] | null;
-
   hinchada_urls?: string[] | null;
-
   narrators?: Narrator[] | null;
 
   full_name?: string | null;
-
   founded_year?: number | null;
-
   province?: string | null;
-
   nickname?: string | null;
-
   rival_id?: string | null;
-
   primera_seasons?: number | null;
-
   achievements?: string | null;
-
   history?: string | null;
 };
+
+// ============================================================================
+// STORE
+// ============================================================================
 
 type State = {
   version: number;
@@ -110,6 +114,10 @@ const useStore = create<State>(() => ({
   loaded: false,
 }));
 
+// ============================================================================
+// HELPERS
+// ============================================================================
+
 function cloneArray<T>(
   value: T[] | null | undefined,
 ): T[] {
@@ -118,69 +126,75 @@ function cloneArray<T>(
     : [];
 }
 
+// ============================================================================
+// SUPABASE -> TEAM
+// ============================================================================
+
 function rowToTeam(
   row: DbTeam,
 ): Team {
   const fallback =
-    CATALOG_FALLBACK.get(
-      row.id,
-    );
+    CATALOG_FALLBACK.get(row.id);
+
+  // --------------------------------------------------------------------------
+  // ESCUDO
+  // --------------------------------------------------------------------------
+  //
+  // Supabase tiene prioridad.
+  // Solamente usamos el catálogo estático si la fila no tiene logo.
+  //
+  // Esto evita que un logo guardado desde Admin sea reemplazado
+  // por el null del catálogo original.
 
   const logoUrl =
-    typeof row.logo_url ===
-      "string" &&
+    typeof row.logo_url === "string" &&
     row.logo_url.trim().length > 0
       ? row.logo_url
-      : fallback?.logoUrl ??
-        null;
+      : fallback?.logoUrl ?? null;
+
+  // --------------------------------------------------------------------------
+  // BANDERAS
+  // --------------------------------------------------------------------------
 
   const flagUrls =
-    Array.isArray(
-      row.flag_urls,
-    ) &&
+    Array.isArray(row.flag_urls) &&
     row.flag_urls.length > 0
-      ? cloneArray(
-          row.flag_urls,
-        )
-      : cloneArray(
-          fallback?.flagUrls,
-        );
+      ? cloneArray(row.flag_urls)
+      : cloneArray(fallback?.flagUrls);
+
+  // --------------------------------------------------------------------------
+  // AUDIOS DE GOL
+  // --------------------------------------------------------------------------
 
   const goalAudios =
-    Array.isArray(
-      row.goal_audio_urls,
-    ) &&
+    Array.isArray(row.goal_audio_urls) &&
     row.goal_audio_urls.length > 0
-      ? cloneArray(
-          row.goal_audio_urls,
-        )
-      : cloneArray(
-          fallback?.goalAudios,
-        );
+      ? cloneArray(row.goal_audio_urls)
+      : cloneArray(fallback?.goalAudios);
+
+  // --------------------------------------------------------------------------
+  // HINCHADA
+  // --------------------------------------------------------------------------
 
   const hinchadas =
-    Array.isArray(
-      row.hinchada_urls,
-    ) &&
+    Array.isArray(row.hinchada_urls) &&
     row.hinchada_urls.length > 0
-      ? cloneArray(
-          row.hinchada_urls,
-        )
-      : cloneArray(
-          fallback?.hinchadas,
-        );
+      ? cloneArray(row.hinchada_urls)
+      : cloneArray(fallback?.hinchadas);
+
+  // --------------------------------------------------------------------------
+  // RELATORES
+  // --------------------------------------------------------------------------
 
   const narrators =
-    Array.isArray(
-      row.narrators,
-    ) &&
+    Array.isArray(row.narrators) &&
     row.narrators.length > 0
-      ? cloneArray(
-          row.narrators,
-        )
-      : cloneArray(
-          fallback?.narrators,
-        );
+      ? cloneArray(row.narrators)
+      : cloneArray(fallback?.narrators);
+
+  // --------------------------------------------------------------------------
+  // TEAM FINAL
+  // --------------------------------------------------------------------------
 
   return {
     id: row.id,
@@ -261,12 +275,8 @@ function rowToTeam(
     rivals:
       Array.isArray(row.rivals) &&
       row.rivals.length > 0
-        ? [
-            ...row.rivals,
-          ]
-        : cloneArray(
-            fallback?.rivals,
-          ),
+        ? [...row.rivals]
+        : cloneArray(fallback?.rivals),
 
     logoUrl,
 
@@ -320,31 +330,74 @@ function rowToTeam(
   };
 }
 
-function replaceTeams(teams: Team[]) {
-  const primera = teams.filter(t => (t.division ?? "primera_nacional") === "primera_nacional");
+// ============================================================================
+// REEMPLAZAR TODO EL CATÁLOGO DINÁMICO
+// ============================================================================
+
+function replaceTeams(
+  teams: Team[],
+) {
+  // Primera Nacional
+  const primera = teams.filter(
+    (team) =>
+      (team.division ??
+        "primera_nacional") ===
+      "primera_nacional",
+  );
 
   TEAMS.length = 0;
   ZONE_A.length = 0;
   ZONE_B.length = 0;
-  for (const key of Object.keys(TEAMS_BY_ID)) delete TEAMS_BY_ID[key];
+
+  for (
+    const key of Object.keys(
+      TEAMS_BY_ID,
+    )
+  ) {
+    delete TEAMS_BY_ID[key];
+  }
+
+  // --------------------------------------------------------------------------
+  // PRIMERA NACIONAL
+  // --------------------------------------------------------------------------
 
   for (const team of primera) {
     TEAMS.push(team);
     TEAMS_BY_ID[team.id] = team;
-    if (team.zone === "A") ZONE_A.push(team);
-    else ZONE_B.push(team);
+
+    if (team.zone === "A") {
+      ZONE_A.push(team);
+    } else if (team.zone === "B") {
+      ZONE_B.push(team);
+    }
   }
 
+  // --------------------------------------------------------------------------
+  // RESTO DE DIVISIONES
+  // --------------------------------------------------------------------------
+
   OTHER_DIVISION_TEAMS.length = 0;
-  for (const team of teams.filter(t => (t.division ?? "primera_nacional") !== "primera_nacional")) {
+
+  for (
+    const team of teams.filter(
+      (team) =>
+        (team.division ??
+          "primera_nacional") !==
+        "primera_nacional",
+    )
+  ) {
     OTHER_DIVISION_TEAMS.push(team);
+    TEAMS_BY_ID[team.id] = team;
   }
 }
 
+// ============================================================================
+// CACHE
+// ============================================================================
+
 function saveCache() {
   if (
-    typeof window ===
-    "undefined"
+    typeof window === "undefined"
   ) {
     return;
   }
@@ -352,19 +405,23 @@ function saveCache() {
   try {
     window.localStorage.setItem(
       CACHE_KEY,
-      JSON.stringify(
-        [...TEAMS, ...OTHER_DIVISION_TEAMS],
-      ),
+      JSON.stringify([
+        ...TEAMS,
+        ...OTHER_DIVISION_TEAMS,
+      ]),
     );
   } catch {
-    // No bloquear el juego si localStorage falla.
+    // No bloquear el juego por un error de localStorage.
   }
 }
 
+// ============================================================================
+// CARGAR CACHE
+// ============================================================================
+
 function hydrateCache() {
   if (
-    typeof window ===
-    "undefined"
+    typeof window === "undefined"
   ) {
     return false;
   }
@@ -380,109 +437,91 @@ function hydrateCache() {
     }
 
     const teams =
-      JSON.parse(
-        raw,
-      ) as Team[];
+      JSON.parse(raw) as Team[];
 
     if (
-      !Array.isArray(
-        teams,
-      ) ||
+      !Array.isArray(teams) ||
       teams.length === 0
     ) {
       return false;
     }
 
     const repaired =
-      teams.map(
-        (team) => {
-          const fallback =
-            CATALOG_FALLBACK.get(
-              team.id,
-            );
+      teams.map((team) => {
+        const fallback =
+          CATALOG_FALLBACK.get(
+            team.id,
+          );
 
-          if (!fallback) {
-            return team;
-          }
+        if (!fallback) {
+          return team;
+        }
 
-          return {
-            ...fallback,
+        return {
+          ...fallback,
 
-            ...team,
+          ...team,
 
-            stats: {
-              ...fallback.stats,
-              ...(team.stats ??
-                {}),
-            },
+          stats: {
+            ...fallback.stats,
+            ...(team.stats ?? {}),
+          },
 
-            logoUrl:
-              team.logoUrl ||
-              fallback.logoUrl ||
-              null,
+          // IMPORTANTE:
+          // si el cache tiene logo, conservarlo.
+          logoUrl:
+            team.logoUrl ||
+            fallback.logoUrl ||
+            null,
 
-            flagUrls:
-              team.flagUrls?.length
-                ? [
-                    ...team.flagUrls,
-                  ]
-                : [
-                    ...(fallback.flagUrls ??
-                      []),
-                  ],
+          flagUrls:
+            team.flagUrls?.length
+              ? [...team.flagUrls]
+              : [
+                  ...(fallback.flagUrls ??
+                    []),
+                ],
 
-            goalAudios:
-              team.goalAudios?.length
-                ? [
-                    ...team.goalAudios,
-                  ]
-                : [
-                    ...(fallback.goalAudios ??
-                      []),
-                  ],
+          goalAudios:
+            team.goalAudios?.length
+              ? [...team.goalAudios]
+              : [
+                  ...(fallback.goalAudios ??
+                    []),
+                ],
 
-            hinchadas:
-              team.hinchadas?.length
-                ? [
-                    ...team.hinchadas,
-                  ]
-                : [
-                    ...(fallback.hinchadas ??
-                      []),
-                  ],
+          hinchadas:
+            team.hinchadas?.length
+              ? [...team.hinchadas]
+              : [
+                  ...(fallback.hinchadas ??
+                    []),
+                ],
 
-            narrators:
-              team.narrators?.length
-                ? [
-                    ...team.narrators,
-                  ]
-                : [
-                    ...(fallback.narrators ??
-                      []),
-                  ],
+          narrators:
+            team.narrators?.length
+              ? [...team.narrators]
+              : [
+                  ...(fallback.narrators ??
+                    []),
+                ],
 
-            rivals:
-              team.rivals?.length
-                ? [
-                    ...team.rivals,
-                  ]
-                : [
-                    ...(fallback.rivals ??
-                      []),
-                  ],
-          };
-        },
-      );
+          rivals:
+            team.rivals?.length
+              ? [...team.rivals]
+              : [
+                  ...(fallback.rivals ??
+                    []),
+                ],
+        };
+      });
 
-    replaceTeams(
-      repaired,
-    );
+    replaceTeams(repaired);
 
     useStore.setState(
       (state) => ({
         version:
           state.version + 1,
-
         loaded: true,
       }),
     );
@@ -510,112 +549,248 @@ function hydrateCache() {
   }
 }
 
+// ============================================================================
+// ARRAY HELPER
+// ============================================================================
+
+function removeFromArrayById(
+  list: Team[],
+  id: string,
+) {
+  const index =
+    list.findIndex(
+      (team) => team.id === id,
+    );
+
+  if (index >= 0) {
+    list.splice(index, 1);
+  }
+}
+
+// ============================================================================
+// CAMBIO INDIVIDUAL RECIBIDO DESDE REALTIME
+// ============================================================================
+
 function applyDbRow(
   row: DbTeam,
 ) {
-  const team =
-    rowToTeam(row);
+  const team = rowToTeam(row);
 
   const existing =
-    TEAMS_BY_ID[
-      row.id
-    ];
+    TEAMS_BY_ID[row.id];
+
+  // --------------------------------------------------------------------------
+  // EXISTE
+  // --------------------------------------------------------------------------
 
   if (existing) {
     Object.assign(
       existing,
       team,
     );
-  } else {
-    TEAMS.push(team);
 
-    TEAMS_BY_ID[
-      team.id
-    ] = team;
+    const division =
+      team.division ??
+      "primera_nacional";
 
     if (
-      team.zone === "A"
+      division ===
+      "primera_nacional"
     ) {
+      if (
+        !TEAMS.some(
+          (item) =>
+            item.id === team.id,
+        )
+      ) {
+        TEAMS.push(team);
+      }
+
+      removeFromArrayById(
+        OTHER_DIVISION_TEAMS,
+        team.id,
+      );
+
+      removeFromArrayById(
+        ZONE_A,
+        team.id,
+      );
+
+      removeFromArrayById(
+        ZONE_B,
+        team.id,
+      );
+
+      if (team.zone === "A") {
+        ZONE_A.push(team);
+      } else if (
+        team.zone === "B"
+      ) {
+        ZONE_B.push(team);
+      }
+
+      return;
+    }
+
+    removeFromArrayById(
+      TEAMS,
+      team.id,
+    );
+
+    removeFromArrayById(
+      ZONE_A,
+      team.id,
+    );
+
+    removeFromArrayById(
+      ZONE_B,
+      team.id,
+    );
+
+    if (
+      !OTHER_DIVISION_TEAMS.some(
+        (item) =>
+          item.id === team.id,
+      )
+    ) {
+      OTHER_DIVISION_TEAMS.push(
+        team,
+      );
+    }
+
+    return;
+  }
+
+  // --------------------------------------------------------------------------
+  // NUEVO EQUIPO
+  // --------------------------------------------------------------------------
+
+  TEAMS_BY_ID[team.id] = team;
+
+  const division =
+    team.division ??
+    "primera_nacional";
+
+  if (
+    division ===
+    "primera_nacional"
+  ) {
+    TEAMS.push(team);
+
+    if (team.zone === "A") {
       ZONE_A.push(team);
-    } else {
+    } else if (
+      team.zone === "B"
+    ) {
       ZONE_B.push(team);
     }
+
+    return;
   }
+
+  OTHER_DIVISION_TEAMS.push(
+    team,
+  );
 }
+
+// ============================================================================
+// ELIMINAR EQUIPO
+// ============================================================================
 
 function removeTeam(
   id: string,
 ) {
-  const index =
-    TEAMS.findIndex(
-      (team) =>
-        team.id === id,
-    );
+  removeFromArrayById(
+    TEAMS,
+    id,
+  );
 
-  if (index >= 0) {
-    TEAMS.splice(
-      index,
-      1,
-    );
-  }
+  removeFromArrayById(
+    ZONE_A,
+    id,
+  );
 
-  delete TEAMS_BY_ID[
-    id
-  ];
+  removeFromArrayById(
+    ZONE_B,
+    id,
+  );
 
-  const zoneAIndex =
-    ZONE_A.findIndex(
-      (team) =>
-        team.id === id,
-    );
+  removeFromArrayById(
+    OTHER_DIVISION_TEAMS,
+    id,
+  );
 
-  if (zoneAIndex >= 0) {
-    ZONE_A.splice(
-      zoneAIndex,
-      1,
-    );
-  }
-
-  const zoneBIndex =
-    ZONE_B.findIndex(
-      (team) =>
-        team.id === id,
-    );
-
-  if (zoneBIndex >= 0) {
-    ZONE_B.splice(
-      zoneBIndex,
-      1,
-    );
-  }
+  delete TEAMS_BY_ID[id];
 }
+
+// ============================================================================
+// LOAD ALL
+// ============================================================================
 
 let booted = false;
 
 async function loadAll() {
-  console.log("[TEAMS] Cargando equipos desde Supabase...");
-  const { data, error } = await supabase.from("teams").select("*").order("sort_order", { ascending: true });
+  console.log(
+    "[TEAMS] Cargando equipos desde Supabase...",
+  );
+
+  const {
+    data,
+    error,
+  } =
+    await supabase
+      .from("teams")
+      .select("*")
+      .order(
+        "sort_order",
+        {
+          ascending: true,
+        },
+      );
+
   if (error) {
-    console.error("[TEAMS] Error de Supabase:", error);
+    console.error(
+      "[TEAMS] Error de Supabase:",
+      error,
+    );
+
     hydrateCache();
+
     return;
   }
-  if (!data || data.length === 0) {
-    console.warn("[TEAMS] Supabase devolvió 0 equipos; usando cache/local como fallback.");
+
+  if (
+    !data ||
+    data.length === 0
+  ) {
+    console.warn(
+      "[TEAMS] Supabase devolvió 0 equipos; usando cache/local como fallback.",
+    );
+
     hydrateCache();
+
     return;
   }
-  console.log("[TEAMS] Equipos recibidos desde Supabase:", data.length);
-  syncTeamsFromDbRows(data as unknown as DbTeam[]);
+
+  console.log(
+    "[TEAMS] Equipos recibidos desde Supabase:",
+    data.length,
+  );
+
+  syncTeamsFromDbRows(
+    data as unknown as DbTeam[],
+  );
 }
+
+// ============================================================================
+// SINCRONIZAR TODAS LAS FILAS
+// ============================================================================
 
 export function syncTeamsFromDbRows(
   rows: DbTeam[],
 ) {
   if (
-    !Array.isArray(
-      rows,
-    ) ||
+    !Array.isArray(rows) ||
     rows.length === 0
   ) {
     console.warn(
@@ -625,47 +800,52 @@ export function syncTeamsFromDbRows(
     return;
   }
 
-  const teams = rows.map(rowToTeam);
+  const teams =
+    rows.map(rowToTeam);
+
   replaceTeams(teams);
+
   saveCache();
 
   useStore.setState(
     (state) => ({
       version:
         state.version + 1,
-
       loaded: true,
     }),
   );
 }
 
+// ============================================================================
+// HIDRATAR DIRECTAMENTE
+// ============================================================================
+
 export function hydrateTeamsFromDbRows(
   rows: DbTeam[],
 ) {
   if (
-    !Array.isArray(
-      rows,
-    ) ||
+    !Array.isArray(rows) ||
     rows.length === 0
   ) {
     return;
   }
 
   replaceTeams(
-    rows.map(
-      rowToTeam,
-    ),
+    rows.map(rowToTeam),
   );
 
   useStore.setState(
     (state) => ({
       version:
         state.version + 1,
-
       loaded: true,
     }),
   );
 }
+
+// ============================================================================
+// BOOT
+// ============================================================================
 
 function bootOnce() {
   if (booted) {
@@ -677,9 +857,7 @@ function bootOnce() {
   void loadAll();
 
   supabase
-    .channel(
-      "teams-live",
-    )
+    .channel("teams-live")
     .on(
       "postgres_changes",
       {
@@ -714,7 +892,6 @@ function bootOnce() {
           (state) => ({
             version:
               state.version + 1,
-
             loaded: true,
           }),
         );
@@ -730,22 +907,40 @@ function bootOnce() {
     );
 }
 
+// ============================================================================
+// HOOK
+// ============================================================================
+
 export function useTeamsSync() {
-  const version = useStore((state) => state.version);
-  useEffect(() => { bootOnce(); }, []);
+  const version =
+    useStore(
+      (state) => state.version,
+    );
+
+  useEffect(() => {
+    bootOnce();
+  }, []);
+
   return version;
 }
+
+// ============================================================================
+// VERSION MANUAL
+// ============================================================================
 
 export function bumpTeamsVersion() {
   useStore.setState(
     (state) => ({
       version:
         state.version + 1,
-
       loaded: true,
     }),
   );
 }
+
+// ============================================================================
+// RELOAD MANUAL
+// ============================================================================
 
 export async function reloadTeams() {
   await loadAll();
