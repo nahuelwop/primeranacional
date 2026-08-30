@@ -1,7 +1,8 @@
 import { TEAMS, type Team } from "./teams";
 import { OTHER_DIVISION_TEAMS } from "./teams-other-divisions";
 import type { DivisionId } from "./competitions";
-import { REGIONAL_TEAM_META, type RegionalTeamMeta } from "./regional-amateur";
+import { REGIONAL_FEDERAL_AMATEUR_TEAMS, REGIONAL_META } from "./regional-amateur";
+import { PROMOCIONAL_AMATEUR_TEAMS, PROMOCIONAL_TEAM_META } from "./promocional-amateur";
 
 /**
  * Catálogo central de clubes de Primera Heads.
@@ -35,9 +36,17 @@ export const ALL_TEAMS: Team[] = (() => {
   // Después agregamos los equipos de las demás divisiones.
   // Si existe el mismo ID en ambas fuentes, TEAMS tiene prioridad.
   for (const team of OTHER_DIVISION_TEAMS) {
-    if (!byId.has(team.id)) {
-      byId.set(team.id, team);
-    }
+    if (!byId.has(team.id)) byId.set(team.id, team);
+  }
+
+  for (const team of PROMOCIONAL_AMATEUR_TEAMS) {
+    if (!byId.has(team.id)) byId.set(team.id, team);
+  }
+
+  // El Regional es una competencia independiente y sus equipos también
+  // forman parte del catálogo central.
+  for (const team of REGIONAL_FEDERAL_AMATEUR_TEAMS) {
+    if (!byId.has(team.id)) byId.set(team.id, team);
   }
 
   return Array.from(byId.values());
@@ -59,9 +68,11 @@ export function getTeamsByZone(
   division: DivisionId,
   zone: string,
 ): Team[] {
-  return getTeamsByDivision(division).filter(
-    (team) => team.zone === zone,
-  );
+  const teams = getTeamsByDivision(division);
+  if (division === "regional_federal_amateur") {
+    return teams.filter(team => team.regionalRegion === zone);
+  }
+  return teams.filter(team => team.zone === zone);
 }
 
 export function getTeamById(
@@ -79,6 +90,12 @@ export function getTeamById(
 export function getZonesByDivision(
   division: DivisionId,
 ): string[] {
+  if (division === "regional_federal_amateur") {
+    return [
+      "Norte", "Litoral Norte", "Litoral Sur", "Centro", "Cuyo",
+      "Pampeana Norte", "Pampeana Sur", "Patagonia",
+    ];
+  }
   const zones = getTeamsByDivision(division)
     .map((team) => team.zone)
     .filter(Boolean);
@@ -116,7 +133,12 @@ export function getDivisionTeamSummary(): Record<string, number> {
 }
 
 
-export function getRegionalTeamMeta(id: string): RegionalTeamMeta | null {
-  const meta = REGIONAL_TEAM_META[id];
+export function getRegionalTeamMeta(id: string): { region: string; group: string } | null {
+  const meta = REGIONAL_META.get(id);
+  return meta ? { region: meta.region, group: meta.group } : null;
+}
+
+export function getPromocionalTeamMeta(id: string): { zone: "A" | "B" } | null {
+  const meta = PROMOCIONAL_TEAM_META.get(id);
   return meta ? { ...meta } : null;
 }
