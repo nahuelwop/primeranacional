@@ -1,5 +1,3 @@
-import { OTHER_DIVISION_TEAMS } from "./teams-other-divisions";
-
 export type Stats = {
   speed: number;
   jump: number;
@@ -18,8 +16,12 @@ export type Team = {
   name: string;
   short: string;
   city: string;
-  zone: string;
+  zone: "A" | "B";
   division?: import("./competitions").DivisionId;
+
+  /** Geografía específica del Regional Federal Amateur. */
+  regionalRegion?: string | null;
+  regionalGroup?: string | null;
 
   primary: string;
   secondary: string;
@@ -37,8 +39,6 @@ export type Team = {
   fullName?: string | null;
   foundedYear?: number | null;
   province?: string | null;
-  regionalRegion?: string | null;
-  regionalGroup?: string | null;
   nickname?: string | null;
   rivalId?: string | null;
   primeraSeasons?: number | null;
@@ -582,10 +582,10 @@ export const TEAMS: Team[] = [
   ),
 ];
 
-export const TEAMS_BY_ID: Record<string, Team> = Object.fromEntries([
-  ...TEAMS,
-  ...OTHER_DIVISION_TEAMS.filter((team) => !TEAMS.some((pn) => pn.id === team.id)),
-].map((team) => [team.id, team]));
+export const TEAMS_BY_ID: Record<string, Team> =
+  Object.fromEntries(
+    TEAMS.map((team) => [team.id, team]),
+  );
 
 export const ZONE_A = TEAMS.filter(
   (team) => team.zone === "A",
