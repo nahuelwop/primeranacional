@@ -176,8 +176,6 @@ export function resolveNextDivision(params: {
     if (position <= promo.directSlots) return promo.to;
     if (
       promo.playoffSlots > 0 &&
-      position > promo.directSlots &&
-      position <= promo.directSlots + promo.playoffSlots * 4 && // rango razonable de clasificados al reducido
       wonPromotionPlayoff
     ) {
       return promo.to;
