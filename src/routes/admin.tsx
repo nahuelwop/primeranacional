@@ -450,18 +450,16 @@ function AjustesTab() {
     setSettings(s => ({ ...s, coimas_flags: { ...s.coimas_flags, [key]: !s.coimas_flags[key] } }));
   }
 
-  const introDivisions: { id: DivisionId; label: string }[] = DIVISION_ORDER.map(id => ({ id, label: COMPETITIONS[id].name }));
-
-  async function uploadIntroFile(file: File, division: DivisionId) {
+  async function uploadIntroFile(file: File) {
     setBusy(true); setErr(null); setMsg(null);
     try {
       const ext = file.name.split(".").pop() || "mp4";
-      const path = `intro/${division}/season-intro-${Date.now()}.${ext}`;
+      const path = `intro/season-intro-${Date.now()}.${ext}`;
       const { error } = await supabase.storage.from("team-logos").upload(path, file, { upsert: true, contentType: file.type });
       if (error) throw error;
       const { data } = supabase.storage.from("team-logos").getPublicUrl(path);
-      setSettings(s => ({ ...s, intro_videos: { ...s.intro_videos, [division]: data.publicUrl } }));
-      setMsg(`Intro de ${COMPETITIONS[division].name} subida. Recordá guardar los cambios.`);
+      set("intro_video_url", data.publicUrl);
+      setMsg("Video subido. Recordá guardar los cambios.");
     } catch (e) { setErr((e as Error).message); }
     finally { setBusy(false); }
   }
@@ -486,7 +484,6 @@ function AjustesTab() {
     try {
       await saveGameSettings({
         intro_video_url: settings.intro_video_url,
-        intro_videos: settings.intro_videos,
         whistle_audio_url: settings.whistle_audio_url,
         coimas_enabled: settings.coimas_enabled,
         coimas_flags: settings.coimas_flags,
@@ -501,36 +498,27 @@ function AjustesTab() {
 
   return (
     <div className="space-y-6 max-w-3xl">
-      {/* Intro de temporada por división */}
+      {/* Intro de temporada */}
       <section className="rounded-2xl bg-card border border-border p-5">
         <h2 className="font-display text-xl mb-1">🎬 Intro de temporada</h2>
-        <p className="text-xs text-muted-foreground mb-4">Configurá una intro independiente para cada división. La carrera usa automáticamente la intro correspondiente a la categoría elegida.</p>
-        <div className="grid md:grid-cols-2 gap-4">
-          {introDivisions.map(({ id, label }) => {
-            const url = settings.intro_videos[id] ?? null;
-            return (
-              <div key={id} className="rounded-xl border border-border p-4 space-y-2">
-                <div>
-                  <div className="font-display text-base">{label}</div>
-                  <div className="text-[11px] text-muted-foreground">Intro exclusiva de esta división</div>
-                </div>
-                <Input value={url ?? ""} onChange={e => setSettings(x => ({ ...x, intro_videos: { ...x.intro_videos, [id]: e.target.value || null } }))} placeholder="https://..." />
-                <div className="flex items-center gap-3 flex-wrap">
-                  <label className="text-xs text-celeste underline inline-block cursor-pointer">
-                    Subir video desde PC
-                    <input type="file" accept="video/*" hidden disabled={busy}
-                      onChange={e => e.target.files?.[0] && uploadIntroFile(e.target.files[0], id)} />
-                  </label>
-                  {url && (
-                    <button onClick={() => setSettings(x => ({ ...x, intro_videos: { ...x.intro_videos, [id]: null } }))} className="text-xs text-destructive hover:underline">Quitar</button>
-                  )}
-                </div>
-                {url && <video src={url} controls className="w-full max-h-40 rounded-lg border border-border mt-2" />}
-              </div>
-            );
-          })}
+        <p className="text-xs text-muted-foreground mb-3">Video opcional que se reproduce al iniciar cada temporada. Si está vacío, se usa la intro animada por defecto.</p>
+        <div className="space-y-2">
+          <label className="text-xs text-muted-foreground uppercase">URL del video (MP4/WebM)</label>
+          <Input value={settings.intro_video_url ?? ""} onChange={e => set("intro_video_url", e.target.value || null)} placeholder="https://..." />
+          <div className="flex items-center gap-3">
+            <label className="text-xs text-celeste underline inline-block cursor-pointer">
+              o subir archivo desde tu PC
+              <input type="file" accept="video/*" hidden
+                onChange={e => e.target.files?.[0] && uploadIntroFile(e.target.files[0])} />
+            </label>
+            {settings.intro_video_url && (
+              <button onClick={() => set("intro_video_url", null)} className="text-xs text-destructive hover:underline">Quitar video</button>
+            )}
+          </div>
+          {settings.intro_video_url && (
+            <video src={settings.intro_video_url} controls className="w-full max-h-64 rounded-lg border border-border mt-2" />
+          )}
         </div>
-        <div className="mt-4 rounded-lg bg-secondary/30 border border-border p-3 text-xs text-muted-foreground">La intro antigua global se mantiene solamente por compatibilidad. Para el Modo Carrera se prioriza siempre la intro específica de la división.</div>
       </section>
 
       {/* Pitido final */}
@@ -605,7 +593,7 @@ function TeamEditor({ initial, onClose, onSaved }: {
     short: initial?.short ?? "",
     city: initial?.city ?? "",
     division: (initial?.division ?? "primera_nacional") as DivisionId,
-    zone: (initial?.zone ?? "A") as string,
+    zone: (initial?.zone ?? "A") as "A" | "B",
     primary_color: initial?.primary ?? "#1a55a6",
     secondary_color: initial?.secondary ?? "#ffffff",
     stripe: (initial?.stripe ?? "solid") as string,
@@ -626,8 +614,6 @@ function TeamEditor({ initial, onClose, onSaved }: {
     primera_seasons: initial?.primeraSeasons ?? ("" as number | ""),
     achievements: initial?.achievements ?? "",
     history: initial?.history ?? "",
-    regional_region: initial?.regionalRegion ?? "",
-    regional_group: initial?.regionalGroup ?? initial?.zone ?? "",
   });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -635,13 +621,20 @@ function TeamEditor({ initial, onClose, onSaved }: {
   async function uploadLogo(file: File) {
     setBusy(true); setErr(null);
     try {
-      const ext = file.name.split(".").pop() || "png";
-      const safeId = (form.id || "new").toLowerCase().replace(/[^a-z0-9_-]/g, "");
-      const path = `teams/${safeId}/logo.${ext}`;
-      const { error } = await supabase.storage.from("team-logos").upload(path, file, { upsert: true, contentType: file.type || undefined });
+      if (!form.id) throw new Error("Primero asigná un ID al equipo antes de subir el escudo.");
+      if (!file.type.startsWith("image/")) throw new Error("El archivo tiene que ser una imagen.");
+      if (file.size > 5 * 1024 * 1024) throw new Error("El escudo no puede superar 5 MB.");
+
+      const ext = (file.name.split(".").pop() || "png").toLowerCase();
+      const path = `teams/${form.id}/logo.${ext}`;
+      const { error } = await supabase.storage
+        .from("team-logos")
+        .upload(path, file, { upsert: true, contentType: file.type, cacheControl: "3600" });
       if (error) throw error;
+
       const { data } = supabase.storage.from("team-logos").getPublicUrl(path);
-      setForm(f => ({ ...f, logo_url: data.publicUrl }));
+      const publicUrl = `${data.publicUrl}?v=${Date.now()}`;
+      setForm(f => ({ ...f, logo_url: publicUrl }));
     } catch (e) { setErr((e as Error).message); }
     finally { setBusy(false); }
   }
@@ -736,21 +729,26 @@ function TeamEditor({ initial, onClose, onSaved }: {
         primera_seasons: form.primera_seasons === "" ? null : Number(form.primera_seasons),
         achievements: form.achievements || null,
         history: form.history || null,
-        regional_region: form.division === "regional_federal_amateur" ? (form.regional_region || null) : null,
-        regional_group: form.division === "regional_federal_amateur" ? (form.regional_group || null) : null,
       };
       if (isNew) {
         payload.rivals = [];
         payload.sort_order = getTeamsByDivision(form.division).length;
-        const { data, error } = await supabase.from("teams").insert(payload).select("id").single();
+        const { error } = await supabase.from("teams").insert(payload);
         if (error) throw error;
-        if (!data?.id) throw new Error("No se pudo guardar el equipo en Supabase");
       } else {
         delete payload.id;
         delete payload.sort_order;
-        const { data, error } = await supabase.from("teams").update(payload).eq("id", form.id).select("id").maybeSingle();
+        const { data: updated, error } = await supabase
+          .from("teams")
+          .update(payload)
+          .eq("id", form.id)
+          .select("id, logo_url")
+          .maybeSingle();
         if (error) throw error;
-        if (!data?.id) throw new Error("El equipo no existe en Supabase y no pudo actualizarse. Ejecutá la migración de Regional Amateur.");
+        if (!updated) throw new Error("Supabase no encontró el equipo para actualizar. Verificá que la fila exista en public.teams.");
+        if ((form.logo_url || null) !== (updated.logo_url || null)) {
+          throw new Error("El equipo se actualizó, pero el escudo no quedó persistido en la fila de Supabase.");
+        }
       }
       await onSaved();
       onClose();
@@ -844,26 +842,14 @@ function TeamEditor({ initial, onClose, onSaved }: {
             <label className="text-xs text-muted-foreground uppercase">Ciudad</label>
             <Input value={form.city} onChange={e => setForm(f => ({ ...f, city: e.target.value }))} />
           </div>
-          {form.division !== "regional_federal_amateur" && COMPETITIONS[form.division].hasZones && (
+          {COMPETITIONS[form.division].hasZones && (
             <div>
               <label className="text-xs text-muted-foreground uppercase">Zona</label>
               <select className="w-full h-9 rounded-md border border-input bg-transparent px-3"
-                value={form.zone} onChange={e => setForm(f => ({ ...f, zone: e.target.value }))}>
+                value={form.zone} onChange={e => setForm(f => ({ ...f, zone: e.target.value as "A" | "B" }))}>
                 {COMPETITIONS[form.division].zones.map(z => <option key={z} value={z}>{z}</option>)}
               </select>
             </div>
-          )}
-          {form.division === "regional_federal_amateur" && (
-            <>
-              <div>
-                <label className="text-xs text-muted-foreground uppercase">Región</label>
-                <Input value={form.regional_region} onChange={e => setForm(f => ({ ...f, regional_region: e.target.value }))} placeholder="Norte, Cuyo, Patagonia…" />
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground uppercase">Grupo</label>
-                <Input value={form.regional_group} onChange={e => setForm(f => ({ ...f, regional_group: e.target.value }))} placeholder="1, 2, 3…" />
-              </div>
-            </>
           )}
           <div>
             <label className="text-xs text-muted-foreground uppercase">Color primario</label>
