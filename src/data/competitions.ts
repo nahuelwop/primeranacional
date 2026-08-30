@@ -14,6 +14,7 @@ export type DivisionId =
   | "primera_nacional"
   | "primera_b"
   | "primera_c"
+  | "promocional_amateur"
   | "federal_a"
   | "regional_federal_amateur";
 
@@ -110,9 +111,22 @@ export const COMPETITIONS: Record<DivisionId, CompetitionRules> = {
     hasZones: true,
     zones: ["A", "B"],
     promotion: [{ to: "primera_b", directSlots: 1, playoffSlots: 1 }],
-    relegation: [{ to: "regional_federal_amateur", slots: 1 }],
+    relegation: [{ to: "promocional_amateur", slots: 1 }],
     matchesPerTeam: 32,
     formatLabel: "2 zonas de 14 · ida y vuelta + 6 interzonales; final por 1er ascenso y Reducido por 2º ascenso",
+    usesAffiliation: false,
+  },
+  promocional_amateur: {
+    division: "promocional_amateur",
+    name: "Torneo Promocional Amateur",
+    shortName: "Promocional Amateur",
+    tier: 5,
+    hasZones: true,
+    zones: ["A", "B"],
+    promotion: [{ to: "primera_c", directSlots: 1, playoffSlots: 1 }],
+    relegation: [],
+    matchesPerTeam: 7,
+    formatLabel: "17 equipos · Zona A (8) y Zona B (9) · fase regular por zonas · 1° A vs 1° B por el ascenso · perdedor al Reducido",
     usesAffiliation: false,
   },
   regional_federal_amateur: {
@@ -148,6 +162,7 @@ export const DIVISION_ORDER: DivisionId[] = [
   "primera_nacional",
   "primera_b",
   "primera_c",
+  "promocional_amateur",
   "federal_a",
   "regional_federal_amateur",
 ];
