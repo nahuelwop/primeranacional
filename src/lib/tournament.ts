@@ -605,17 +605,23 @@ export function buildReducido(standA: StandingRow[], standB: StandingRow[], extr
   const seedsA = a.slice(1, 8).map((r, i) => ({ id: r.teamId, rank: i + 2 }));
   const seedsB = b.slice(1, 8).map((r, i) => ({ id: r.teamId, rank: i + 2 }));
   const octavos: Pair[] = [];
+
+  // Primera fase del Reducido: 14 equipos, 7 cruces cruzados.
+  // 2A-8B, 3A-7B, 4A-6B, 5A-5B, 6A-4B, 7A-3B, 8A-2B.
   for (let i = 0; i < 7; i++) {
     const aa = seedsA[i];
     const bb = seedsB[6 - i];
     if (!aa || !bb) continue;
     octavos.push(aa.rank <= bb.rank ? { a: aa.id, b: bb.id } : { a: bb.id, b: aa.id });
   }
-  const cuartos: Pair[] = [];
-  if (extraSeed) cuartos.push({ a: extraSeed });
-  return { octavos, cuartos, semis: [], final: [] };
-}
 
+  // El perdedor de la final entra directamente en cuartos. Lo representamos
+  // como un octavo participante con bye para que advanceBracket construya
+  // correctamente 4 cruces a partir de 8 equipos.
+  if (extraSeed) octavos.push({ a: extraSeed, winner: extraSeed });
+
+  return { octavos, cuartos: [], semis: [], final: [] };
+}
 export function buildFixture(zoneA: string[], zoneB: string[], interzonales: Array<[string, string]> = []): Match[] {
   const a = generateRoundRobin(zoneA, "A"), b = generateRoundRobin(zoneB, "B");
   const totalRounds = Math.max(...a.map(m => m.round), ...b.map(m => m.round), 0);
@@ -692,35 +698,39 @@ function resolvePrimeraNacional(standingsByZone: Record<string, StandingRow[]>):
   const a = sortStandings(standingsByZone.A ?? []), b = sortStandings(standingsByZone.B ?? []);
   const final = a[0] && b[0] ? simulateSingleMatch(a[0].teamId, b[0].teamId, "PN-FINAL", 100, true) : null;
   const first = final?.winner ?? a[0]?.teamId ?? b[0]?.teamId;
-  const loser = final?.winner && a[0] && b[0]
-    ? (final.winner === a[0].teamId ? b[0].teamId : a[0].teamId)
-    : undefined;
+  const loser = final?.winner ? (final.winner === a[0]?.teamId ? b[0]?.teamId : a[0]?.teamId) : undefined;
 
-  const seedsA = a.slice(1, 8).map((r, i) => ({ id: r.teamId, rank: i + 2 }));
-  const seedsB = b.slice(1, 8).map((r, i) => ({ id: r.teamId, rank: i + 2 }));
-  const firstPhase: string[] = [];
+  // Primera fase del Reducido: 2°-8° de cada zona, 7 cruces cruzados.
+  const seedsA = a.slice(1, 8), seedsB = b.slice(1, 8);
+  const firstPhaseWinners: string[] = [];
   const firstPhaseMatches: Match[] = [];
   for (let i = 0; i < 7; i++) {
-    const aa = seedsA[i];
-    const bb = seedsB[6 - i];
-    if (!aa || !bb) continue;
-    const home = aa.rank <= bb.rank ? aa.id : bb.id;
-    const away = home === aa.id ? bb.id : aa.id;
-    const r = simulateSingleMatch(home, away, `PN-R1-${i + 1}`, 101 + i, false);
-    firstPhase.push(r.winner);
+    const x = seedsA[i]?.teamId, y = seedsB[6 - i]?.teamId;
+    if (!x || !y) continue;
+    const rankX = a.findIndex(r => r.teamId === x) + 1;
+    const rankY = b.findIndex(r => r.teamId === y) + 1;
+    const home = rankX <= rankY ? x : y;
+    const away = home === x ? y : x;
+    const r = simulateSingleMatch(home, away, `PN-R1-${i}`, 101 + i, false);
+    firstPhaseWinners.push(r.winner);
     firstPhaseMatches.push(r.match);
   }
 
-  const qSeeds = loser ? [...firstPhase, loser] : firstPhase;
-  const second = simulateElimination(qSeeds, "PN-R2", 1);
+  // 7 ganadores + perdedor de la final = 8 equipos para cuartos.
+  const rank = new Map<string, number>();
+  [...a, ...b].forEach((r, i) => rank.set(r.teamId, i + 1));
+  if (loser) rank.set(loser, 0);
+  const qSeeds = loser ? [...firstPhaseWinners, loser] : firstPhaseWinners;
+  qSeeds.sort((x, y) => (rank.get(x) ?? 999) - (rank.get(y) ?? 999));
+  const reduced = simulateElimination(qSeeds, "PN-R", 1, false);
+
   return {
-    promoted: [first, second.winner].filter((x, i, arr) => x && arr.indexOf(x) === i) as string[],
+    promoted: [first, reduced.winner].filter((x, i, arr) => x && arr.indexOf(x) === i) as string[],
     relegated: [],
     phaseStandings: { A: a, B: b },
-    matches: [...(final ? [final.match] : []), ...firstPhaseMatches, ...second.matches],
+    matches: [...(final ? [final.match] : []), ...firstPhaseMatches, ...reduced.matches],
   };
 }
-
 function resolvePrimeraB(standings: StandingRow[]): DivisionResolution {
   const rows = sortStandings(standings);
   const direct = rows[0]?.teamId;
@@ -737,7 +747,7 @@ function resolvePrimeraC(standingsByZone: Record<string, StandingRow[]>): Divisi
   const pool = [...a.slice(1, 7), ...b.slice(1, 7)].map(r => r.teamId);
   if (loser) pool.push(loser);
   const reduced = simulateElimination(pool, "PC-RED", 2);
-  return { promoted: [direct, reduced.winner].filter((x, i, arr) => x && arr.indexOf(x) === i) as string[], relegated: [], phaseStandings: { A: a, B: b }, matches: final ? final.matches : [] };
+  return { promoted: [direct, reduced.winner].filter((x, i, arr) => x && arr.indexOf(x) === i) as string[], relegated: [], phaseStandings: { A: a, B: b }, matches: [...(final ? final.matches : []), ...reduced.matches] };
 }
 
 function resolveFederalA(zoneMap: Record<string, string>, phase1StandingsByZone: Record<string, StandingRow[]>): DivisionResolution {
