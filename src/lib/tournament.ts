@@ -1,10 +1,12 @@
-import { getTeamById, getRegionalTeamMeta } from "@/data/teams-catalog";
+import { getTeamById, getRegionalTeamMeta, getPromocionalTeamMeta } from "@/data/teams-catalog";
+import type { Team } from "@/data/teams";
 import { FIXTURE_2026, isClasicoMatch } from "@/data/fixture2026";
 import type { DivisionId } from "@/data/competitions";
 
 export type MatchPhase =
   | "apertura" | "interzonal" | "clausura" | "liga" | "reducido"
-  | "federal" | "regional" | "regional_playoff" | "regional_final";
+  | "federal" | "regional" | "regional_playoff" | "regional_final"
+  | "promocional" | "promocional_final" | "promocional_reducido";
 
 export type Match = {
   id: string;
@@ -363,31 +365,40 @@ export function simulateRegionalTournament(roster: string[]): RegionalSeasonResu
 }
 
 export function buildFederalZoneMap(teamIds: string[]): Record<string, string> {
-  const zones = ["A", "B", "C", "D"] as const;
-  const target = { A: 10, B: 9, C: 9, D: 9 } as const;
+  // Distribución fija y geográfica para 37 equipos: 10 + 9 + 9 + 9.
+  // No usamos el viejo campo zone A/B del catálogo porque ese campo nació
+  // para otras competencias.
+  const fixed: Record<string, "A" | "B" | "C" | "D"> = {
+    // A · Norte / NEA
+    "9dejulio": "A", "bartolomemitre": "A", "bocaunidos": "A", "defensores": "A", "juventudantoniana": "A",
+    "sanmartin": "A", "sarmiento": "A", "sarmiento2": "A", "soldeamerica": "A", "tucumancentral": "A",
+    // B · Centro / Cuyo
+    "atenas": "B", "atleticoclubsanmartin": "B", "costabrava": "B", "deportivoargentino": "B", "fadep": "B",
+    "huracanlasheras": "B", "juventudunidauniversitario": "B", "sportivoatleticoclub": "B", "sportivobelgrano": "B",
+    // C · Buenos Aires / litoral sur
+    "circulodeportivo": "C", "defensoresdebelgrano2": "C", "douglashaig": "C", "ellinqueno": "C", "escobarfutbolclub": "C",
+    "gimnasiayesgrima": "C", "independiente2": "C", "santamarina": "C", "kimberley": "C",
+    // D · Patagonia y extremo sur; Alvarado completa el corredor bonaerense sur.
+    "alvarado": "D", "cipolletti": "D", "deportivorincon": "D", "germinal": "D", "gimnasiayesgrima2": "D",
+    "guillermobrown": "D", "olimpo": "D", "soldemayo": "D", "villamitre": "D",
+  };
+
+  const valid = new Set(teamIds);
   const map: Record<string, string> = {};
+  for (const [id, zone] of Object.entries(fixed)) if (valid.has(id)) map[id] = zone;
+
+  const sizes = { A: 10, B: 9, C: 9, D: 9 } as const;
   const counts = { A: 0, B: 0, C: 0, D: 0 };
-  for (const id of teamIds) {
-    const z = getTeamById(id)?.zone;
-    if (z && zones.includes(z as any) && counts[z as keyof typeof counts] < target[z as keyof typeof target]) {
-      map[id] = z;
-      counts[z as keyof typeof counts]++;
-    }
+  for (const z of Object.values(map)) counts[z as keyof typeof counts]++;
+
+  // Fallback para equipos que lleguen por ascenso/descenso o tengan un ID nuevo:
+  // completamos los cupos manteniendo la estabilidad y sin volver a usar A/B legacy.
+  const pending = stableSortIds(teamIds.filter(id => !map[id]));
+  for (const id of pending) {
+    const target = (Object.keys(sizes) as Array<keyof typeof sizes>).sort((a, b) => counts[a] - counts[b] || a.localeCompare(b))[0];
+    map[id] = target;
+    counts[target]++;
   }
-  for (const id of stableSortIds(teamIds.filter(id => !map[id]))) {
-    // Prefer province-compatible existing zones where possible.
-    const province = (getTeamById(id)?.province ?? "").toLowerCase();
-    const preferred = province.includes("misiones") || province.includes("corrientes") || province.includes("chaco") || province.includes("formosa") ? "A"
-      : province.includes("cordoba") || province.includes("mendoza") || province.includes("san luis") ? "B"
-      : province.includes("buenos aires") || province.includes("santa fe") || province.includes("entre rios") ? "C"
-      : province.includes("rio negro") || province.includes("chubut") || province.includes("neuquen") || province.includes("la pampa") ? "D" : null;
-    const candidate = preferred && counts[preferred] < target[preferred]
-      ? preferred
-      : zones.slice().sort((x, y) => counts[x] - counts[y])[0];
-    map[id] = candidate;
-    counts[candidate]++;
-  }
-  // Si el catálogo declara una combinación extraña, igual mantenemos 10+9+9+9.
   return map;
 }
 
@@ -484,6 +495,26 @@ export function buildDivisionCareerFixture(division: DivisionId, teamIds: string
       zone: userZone,
       activeTeamIds: own,
       zoneMap: zm,
+    };
+  }
+
+  if (division === "promocional_amateur") {
+    const zoneA = ids.filter(id => getPromocionalTeamMeta(id)?.zone === "A");
+    const zoneB = ids.filter(id => getPromocionalTeamMeta(id)?.zone === "B");
+    const userZone = userTeamId && zoneB.includes(userTeamId) ? "B" : "A";
+    const active = new Set(userZone === "A" ? zoneA : zoneB);
+    const a = generateRoundRobin(zoneA, "PROMO-A", 1).map(m => ({ ...m, phase: "promocional" as const }));
+    const b = generateRoundRobin(zoneB, "PROMO-B", 1).map(m => ({ ...m, phase: "promocional" as const }));
+    const allRegular = [...a, ...b];
+    const finalPairs: Match[] = [{
+      id: `PROMO-FINAL-${zoneA[0] ?? "A"}-${zoneB[0] ?? "B"}`, round: 10,
+      home: zoneA[0] ?? "", away: zoneB[0] ?? "", played: false, phase: "promocional_final",
+    }].filter(m => m.home && m.away);
+    const activeMatches = allRegular.filter(m => active.has(m.home) || active.has(m.away));
+    const otherMatches = [...allRegular.filter(m => !active.has(m.home) && !active.has(m.away)), ...finalPairs];
+    return {
+      matches: [...activeMatches, ...(active.has(finalPairs[0]?.home ?? "") || active.has(finalPairs[0]?.away ?? "") ? finalPairs : [])].sort((a,b)=>a.round-b.round),
+      otherMatches, zone: userZone, activeTeamIds: [...active], zoneMap: Object.fromEntries([...zoneA.map(id=>[id,"A"]),...zoneB.map(id=>[id,"B"])]),
     };
   }
 
@@ -833,9 +864,26 @@ export function resolveDivisionSeason(division: DivisionId, roster: string[], st
   if (division === "primera_nacional") return resolvePrimeraNacional(standingsByZone);
   if (division === "primera_b") return resolvePrimeraB(standings);
   if (division === "primera_c") return resolvePrimeraC(standingsByZone);
+  if (division === "promocional_amateur") {
+    const a = sortStandings(standingsByZone.A ?? []), b = sortStandings(standingsByZone.B ?? []);
+    const final = a[0] && b[0] ? simulateSingleMatch(a[0].teamId, b[0].teamId, "PROMO-FINAL", 10, true) : null;
+    const direct = final?.winner;
+    const loser = final ? (final.winner === a[0]?.teamId ? b[0]?.teamId : a[0]?.teamId) : undefined;
+    const pairs = [[a[1]?.teamId,b[3]?.teamId],[b[1]?.teamId,a[3]?.teamId],[a[2]?.teamId,b[2]?.teamId]].filter(([x,y])=>x&&y) as [string,string][];
+    const first = pairs.map(([x,y],i)=>simulateSingleMatch(x,y,`PROMO-R1-${i}`,20+i,false));
+    const semiSeeds = loser ? [...first.map(r=>r.winner), loser] : first.map(r=>r.winner);
+    const semi1 = semiSeeds.length >= 2 ? simulateSingleMatch(semiSeeds[0], semiSeeds[1], "PROMO-S1", 30, false) : null;
+    const semi2 = semiSeeds.length >= 4 ? simulateSingleMatch(semiSeeds[2], semiSeeds[3], "PROMO-S2", 31, false) : null;
+    const redFinal = semi1?.winner && semi2?.winner ? simulateSingleMatch(semi1.winner, semi2.winner, "PROMO-RF", 32, false) : null;
+    const playoffMatches = [...first.map(r=>r.match), ...(semi1 ? [semi1.match] : []), ...(semi2 ? [semi2.match] : []), ...(redFinal ? [redFinal.match] : [])];
+    return { promoted: [direct, redFinal?.winner].filter((x,i,arr)=>x&&arr.indexOf(x)===i) as string[], relegated: [], phaseStandings: { A:a, B:b }, matches: [...(final ? [final.match] : []), ...playoffMatches] };
+  }
   if (division === "federal_a") return resolveFederalA(zoneMap ?? buildFederalZoneMap(roster), standingsByZone);
-  const reg = simulateRegionalTournament(roster);
-  return { promoted: reg.promotedToFederalA, relegated: [], matches: reg.matches };
+  if (division === "regional_federal_amateur") {
+    const reg = simulateRegionalTournament(roster);
+    return { promoted: reg.promotedToFederalA, relegated: [], matches: reg.matches };
+  }
+  return { promoted: [], relegated: [] };
 }
 
 export type LeagueSeasonResult = {
