@@ -38,20 +38,8 @@ function AuthPage() {
       }
 
       if (mode === "signup") {
-        /*
-         * Supabase Auth utiliza un email internamente.
-         * El jugador NO necesita introducir ningún email.
-         *
-         * Ejemplo:
-         * usuario: nahuel
-         * email interno: nahuel@primeranacional.app
-         */
         const fakeEmail = `${cleanUsername.toLowerCase()}@primeranacional.app`;
 
-        /*
-         * Primero comprobamos si el nombre de usuario ya existe.
-         * Esto evita crear cuentas duplicadas con distinto email interno.
-         */
         const { data: existingEmail, error: lookupError } = await supabase
           .rpc("email_for_username", {
             _username: cleanUsername,
@@ -83,28 +71,8 @@ function AuthPage() {
           throw new Error("No se pudo crear la cuenta");
         }
 
-        /*
-         * Si Supabase tiene activada la confirmación de email,
-         * puede crear el usuario pero no iniciar sesión.
-         * La configuración correcta será:
-         *
-         * Authentication → Providers → Email
-         * Confirm email = OFF
-         */
-
         nav({ to: "/" });
       } else {
-        /*
-         * Login por usuario:
-         *
-         * usuario
-         *    ↓
-         * email_for_username()
-         *    ↓
-         * email interno
-         *    ↓
-         * Supabase Auth
-         */
         const { data: emailRes, error: rpcErr } = await supabase
           .rpc("email_for_username", {
             _username: cleanUsername,
@@ -272,4 +240,3 @@ function AuthPage() {
     </div>
   );
 }
-```
