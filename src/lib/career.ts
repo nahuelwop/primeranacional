@@ -130,7 +130,7 @@ export function isFirstDivision(state: CareerState | null | undefined, teamId?: 
 
 export function initialLeagueRosters(): Partial<Record<DivisionId, string[]>> {
   const result: Partial<Record<DivisionId, string[]>> = {};
-  const divisions: DivisionId[] = ["primera_division", "primera_nacional", "primera_b", "primera_c", "federal_a", "regional_federal_amateur"];
+  const divisions: DivisionId[] = ["primera_division", "primera_nacional", "primera_b", "primera_c", "promocional_amateur", "federal_a", "regional_federal_amateur"];
   for (const d of divisions) result[d] = getTeamsByDivision(d).map(t => t.id);
   return result;
 }
@@ -206,6 +206,12 @@ function simulateDivisionSeasonCore(division: DivisionId, roster: string[], user
 }
 
 function nationalAffiliation(teamId: string): "metropolitano" | "federal" {
+  // Los clubes que llegan a la Nacional desde B Metro conservan el circuito
+  // metropolitano; los que llegan desde Federal A conservan el circuito federal.
+  // Para los planteles originales, usamos las listas históricas de la Nacional.
+  const sourceDivision = getTeamById(teamId)?.division;
+  if (sourceDivision === "primera_b") return "metropolitano";
+  if (sourceDivision === "federal_a") return "federal";
   if (ZONE_A.some(t => t.id === teamId) || ZONE_B.some(t => t.id === teamId)) return "metropolitano";
   return "federal";
 }
@@ -227,7 +233,7 @@ export function resolveLeagueMovements(currentState: CareerState, season: number
   const currentDivision = careerDivision(currentState);
   const base = currentState.leagueRosters ?? initialLeagueRosters();
   const divisions: DivisionId[] = [
-    "primera_division", "primera_nacional", "primera_b", "primera_c", "federal_a", "regional_federal_amateur",
+    "primera_division", "primera_nacional", "primera_b", "primera_c", "promocional_amateur", "federal_a", "regional_federal_amateur",
   ];
   const rosters: Partial<Record<DivisionId, string[]>> = Object.fromEntries(
     divisions.map(d => [d, rosterFor(base, d)])
@@ -279,14 +285,23 @@ export function resolveLeagueMovements(currentState: CareerState, season: number
   for (const id of pbRes.relegated) move(id, "primera_b", "primera_c", "Descenso · últimos 2 de Primera B Metropolitana");
 
   // 4) Primera C: dos zonas, final entre líderes y Reducido (2º-7º + perdedor de final).
-  // Como Primera D fue retirada del juego, el único destino inferior disponible es
-  // Regional Federal Amateur.
+  // Primera C desciende al Promocional Amateur dentro del circuito metropolitano.
   const pc = results.get("primera_c")!;
   const pcRes = resolveDivisionSeason("primera_c", snapshotRosters.primera_c ?? [], pc.standings, pc.standingsByZone, pc.matches);
   if (pcRes.promoted[0]) move(pcRes.promoted[0], "primera_c", "primera_b", "Ascenso · ganador de la final de Primera C");
   if (pcRes.promoted[1]) move(pcRes.promoted[1], "primera_c", "primera_b", "Ascenso · ganador del Reducido de Primera C");
   const cBottom = sortStandings(pc.standings).at(-1)?.teamId;
-  if (cBottom) move(cBottom, "primera_c", "regional_federal_amateur", "Descenso · último de Primera C (reemplazo jugable de Primera D)");
+  if (cBottom) move(cBottom, "primera_c", "promocional_amateur", "Descenso · último de Primera C → Promocional Amateur");
+
+  // 5) Promocional Amateur: 1° de cada zona -> final; segundo camino por Reducido.
+  // La fuente no especifica descenso del Promocional. Los dos equipos que ascienden
+  // se mueven realmente a Primera C.
+  const promo = results.get("promocional_amateur");
+  if (promo) {
+    const promoRes = resolveDivisionSeason("promocional_amateur", snapshotRosters.promocional_amateur ?? [], promo.standings, promo.standingsByZone, promo.matches, promo.zoneMap);
+    if (promoRes.promoted[0]) move(promoRes.promoted[0], "promocional_amateur", "primera_c", "Ascenso · ganador de la final del Promocional Amateur");
+    if (promoRes.promoted[1]) move(promoRes.promoted[1], "promocional_amateur", "primera_c", "Ascenso · ganador del Reducido del Promocional Amateur");
+  }
 
   // 5) Federal A: Fase 1 10+9+9+9; luego 18 al Campeonato, 19 a Reválida.
   // Campeón del carril y ganador de Reválida ascienden; últimos 4 de Reválida bajan.
