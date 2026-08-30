@@ -244,7 +244,7 @@ function CarreraPage() {
     fresh.zoneChampions = [...completed.zoneChampions];
     fresh.seasonHistory = [...(completed.seasonHistory ?? [])];
     fresh.difficulty = completed.difficulty;
-    fresh.objetivo = nextDivision === "primera_division" ? "salir_campeon" : nextDivision === "primera_nacional" ? "ascenso_directo" : "ascenso_directo";
+    fresh.objetivo = nextDivision === "primera_division" ? "salir_campeon" : "ascenso_directo";
     fresh.sponsor = completed.sponsor ?? null;
     fresh.stadiumUpgrades = completed.stadiumUpgrades;
     fresh.introVista = false;
@@ -397,7 +397,7 @@ function CarreraPage() {
             <div className="font-display text-2xl text-celeste mb-1">OTRAS CATEGORÍAS</div>
             <div className="text-xs text-muted-foreground mb-4">Empezá desde Primera B, Primera C, Federal A o Regional Federal Amateur.</div>
             <div className="space-y-6">
-              {(["primera_b", "primera_c", "federal_a", "regional_federal_amateur"] as DivisionId[]).map(d => {
+              {(["primera_b", "primera_c", "promocional_amateur", "federal_a", "regional_federal_amateur"] as DivisionId[]).map(d => {
                 const teams = getTeamsByDivision(d);
                 const rules = COMPETITIONS[d];
                 return (
@@ -444,7 +444,7 @@ function CarreraPage() {
       {/* Barra superior tipo consola */}
       <header className="hud-in grid grid-cols-[auto_1fr_auto] items-center gap-4 border-b border-border/50 pb-0 mb-4">
         <Link to="/" className="flex items-center gap-2.5 pb-3 min-w-0">
-          <span className="grid h-9 w-9 place-items-center rounded-lg border border-border bg-card font-display text-sm">{first ? "1D" : division === "regional_federal_amateur" ? "RFA" : division === "federal_a" ? "FA" : "PN"}</span>
+          <span className="grid h-9 w-9 place-items-center rounded-lg border border-border bg-card font-display text-sm">{first ? "1D" : division === "regional_federal_amateur" ? "RFA" : division === "promocional_amateur" ? "PA" : division === "federal_a" ? "FA" : "PN"}</span>
           <span className="hidden sm:block leading-none">
             <span className="block font-display text-sm tracking-widest">PRIMERA</span>
             <span className="block font-display text-sm tracking-widest text-muted-foreground">{COMPETITIONS[division].shortName.toUpperCase()}</span>
@@ -1051,6 +1051,43 @@ function CompeticionTab({ state, teamId }: { state: CareerState; teamId: string 
     );
   }
 
+  // Promocional Amateur: dos zonas separadas (8 + 9), final por el primer ascenso
+  // y Reducido para el segundo camino.
+  if (division === "promocional_amateur") {
+    const allMatches = [...state.matches, ...(state.otherMatches ?? [])];
+    const zm = state.federalZoneMap ?? Object.fromEntries(getTeamsByDivision(division).map(t => [t.id, t.zone ?? "A"]));
+    const tables = ["A", "B"].map(z => {
+      const ids = Object.keys(zm).filter(id => zm[id] === z);
+      let rows = emptyStandings(ids);
+      for (const m of allMatches) {
+        if (m.played && ids.includes(m.home) && ids.includes(m.away)) rows = applyMatchToStandings(rows, m);
+      }
+      return { z, rows: sortStandings(rows) };
+    });
+    return (
+      <div className="space-y-3">
+        <CompetitionMovementPanel division={division} state={state} teamId={teamId} />
+        <div className="grid lg:grid-cols-2 gap-3">
+          {tables.map(({ z, rows }) => (
+            <TablaZona
+              key={z}
+              title={`Zona ${z} · ${z === "A" ? "8 equipos" : "9 equipos"} · 1° = final · 2°-4° = Reducido`}
+              rows={rows}
+              highlight={teamId}
+              matches={allMatches}
+              division={division}
+              statusMode="promocional"
+            />
+          ))}
+        </div>
+        <div className="hud-panel p-4 text-xs text-muted-foreground">
+          <div className="font-display text-sm uppercase tracking-widest text-celeste mb-2">PROMOCIONAL AMATEUR · ASCENSO</div>
+          <div>1° Zona A vs 1° Zona B por el primer ascenso a Primera C. El perdedor entra directamente a semifinales del Reducido junto con los ganadores de 2°A vs 4°B, 2°B vs 4°A y 3°A vs 3°B. El ganador del Reducido obtiene el segundo camino de ascenso a Primera C.</div>
+        </div>
+      </div>
+    );
+  }
+
   // Regional Amateur: cada grupo va por separado. Nunca se mezclan todos los clubes en una sola tabla.
   if (division === "regional_federal_amateur") {
     const roster = state.leagueRosters?.regional_federal_amateur ?? getTeamsByDivision(division).map(t => t.id);
@@ -1171,7 +1208,8 @@ function CompetitionMovementPanel({ division, state, teamId }: { division: Divis
     if (division === "primera_division") return "2 descensos: 1 por último de la tabla anual y 1 por peor promedio. Si coincide, la plaza anual pasa al 29°.";
     if (division === "primera_nacional") return "4 descensos: 2 clubes metropolitanos a Primera B y 2 clubes del interior a Federal A.";
     if (division === "primera_b") return "2 últimos de la tabla general descienden a Primera C.";
-    if (division === "primera_c") return "1 descenso: último de la tabla general → Regional Federal Amateur (reemplazo jugable de Primera D).";
+    if (division === "primera_c") return "1 descenso: último de la tabla general → Promocional Amateur.";
+    if (division === "promocional_amateur") return "Sin descenso modelado; dos caminos de ascenso a Primera C.";
     if (division === "regional_federal_amateur") return "No hay descenso: última categoría jugable del circuito federal.";
     if (division === "federal_a") return "4 descensos: los últimos 4 de la Fase Reválida → Regional Federal Amateur.";
     if (rules.relegation.length === 0 || rules.relegation.every(r => r.slots === 0)) return "No hay descenso modelado en esta categoría.";
@@ -1248,7 +1286,7 @@ function recentForm(teamId: string, matches: Match[]): ("V" | "E" | "D")[] {
     });
 }
 
-function TablaZona({ title, rows, highlight, matches, division = "primera_nacional", relegated = [] as string[], statusMode = "generic" }: { key?: string; title: string; rows: StandingRow[]; highlight?: string; matches: Match[]; division?: DivisionId; relegated?: string[]; statusMode?: "generic" | "pn" | "pb" | "pc" | "regional" | "fa_phase1" }) {
+function TablaZona({ title, rows, highlight, matches, division = "primera_nacional", relegated = [] as string[], statusMode = "generic" }: { key?: string; title: string; rows: StandingRow[]; highlight?: string; matches: Match[]; division?: DivisionId; relegated?: string[]; statusMode?: "generic" | "pn" | "pb" | "pc" | "regional" | "promocional" | "fa_phase1" }) {
   return (
     <div className="hud-panel overflow-hidden">
       <div className="px-4 py-2.5 font-display text-sm uppercase tracking-widest text-celeste border-b border-border flex items-center justify-between">
@@ -1292,6 +1330,10 @@ function TablaZona({ title, rows, highlight, matches, division = "primera_nacion
                 status = pos === 1 ? "FINAL ASC." : pos >= 2 && pos <= 7 ? "REDUCIDO" : "";
                 isChamp = pos === 1;
                 inReducido = pos >= 2 && pos <= 7;
+              } else if (statusMode === "promocional") {
+                status = pos === 1 ? "FINAL ASC." : pos >= 2 && pos <= 4 ? "REDUCIDO" : "";
+                isChamp = pos === 1;
+                inReducido = pos >= 2 && pos <= 4;
               } else if (statusMode === "regional") {
                 status = pos <= 2 ? "CLASIF." : "";
                 isChamp = pos === 1;
@@ -1354,7 +1396,7 @@ function TablaZona({ title, rows, highlight, matches, division = "primera_nacion
           : division === "primera_nacional"
             ? "Ascenso: campeón de zona / Reducido · Descenso: según afiliación (metropolitano o federal)"
             : division === "primera_c"
-              ? "Ascenso: final de zona + Reducido · último de la tabla general desciende (Regional Federal, reemplazo jugable de Primera D)"
+              ? "Ascenso: final de zona + Reducido · último de la tabla general desciende al Promocional Amateur"
               : division === "federal_a"
                 ? "Ascenso: Fase Campeonato / playoffs · 4 descensos al Regional Federal Amateur"
                 : division === "primera_b"
