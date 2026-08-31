@@ -154,23 +154,12 @@ export function buildSeason(
   const fixture = buildDivisionCareerFixture(division, ids, teamId, federalZoneMap);
   let standings = emptyStandings(fixture.activeTeamIds);
   let otherStandings: StandingRow[] | undefined;
-  let otherMatches: Match[] | undefined;
+  let otherMatches: Match[] | undefined = fixture.otherMatches.length > 0 ? fixture.otherMatches.map(m => ({ ...m })) : undefined;
 
   if (fixture.otherMatches.length > 0) {
-    otherMatches = fixture.otherMatches.map(m => {
-      const { hg, ag } = simulateMatch(m.home, m.away);
-      return { ...m, played: true, homeGoals: hg, awayGoals: ag };
-    });
-    // Los partidos ya simulados deben alimentar toda tabla cuyo equipo participe
-    // en ellos. Esto es especialmente importante para interzonales de Primera
-    // Nacional/C y para la tabla anual de Primera División.
-    for (const m of otherMatches) standings = applyMatchToStandings(standings, m);
     const activeSet = new Set(fixture.activeTeamIds);
-    const otherIds = Array.from(new Set(otherMatches.flatMap(m => [m.home, m.away]).filter(id => !activeSet.has(id))));
-    if (otherIds.length) {
-      otherStandings = emptyStandings(otherIds);
-      for (const m of otherMatches) otherStandings = applyMatchToStandings(otherStandings, m);
-    }
+    const otherIds = Array.from(new Set(fixture.otherMatches.flatMap(m => [m.home, m.away]).filter(id => !activeSet.has(id))));
+    if (otherIds.length) otherStandings = emptyStandings(otherIds);
   }
 
   return {
@@ -503,7 +492,13 @@ export function tickCorruption(state: CareerState): CareerState {
 
 // Avanza simulando todos los partidos NO jugados de una fecha (excepto los del usuario).
 export function simulateRoundExceptUser(state: CareerState, round: number, userTeamId: string): CareerState {
-  const next = { ...state, matches: [...state.matches], standings: [...state.standings] };
+  const next = {
+    ...state,
+    matches: [...state.matches],
+    standings: [...state.standings],
+    otherMatches: state.otherMatches ? [...state.otherMatches] : state.otherMatches,
+    otherStandings: state.otherStandings ? [...state.otherStandings] : state.otherStandings,
+  };
   for (let i = 0; i < next.matches.length; i++) {
     const m = next.matches[i];
     if (m.round !== round || m.played) continue;
@@ -512,6 +507,26 @@ export function simulateRoundExceptUser(state: CareerState, round: number, userT
     const played = { ...m, played: true, homeGoals: hg, awayGoals: ag };
     next.matches[i] = played;
     next.standings = applyMatchToStandings(next.standings, played);
+  }
+  // La otra zona (o los interzonales) avanzan EN PARALELO con la tuya, ronda por
+  // ronda — antes se resolvían todos de una al arrancar la temporada, y por eso
+  // la Zona B ya aparecía terminada desde el primer partido.
+  if (next.otherMatches && next.otherMatches.length > 0) {
+    const activeIds = new Set(next.standings.map(r => r.teamId));
+    for (let i = 0; i < next.otherMatches.length; i++) {
+      const m = next.otherMatches[i];
+      if (m.round !== round || m.played) continue;
+      const { hg, ag } = simulateMatch(m.home, m.away);
+      const played = { ...m, played: true, homeGoals: hg, awayGoals: ag };
+      next.otherMatches[i] = played;
+      // Si participa un equipo de tu propia zona (partido interzonal), suma también ahí.
+      if (activeIds.has(played.home) || activeIds.has(played.away)) {
+        next.standings = applyMatchToStandings(next.standings, played);
+      }
+      if (next.otherStandings) {
+        next.otherStandings = applyMatchToStandings(next.otherStandings, played);
+      }
+    }
   }
   return next;
 }
@@ -541,8 +556,36 @@ export function nextPendingMatchForUser(state: CareerState, userTeamId: string):
   return state.matches.find(m => !m.played && (m.home === userTeamId || m.away === userTeamId)) ?? null;
 }
 
+export function catchUpOtherMatches(state: CareerState): CareerState {
+  if (!state.otherMatches || state.otherMatches.every(m => m.played)) return state;
+  // Salvaguarda: si tu fixture ya terminó pero a la otra zona le quedan partidos
+  // sin jugar (por ejemplo, por numeración de rondas distinta en interzonales),
+  // los resolvemos acá para que la temporada nunca quede trabada esperando algo
+  // que ya no le corresponde a vos jugar en tiempo real.
+  if (!state.matches.every(m => m.played)) return state;
+  const next = {
+    ...state,
+    otherMatches: [...state.otherMatches],
+    otherStandings: state.otherStandings ? [...state.otherStandings] : state.otherStandings,
+    standings: [...state.standings],
+  };
+  const activeIds = new Set(next.standings.map(r => r.teamId));
+  for (let i = 0; i < next.otherMatches.length; i++) {
+    const m = next.otherMatches[i];
+    if (m.played) continue;
+    const { hg, ag } = simulateMatch(m.home, m.away);
+    const played = { ...m, played: true, homeGoals: hg, awayGoals: ag };
+    next.otherMatches[i] = played;
+    if (activeIds.has(played.home) || activeIds.has(played.away)) {
+      next.standings = applyMatchToStandings(next.standings, played);
+    }
+    if (next.otherStandings) next.otherStandings = applyMatchToStandings(next.otherStandings, played);
+  }
+  return next;
+}
+
 export function isSeasonFinished(state: CareerState): boolean {
-  return state.matches.every(m => m.played);
+  return state.matches.every(m => m.played) && (!state.otherMatches || state.otherMatches.every(m => m.played));
 }
 
 export function seasonChampion(state: CareerState): string | null {
