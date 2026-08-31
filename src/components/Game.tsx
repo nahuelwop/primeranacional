@@ -227,12 +227,17 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
     const ball = { x: W / 2, y: H / 2 - 30, vx: 1.8, vy: -2.8, r: 13, spin: 0, squash: 0, lastTouch: 0 as 0 | 1 | 2 };
     // Configuración por dificultad
     // jumpCd en frames (60fps): 48 = 0.8s, 72 = 1.2s
+    // jumpProb/kickProb: antes tenían techo bajo incluso en "expert" (0.80/0.85),
+    // por eso la IA "fallaba sola" jugadas ya decididas y se sentía inconsistente
+    // en vez de difícil. Ahora en dificultades altas ejecuta casi siempre lo que
+    // decide — la dificultad real está en qué tan bien anticipa/posiciona (react,
+    // precisión de salto), no en si "le sale" al azar una jugada correcta.
     const aiCfg = {
-      easy:   { speed: 0.55, jumpProb: 0.35, kickProb: 0.20, react: 40, jumpCd: 90, smart: 0.35 },
-      normal: { speed: 0.85, jumpProb: 0.55, kickProb: 0.50, react: 20, jumpCd: 66, smart: 0.60 },
-      hard:   { speed: 1.00, jumpProb: 0.70, kickProb: 0.72, react: 10, jumpCd: 60, smart: 0.85 },
-      expert: { speed: 1.12, jumpProb: 0.80, kickProb: 0.85, react: 6,  jumpCd: 54, smart: 1.00 },
-    }[aiDifficulty] ?? { speed: 0.85, jumpProb: 0.55, kickProb: 0.50, react: 20, jumpCd: 66, smart: 0.6 };
+      easy:   { speed: 0.55, jumpProb: 0.45, kickProb: 0.35, react: 40, jumpCd: 90, smart: 0.35, precision: 70 },
+      normal: { speed: 0.85, jumpProb: 0.68, kickProb: 0.62, react: 20, jumpCd: 66, smart: 0.60, precision: 58 },
+      hard:   { speed: 1.00, jumpProb: 0.90, kickProb: 0.88, react: 10, jumpCd: 56, smart: 0.85, precision: 46 },
+      expert: { speed: 1.15, jumpProb: 0.99, kickProb: 0.97, react: 5,  jumpCd: 48, smart: 1.00, precision: 36 },
+    }[aiDifficulty] ?? { speed: 0.85, jumpProb: 0.68, kickProb: 0.62, react: 20, jumpCd: 66, smart: 0.6, precision: 58 };
     let frame = 0;
     let aiJumpCd = 0;
     let aiAirborne = false; // true entre despegue y aterrizaje
@@ -718,8 +723,8 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         //  3) Pelota alta, cercana, descendiendo y va a caer donde estoy
         const ballHigh = ball.y < ground - 110;
         const ballDescending = ball.vy > 0.3;
-        const landingClose = Math.abs(predictedX - p2.x) < 55;
-        const ballCloseX = Math.abs(ball.x - p2.x) < 65;
+        const landingClose = Math.abs(predictedX - p2.x) < aiCfg.precision;
+        const ballCloseX = Math.abs(ball.x - p2.x) < aiCfg.precision + 10;
         const usefulHeader = mustDefend
           ? true                                   // defender de cabeza siempre útil
           : predictedY < ground - 60 && ballHigh;  // atacar sólo si aún estará arriba
@@ -735,7 +740,8 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         const inKickRange = Math.abs(p2.x - ball.x) < 55 && Math.abs(p2.y - ball.y) < 55;
         // Sólo patear si puede darle hacia el arco rival (pelota a la izquierda del bicho o mismo x)
         const canDriveForward = ball.x <= p2.x + 10;
-        const kickCd = frame - aiLastKickFrame > 8;
+        const kickCdFrames = Math.round(14 - aiCfg.smart * 8); // easy≈11 · expert≈6
+        const kickCd = frame - aiLastKickFrame > kickCdFrames;
         if (inKickRange && kickCd && (canDriveForward || mustDefend) && Math.random() < aiCfg.kickProb) {
           p2.kick = 10;
           aiLastKickFrame = frame;
