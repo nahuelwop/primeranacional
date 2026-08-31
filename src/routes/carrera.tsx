@@ -9,7 +9,7 @@ import { useTeamsSync } from "@/lib/teams-sync";
 import { useAuth } from "@/lib/auth";
 import { Game, type MatchStats } from "@/components/Game";
 import {
-  buildSeason, simulateRoundExceptUser, recordUserMatch, nextPendingMatchForUser,
+  buildSeason, simulateRoundExceptUser, catchUpOtherMatches, recordUserMatch, nextPendingMatchForUser,
   isSeasonFinished, seasonChampion, budgetReward, type CareerState, resolveLeagueMovements, initialLeagueRosters,
   STADIUM_UPGRADE_CATALOG, CORRUPTION_CATALOG,
   buyUpgrade, activateCorruption, tickCorruption, currentCorruptionEffects, incomeMultiplier,
@@ -149,6 +149,7 @@ function CarreraPage() {
     await recordMatchHistory({ userId: user.id, home: nextMatch.home, away: nextMatch.away, hg, ag, mode: "carrera" }).catch(() => {});
     let next = recordUserMatch(state, nextMatch.id, hg, ag, teamId);
     next = simulateRoundExceptUser(next, nextMatch.round, teamId);
+    next = catchUpOtherMatches(next);
     const mg = userIsHome ? hg : ag;
     const og = userIsHome ? ag : hg;
     const reward = Math.round(budgetReward(mg, og) * incomeMultiplier(next));
