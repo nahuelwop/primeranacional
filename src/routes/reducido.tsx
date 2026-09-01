@@ -94,34 +94,41 @@ function Reducido() {
     <div className="min-h-screen flex flex-col">
       <Nav />
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 py-8">
-        <h1 className="font-display text-5xl">FASE FINAL</h1>
-        <p className="text-muted-foreground text-sm mt-1">Primer ascenso por final directa · Segundo por reducido</p>
+        <h1 className="font-display text-5xl">{s.division === "primera_b" ? "REDUCIDO" : "FASE DE ASCENSO"}</h1>
+        <p className="text-muted-foreground text-sm mt-1">
+          {s.division === "primera_b" ? "Segundo ascenso a Primera Nacional · 2° al 9°" :
+           s.division === "primera_c" ? "Final por el 1° ascenso · Reducido por el 2° ascenso" :
+           s.division === "promocional_amateur" ? "Final por el ascenso · Reducido por la segunda oportunidad" :
+           "Primer ascenso por final directa · Segundo por Reducido"}
+        </p>
 
-        {!s.finalDirecta ? (
+        {!s.finalDirecta && !s.bracket ? (
           <button onClick={() => s.startPlayoffs()}
             className="mt-6 px-6 py-3 rounded-xl bg-celeste text-primary-foreground font-display tracking-wider glow-celeste">
-            DISPUTAR FINAL DIRECTA
+            {s.division === "primera_b" ? "INICIAR REDUCIDO" : "INICIAR FASE DE ASCENSO"}
           </button>
         ) : (
-          <div className="mt-6 grid lg:grid-cols-3 gap-6">
-            <div className="rounded-2xl bg-gradient-to-br from-celeste/20 to-accent/10 border border-celeste/40 p-5">
-              <div className="font-display text-celeste text-xl">FINAL POR EL 1° ASCENSO</div>
-              <PairView pair={s.finalDirecta} big />
-              {!s.finalDirecta.winner && isUserPair(s.finalDirecta) && (
-                <button onClick={() => setPlay({ kind: "final", idx: 0, pair: s.finalDirecta! })}
-                  className="mt-3 w-full px-4 py-3 rounded-lg bg-celeste text-primary-foreground font-display tracking-wider glow-celeste">
-                  JUGAR LA FINAL
-                </button>
-              )}
-              {s.champion && (
-                <div className="mt-4 text-center">
-                  <div className="text-xs text-muted-foreground">CAMPEÓN · 1° ASCENSO</div>
-                  <div className="font-display text-2xl text-celeste">{TEAMS_BY_ID[s.champion]?.name}</div>
-                </div>
-              )}
-            </div>
+          <div className={`mt-6 grid ${s.division === "primera_b" ? "lg:grid-cols-1" : "lg:grid-cols-3"} gap-6`}>
+            {s.division !== "primera_b" && (
+              <div className="rounded-2xl bg-gradient-to-br from-celeste/20 to-accent/10 border border-celeste/40 p-5">
+                <div className="font-display text-celeste text-xl">FINAL POR EL 1° ASCENSO</div>
+                {s.finalDirecta ? <PairView pair={s.finalDirecta} big /> : <div className="text-xs text-muted-foreground mt-3">Esperando que comience la final.</div>}
+                {s.finalDirecta && !s.finalDirecta.winner && isUserPair(s.finalDirecta) && (
+                  <button onClick={() => setPlay({ kind: "final", idx: 0, pair: s.finalDirecta! })}
+                    className="mt-3 w-full px-4 py-3 rounded-lg bg-celeste text-primary-foreground font-display tracking-wider glow-celeste">
+                    {s.finalDirecta.legs === 2 && s.finalDirecta.leg1a !== undefined ? "JUGAR VUELTA" : "JUGAR FINAL"}
+                  </button>
+                )}
+                {s.champion && (
+                  <div className="mt-4 text-center">
+                    <div className="text-xs text-muted-foreground">CAMPEÓN · 1° ASCENSO</div>
+                    <div className="font-display text-2xl text-celeste">{TEAMS_BY_ID[s.champion]?.name}</div>
+                  </div>
+                )}
+              </div>
+            )}
 
-            <div className="lg:col-span-2 rounded-2xl bg-card border border-border p-5">
+            <div className={`${s.division === "primera_b" ? "lg:col-span-1" : "lg:col-span-2"} rounded-2xl bg-card border border-border p-5`}>
               <div className="flex items-center justify-between">
                 <div className="font-display text-xl">REDUCIDO · 2° ASCENSO</div>
                 <button onClick={() => s.advanceBracket()}
