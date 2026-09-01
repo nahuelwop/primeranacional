@@ -11,6 +11,7 @@ import { Game, type MatchStats } from "@/components/Game";
 import {
   buildSeason, simulateRoundExceptUser, catchUpOtherMatches, recordUserMatch, nextPendingMatchForUser,
   isSeasonFinished, seasonChampion, budgetReward, type CareerState, resolveLeagueMovements, initialLeagueRosters,
+  checkCareerAchievementKeys, evolveTeamRatings, initialTeamRatings, applyTeamRatingsTemporarily, CLUB_DEVELOPMENT_CATALOG, buyDevelopment, developmentIncomeBonus, type ClubDevelopment,
   STADIUM_UPGRADE_CATALOG, CORRUPTION_CATALOG,
   buyUpgrade, activateCorruption, tickCorruption, currentCorruptionEffects, incomeMultiplier,
   OBJETIVO_LABEL, type Objetivo, clubIndicators, currentRound, totalRounds,
@@ -121,8 +122,10 @@ function CarreraPage() {
 
   async function startCareer(tid: string, division: DivisionId = getTeamById(tid)?.division ?? "primera_nacional") {
     if (!user) return;
-    const s = buildSeason(tid, division, initialLeagueRosters());
+    const rosters = initialLeagueRosters();
+    const s = buildSeason(tid, division, rosters);
     s.userTeamId = tid;
+    s.teamRatings = initialTeamRatings(Object.values(rosters).flatMap(ids => ids ?? []));
     setTeamId(tid); setSeason(1); setBudget(1000); setState(s);
     await upsertCareer({ user_id: user.id, team_id: tid, season: 1, budget: 1000, fixture_index: 0, state: s });
   }
@@ -153,16 +156,14 @@ function CarreraPage() {
     // Algunas ligas tienen dos zonas; resolvemos los partidos de la otra zona
     // cuando corresponde para que no queden fechas pendientes invisibles.
     next = catchUpOtherMatches(next);
-    next = catchUpOtherMatches(next);
     const mg = userIsHome ? hg : ag;
     const og = userIsHome ? ag : hg;
-    const reward = Math.round(budgetReward(mg, og) * incomeMultiplier(next));
+    const reward = Math.round(budgetReward(mg, og) * incomeMultiplier(next) * developmentIncomeBonus(next));
     next = tickCorruption(next);
     const nextBudget = budget + reward;
     setBudget(nextBudget); setState(next);
     setPlaying(false);
-    if (next.totalGoalsScored >= 100) await tryUnlock("100_goles");
-    if (next.bestUnbeaten >= 10) await tryUnlock("10_invicto");
+    for (const key of checkCareerAchievementKeys(next, nextBudget)) await tryUnlock(key);
     if (isSeasonFinished(next)) {
       const champ = seasonChampion(next);
       if (champ === teamId) await tryUnlock(next.zone === "A" ? "campeon_zona_a" : "campeon_zona_b");
@@ -172,7 +173,7 @@ function CarreraPage() {
 
   async function onSimulateMatch() {
     if (!state || !teamId || !nextMatch) return;
-    const { hg, ag } = simulateMatch(nextMatch.home, nextMatch.away);
+    const { hg, ag } = applyTeamRatingsTemporarily(state.teamRatings, () => simulateMatch(nextMatch.home, nextMatch.away));
     await onMatchEnd(nextMatch.home === teamId ? hg : ag, nextMatch.home === teamId ? ag : hg, {} as MatchStats);
   }
 
@@ -284,6 +285,13 @@ function CarreraPage() {
       fresh.objetivo = nextDivision === "primera_division" ? "salir_campeon" : "ascenso_directo";
       fresh.sponsor = completed.sponsor ?? null; fresh.stadiumUpgrades = completed.stadiumUpgrades; fresh.introVista = false;
       fresh.leagueRosters = movement.rosters; fresh.userTeamId = teamId;
+      fresh.teamRatings = movement.teamRatings ?? evolveTeamRatings(completed);
+      fresh.clubDevelopment = { ...(completed.clubDevelopment ?? {}) };
+      fresh.totalMatchesPlayed = completed.totalMatchesPlayed ?? 0; fresh.totalWins = completed.totalWins ?? 0;
+      fresh.totalDraws = completed.totalDraws ?? 0; fresh.totalLosses = completed.totalLosses ?? 0;
+      fresh.careerTrophies = (completed.careerTrophies ?? 0) + (promoted ? 1 : 0);
+      for (const key of checkCareerAchievementKeys(completed, budget)) await tryUnlock(key);
+      if (promoted) { await tryUnlock("ascenso"); if (nextDivision === "primera_division") await tryUnlock("ascenso_a_primera"); }
       const nextSeason = season + 1;
       setSeason(nextSeason); setState(fresh); setTab("inicio");
       await persist(fresh, budget, nextSeason);
@@ -303,6 +311,17 @@ function CarreraPage() {
     fresh.difficulty = completed.difficulty; fresh.objetivo = nextDivision === "primera_division" ? "salir_campeon" : "ascenso_directo";
     fresh.sponsor = completed.sponsor ?? null; fresh.stadiumUpgrades = completed.stadiumUpgrades; fresh.introVista = false;
     fresh.leagueRosters = movement.rosters; fresh.userTeamId = teamId;
+    fresh.teamRatings = movement.teamRatings ?? evolveTeamRatings(completed);
+    fresh.clubDevelopment = { ...(completed.clubDevelopment ?? {}) };
+    fresh.totalMatchesPlayed = completed.totalMatchesPlayed ?? 0; fresh.totalWins = completed.totalWins ?? 0;
+    fresh.totalDraws = completed.totalDraws ?? 0; fresh.totalLosses = completed.totalLosses ?? 0;
+    fresh.careerTrophies = completed.careerTrophies ?? 0;
+    if (movement.userNextDivision && movement.userNextDivision !== careerDivision(completed, teamId)) {
+      fresh.careerTrophies = (completed.careerTrophies ?? 0) + 1;
+      await tryUnlock("ascenso");
+      if (movement.userNextDivision === "primera_division") await tryUnlock("ascenso_a_primera");
+    }
+    for (const key of checkCareerAchievementKeys(completed, budget)) await tryUnlock(key);
     const nextSeason = season + 1;
     setSeason(nextSeason); setState(fresh); setTab("inicio");
     await persist(fresh, budget, nextSeason);
@@ -576,7 +595,7 @@ function CarreraPage() {
         {tab === "calendario" && <CalendarioTab state={state} teamId={teamId} />}
         {tab === "competicion" && <CompeticionTab state={state} teamId={teamId} />}
         {tab === "club" && (
-          <ClubTab state={state} teamId={teamId} budget={budget} unlocked={unlocked.size} onBuy={onBuyUpgrade} />
+          <ClubTab state={state} teamId={teamId} budget={budget} unlocked={unlocked.size} onBuy={onBuyUpgrade} onDevelopment={async (k) => { const r = buyDevelopment(state, budget, k); if (!r.ok) { alert(r.error); return; } setState(r.state); setBudget(r.budget); await persist(r.state, r.budget, season); }} />
         )}
         {tab === "oficina" && (
           <OficinaTab state={state} budget={budget} season={season} onActivate={onActivateCorruption} onAbandon={abandon} onSignSponsor={onSignSponsor} onCancelSponsor={onCancelSponsor} />
@@ -1470,9 +1489,10 @@ function TablaZona({ title, rows, highlight, matches, division = "primera_nacion
 
 /* ============================ CLUB ============================ */
 
-function ClubTab({ state, teamId, budget, unlocked, onBuy }: {
+function ClubTab({ state, teamId, budget, unlocked, onBuy, onDevelopment }: {
   state: CareerState; teamId: string; budget: number; unlocked: number;
   onBuy: (k: typeof STADIUM_UPGRADE_CATALOG[number]["key"]) => void;
+  onDevelopment: (k: keyof ClubDevelopment) => void;
 }) {
   return (
     <div className="grid lg:grid-cols-2 gap-3">
@@ -1527,6 +1547,55 @@ function ClubTab({ state, teamId, budget, unlocked, onBuy }: {
         </div>
         <Link to="/equipos/$id" params={{ id: teamId }}
           className="inline-block text-sm text-celeste underline">Ver ficha, plantel y estadio →</Link>
+      </div>
+      <div className="hud-panel p-4 lg:col-span-2">
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <div className="font-display text-lg tracking-wide">📈 Rendimiento del plantel</div>
+            <div className="text-xs text-muted-foreground">Las stats de simulación se renuevan al terminar cada temporada según el rendimiento del equipo.</div>
+          </div>
+          <span className="text-[10px] text-muted-foreground uppercase tracking-widest">Solo simulación</span>
+        </div>
+        {(() => {
+          const r = state.teamRatings?.[teamId] ?? getTeamById(teamId)?.stats;
+          if (!r) return <div className="text-xs text-muted-foreground">Sin datos de rendimiento.</div>;
+          return <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {[['VEL', r.speed], ['SAL', r.jump], ['POT', r.power], ['DEF', r.defense]].map(([label, value]) => (
+              <div key={String(label)} className="rounded-xl border border-border/60 bg-card/40 p-3 text-center">
+                <div className="text-[10px] text-muted-foreground tracking-widest">{label}</div>
+                <div className="font-display text-2xl text-celeste">{value}</div>
+              </div>
+            ))}
+          </div>;
+        })()}
+      </div>
+
+      <div className="hud-panel p-4 lg:col-span-2">
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <div className="font-display text-lg tracking-wide">🧠 Desarrollo del club</div>
+            <div className="text-xs text-muted-foreground">Invertí dinero para mejorar el crecimiento de stats y los ingresos entre temporadas.</div>
+          </div>
+          <div className="text-xs text-celeste font-display">Caja ${budget}</div>
+        </div>
+        <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-2">
+          {CLUB_DEVELOPMENT_CATALOG.map(opt => {
+            const level = state.clubDevelopment?.[opt.key] ?? 0;
+            const maxed = level >= opt.costs.length;
+            const cost = opt.costs[level];
+            return <div key={opt.key} className="rounded-xl border border-border/60 bg-card/40 p-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="font-display text-sm">{opt.name}</div>
+                <div className="text-[10px] text-celeste">NIVEL {level}/{opt.costs.length}</div>
+              </div>
+              <div className="text-[11px] text-muted-foreground mt-1 min-h-[32px]">{opt.desc}</div>
+              <div className="mt-2 flex gap-1">{opt.costs.map((_, i) => <span key={i} className={`h-1.5 flex-1 rounded ${i < level ? "bg-celeste" : "bg-white/10"}`} />)}</div>
+              <button disabled={maxed || budget < cost} onClick={() => onDevelopment(opt.key)} className="w-full mt-3 py-2 rounded-lg bg-celeste text-primary-foreground font-display text-xs disabled:opacity-35">
+                {maxed ? "MAX" : `INVERTIR $${cost}`}
+              </button>
+            </div>;
+          })}
+        </div>
       </div>
     </div>
   );
