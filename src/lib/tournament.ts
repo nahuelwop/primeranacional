@@ -365,42 +365,85 @@ export function simulateRegionalTournament(roster: string[]): RegionalSeasonResu
 }
 
 export function buildFederalZoneMap(teamIds: string[]): Record<string, string> {
-  // Distribución fija y geográfica para 37 equipos: 10 + 9 + 9 + 9.
-  // No usamos el viejo campo zone A/B del catálogo porque ese campo nació
-  // para otras competencias.
+  // Federal A 2026 — Fase Regular. Distribución geográfica de 4 zonas:
+  // Zona A = 10 equipos; B/C/D = 9 equipos. La distribución coincide con las
+  // cuatro tablas de la Fase 1 utilizadas por Promiedos.
   const fixed: Record<string, "A" | "B" | "C" | "D"> = {
-    // A · Norte / NEA
-    "9dejulio": "A", "bartolomemitre": "A", "bocaunidos": "A", "defensores": "A", "juventudantoniana": "A",
-    "sanmartin": "A", "sarmiento": "A", "sarmiento2": "A", "soldeamerica": "A", "tucumancentral": "A",
-    // B · Centro / Cuyo
-    "atenas": "B", "atleticoclubsanmartin": "B", "costabrava": "B", "deportivoargentino": "B", "fadep": "B",
-    "huracanlasheras": "B", "juventudunidauniversitario": "B", "sportivoatleticoclub": "B", "sportivobelgrano": "B",
-    // C · Buenos Aires / litoral sur
-    "circulodeportivo": "C", "defensoresdebelgrano2": "C", "douglashaig": "C", "ellinqueno": "C", "escobarfutbolclub": "C",
-    "gimnasiayesgrima": "C", "independiente2": "C", "santamarina": "C", "kimberley": "C",
-    // D · Patagonia y extremo sur; Alvarado completa el corredor bonaerense sur.
-    "alvarado": "D", "cipolletti": "D", "deportivorincon": "D", "germinal": "D", "gimnasiayesgrima2": "D",
-    "guillermobrown": "D", "olimpo": "D", "soldemayo": "D", "villamitre": "D",
+    // Zona A — corredor bonaerense / litoral y centro-este (10)
+    douglashaig: "A",
+    sportivobelgrano: "A",
+    gimnasiayesgrima: "A",
+    defensoresdebelgrano2: "A",
+    "9dejulio": "A",
+    sportivolp: "A",
+    escobarfutbolclub: "A",
+    independiente2: "A",
+    ellinqueno: "A",
+    gimnasiayesgrima2: "A",
+
+    // Zona B — NEA / Norte (9)
+    sanmartin: "B",
+    bartolomemitre: "B",
+    soldeamerica: "B",
+    sarmiento: "B",
+    juventudantoniana: "B",
+    defensores: "B",
+    bocaunidos: "B",
+    tucumancentral: "B",
+    sarmiento2: "B",
+
+    // Zona C — centro / cuyo (9)
+    cipolletti: "C",
+    deportivoargentino: "C",
+    atenas: "C",
+    huracanlasheras: "C",
+    fadep: "C",
+    deportivorincon: "C",
+    atleticoclubsanmartin: "C",
+    costabrava: "C",
+    juventudunidauniversitario: "C",
+
+    // Zona D — Patagonia / sur bonaerense (9)
+    olimpo: "D",
+    alvarado: "D",
+    kimberley: "D",
+    villamitre: "D",
+    germinal: "D",
+    soldemayo: "D",
+    guillermobrown: "D",
+    santamarina: "D",
+    circulodeportivo: "D",
   };
 
+  // Compatibilidad con IDs que puedan existir en variantes del catálogo.
+  const aliases: Record<string, string> = {
+
+    "sportivo-lp": "sportivolp",
+  };
   const valid = new Set(teamIds);
   const map: Record<string, string> = {};
   for (const [id, zone] of Object.entries(fixed)) if (valid.has(id)) map[id] = zone;
+  for (const [id, canonical] of Object.entries(aliases)) {
+    if (valid.has(id) && map[canonical]) map[id] = map[canonical];
+  }
 
   const sizes = { A: 10, B: 9, C: 9, D: 9 } as const;
   const counts = { A: 0, B: 0, C: 0, D: 0 };
-  for (const z of Object.values(map)) counts[z as keyof typeof counts]++;
+  for (const zone of Object.values(map)) counts[zone as keyof typeof counts]++;
 
-  // Fallback para equipos que lleguen por ascenso/descenso o tengan un ID nuevo:
-  // completamos los cupos manteniendo la estabilidad y sin volver a usar A/B legacy.
+  // Fallback determinista para ascensos/descensos futuros. Nunca rompe la
+  // distribución 10+9+9+9 y conserva juntos, dentro de lo posible, los clubes
+  // que no tengan todavía una asignación explícita.
   const pending = stableSortIds(teamIds.filter(id => !map[id]));
   for (const id of pending) {
-    const target = (Object.keys(sizes) as Array<keyof typeof sizes>).sort((a, b) => counts[a] - counts[b] || a.localeCompare(b))[0];
+    const target = (Object.keys(sizes) as Array<keyof typeof sizes>)
+      .sort((a, b) => counts[a] - counts[b] || a.localeCompare(b))[0];
     map[id] = target;
     counts[target]++;
   }
   return map;
 }
+
 
 export function buildDivisionCareerFixture(division: DivisionId, teamIds: string[], userTeamId?: string, persistedZoneMap?: Record<string, string>): {
   matches: Match[];
@@ -820,7 +863,7 @@ function resolveFederalA(zoneMap: Record<string, string>, phase1StandingsByZone:
   return { promoted: [first.winner, second.winner].filter(Boolean), relegated, phaseStandings, matches: [...first.matches, ...second.matches] };
 }
 
-export function simulateDivisionSeason(division: DivisionId, roster: string[], userState?: { zone: string; standings: StandingRow[]; otherStandings?: StandingRow[]; matches: Match[]; otherMatches?: Match[]; federalZoneMap?: Record<string, string> }): LeagueSeasonResult {
+export function simulateDivisionSeason(division: DivisionId, roster: string[], userState?: { zone: string; standings: StandingRow[]; otherStandings?: StandingRow[]; matches: Match[]; otherMatches?: Match[]; federalZoneMap?: Record<string, string> }, simulationRatings?: Record<string, { speed: number; jump: number; power: number; defense: number }>): LeagueSeasonResult {
   if (userState) {
     const allPlayed = [...userState.matches, ...(userState.otherMatches ?? [])];
     const allIds = Array.from(new Set(roster));
