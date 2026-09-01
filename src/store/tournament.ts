@@ -262,6 +262,7 @@ export const useTournament = create<State & Actions>()(persist((set, get) => ({
       const seeds = a.map(r => r.teamId);
       const bracket = buildRegionalBracket(seeds);
       set({ finalDirecta: undefined, bracket, champion: undefined, reducidoChampion: undefined, regionalChampion: undefined, regionalNationalFinal: undefined, regionalNationalOpponent });
+      get().advanceBracket();
       return;
     }
     const hasDirectFinal = division === "primera_nacional" || division === "primera_c" || division === "promocional_amateur";
@@ -283,28 +284,91 @@ export const useTournament = create<State & Actions>()(persist((set, get) => ({
     }
     const bracket = bracketForDivision(division, standA, standB, loser);
     set({ finalDirecta, bracket, champion });
+    get().advanceBracket();
   },
   advanceBracket: () => {
-    const { bracket, userTeamId, division = "primera_nacional", standA, standB, regionalNationalOpponent } = get();
-    if (!bracket) return;
-    let { octavos, cuartos, semis, final } = bracket;
+    const initial = get();
+    if (!initial.bracket) return;
+    let octavos = [...initial.bracket.octavos];
+    let cuartos = [...initial.bracket.cuartos];
+    let semis = [...initial.bracket.semis];
+    let final = [...initial.bracket.final];
+    const { userTeamId, division = "primera_nacional", standA, standB, regionalNationalOpponent } = initial;
     const legs: 1 | 2 = division === "primera_nacional" ? 1 : 2;
-    if (octavos.some(p => !p.winner)) octavos = octavos.map(p => playOne(p, userTeamId));
-    else if (!cuartos.length) cuartos = advancePairs(octavos, legs);
-    else if (cuartos.some(p => !p.winner)) cuartos = cuartos.map(p => playOne(p, userTeamId));
-    else if (!semis.length) semis = advancePairs(cuartos, legs);
-    else if (semis.some(p => !p.winner)) semis = semis.map(p => playOne(p, userTeamId));
-    else if (!final.length) final = advancePairs(semis, legs);
-    else if (final.some(p => !p.winner)) final = final.map(p => playOne(p, userTeamId));
-    const reducedWinner = final[0]?.winner;
-    const nextState: Partial<State> = { bracket: { octavos, cuartos, semis, final }, reducidoChampion: reducedWinner || get().reducidoChampion };
-    if (division === "regional_federal_amateur" && reducedWinner && !get().regionalChampion) {
-      nextState.regionalChampion = reducedWinner;
-      if (reducedWinner === userTeamId && regionalNationalOpponent && regionalNationalOpponent !== userTeamId) {
-        nextState.regionalNationalFinal = { a: userTeamId, b: regionalNationalOpponent, legs: 1 };
+
+    // Avanza tantas rondas como sea posible, pero se detiene siempre en el
+    // próximo cruce que deba jugar el usuario. Esto evita que el Regional quede
+    // clavado en "clasificado" y también evita que aparezca la misma fecha/rival.
+    for (let guard = 0; guard < 20; guard++) {
+      let progressed = false;
+
+      const playStage = (items: CareerPair[]) => items.map(p => playOne(p, userTeamId));
+      if (octavos.length && octavos.some(p => !p.winner)) {
+        const before = JSON.stringify(octavos);
+        octavos = playStage(octavos);
+        progressed = before !== JSON.stringify(octavos);
+        if (octavos.some(p => !p.winner)) break;
+      }
+
+      if (!cuartos.length && octavos.length && octavos.every(p => !!p.winner)) {
+        cuartos = advancePairs(octavos, legs);
+        progressed = true;
+      }
+      if (cuartos.length && cuartos.some(p => !p.winner)) {
+        const before = JSON.stringify(cuartos);
+        cuartos = playStage(cuartos);
+        progressed = progressed || before !== JSON.stringify(cuartos);
+        if (cuartos.some(p => !p.winner)) break;
+      }
+
+      if (!semis.length && cuartos.length && cuartos.every(p => !!p.winner)) {
+        semis = advancePairs(cuartos, legs);
+        progressed = true;
+      }
+      if (semis.length && semis.some(p => !p.winner)) {
+        const before = JSON.stringify(semis);
+        semis = playStage(semis);
+        progressed = progressed || before !== JSON.stringify(semis);
+        if (semis.some(p => !p.winner)) break;
+      }
+
+      if (!final.length && semis.length && semis.every(p => !!p.winner)) {
+        final = advancePairs(semis, legs);
+        progressed = true;
+      }
+      if (final.length && final.some(p => !p.winner)) {
+        const before = JSON.stringify(final);
+        final = playStage(final);
+        progressed = progressed || before !== JSON.stringify(final);
+        if (final.some(p => !p.winner)) break;
+      }
+
+      const reducedWinner = final.length === 1 && !!final[0]?.winner ? final[0].winner : undefined;
+      let regionalChampion = initial.regionalChampion;
+      let regionalNationalFinal = initial.regionalNationalFinal;
+      if (division === "regional_federal_amateur" && reducedWinner && !regionalChampion) {
+        regionalChampion = reducedWinner;
+        if (reducedWinner === userTeamId && regionalNationalOpponent && regionalNationalOpponent !== userTeamId) {
+          regionalNationalFinal = { a: userTeamId, b: regionalNationalOpponent, legs: 1 };
+        }
+      }
+
+      // Nada más que avanzar automáticamente.
+      if (!progressed || (final.length === 1 && !!final[0]?.winner)) {
+        set({
+          bracket: { octavos, cuartos, semis, final },
+          reducidoChampion: reducedWinner ?? get().reducidoChampion,
+          regionalChampion,
+          regionalNationalFinal,
+        });
+        return;
       }
     }
-    set(nextState as State);
+
+    set({
+      bracket: { octavos, cuartos, semis, final },
+      reducidoChampion: final.length === 1 && final[0]?.winner ? final[0].winner : get().reducidoChampion,
+    } as Partial<State>);
     void standA; void standB;
   },
 }), { name: "primera-nacional-heads-2026" }));
@@ -394,5 +458,8 @@ export function recordUserPlayoff(
   }
   const nextBr = { ...br, [roundKey]: arr } as { octavos: CareerPair[]; cuartos: CareerPair[]; semis: CareerPair[]; final: CareerPair[] };
   useTournament.setState({ bracket: nextBr, reducidoChampion: kind === "final_reducido" ? winner : s.reducidoChampion });
+  // Inmediatamente después de resolver el partido del usuario, simulamos los
+  // cruces restantes y armamos la próxima ronda.
+  useTournament.getState().advanceBracket();
   return { finished: true, winner };
 }
