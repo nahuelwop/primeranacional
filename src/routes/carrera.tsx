@@ -649,6 +649,14 @@ function InicioTab({ state, teamId, season, nextMatch, indicators, standings, bu
                     SIMULAR
                   </button>
                 </div>
+                {season >= 2 && (
+                  <a
+                    href={`/copa-argentina?teamId=${teamId}&season=${season}&difficulty=${state.difficulty ?? "normal"}`}
+                    className="mt-3 flex items-center justify-center gap-2 py-2.5 rounded-xl border border-accent/40 bg-accent/10 hover:bg-accent/20 transition-colors font-display text-sm tracking-[0.15em] text-accent"
+                  >
+                    🏆 COPA ARGENTINA
+                  </a>
+                )}
               </>
             ) : (
               <div className="text-center py-6">
