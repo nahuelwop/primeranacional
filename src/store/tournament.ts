@@ -10,7 +10,7 @@ import {
 } from "@/lib/tournament";
 
 export type TDifficulty = "easy" | "normal" | "hard" | "expert";
-type PlayoffDivision = "primera_nacional" | "primera_b" | "primera_c" | "promocional_amateur";
+type PlayoffDivision = "primera_nacional" | "primera_b" | "primera_c" | "promocional_amateur" | "regional_federal_amateur";
 type PlayoffKind = "pn" | "pb" | "pc" | "promocional";
 
 // Pair conserva el resultado de una serie. Para B Metro / C / Reducido Promo
@@ -36,6 +36,9 @@ type State = {
   bracket?: { octavos: CareerPair[]; cuartos: CareerPair[]; semis: CareerPair[]; final: CareerPair[] };
   champion?: string;
   reducidoChampion?: string;
+  regionalNationalFinal?: CareerPair;
+  regionalChampion?: string;
+  regionalNationalOpponent?: string;
   introVista: boolean;
   difficulty: TDifficulty;
   objetivo: "ascenso_directo" | "reducido" | "mantener";
@@ -49,6 +52,7 @@ type SeedArgs = {
   season: number;
   difficulty: TDifficulty;
   division?: PlayoffDivision;
+  regionalNationalOpponent?: string;
 };
 
 type Actions = {
@@ -134,7 +138,21 @@ function buildPromoBracket(standA: StandingRow[], standB: StandingRow[], extraSe
   return { octavos, cuartos: [], semis: [], final: [] };
 }
 
+function buildRegionalBracket(seeds: string[]): { octavos: CareerPair[]; cuartos: CareerPair[]; semis: CareerPair[]; final: CareerPair[] } {
+  const clean = Array.from(new Set(seeds.filter(Boolean)));
+  const size = Math.min(16, clean.length);
+  const selected = clean.slice(0, size);
+  const octavos: CareerPair[] = [];
+  for (let i = 0; i + 1 < selected.length; i += 2) {
+    octavos.push({ a: selected[i], b: selected[i + 1], legs: 2 });
+  }
+  if (selected.length === 1) octavos.push({ a: selected[0], winner: selected[0], legs: 2 });
+  return { octavos, cuartos: [], semis: [], final: [] };
+}
+
+
 function bracketForDivision(division: PlayoffDivision, standA: StandingRow[], standB: StandingRow[], extraSeed?: string) {
+  if (division === "regional_federal_amateur") return buildRegionalBracket(standA.map(r => r.teamId));
   if (division === "primera_nacional") return buildPnBracket(standA, standB, extraSeed);
   if (division === "primera_b") return buildPbBracket(standA);
   if (division === "primera_c") return buildPcBracket(standA, standB, extraSeed);
@@ -181,10 +199,10 @@ export const useTournament = create<State & Actions>()(persist((set, get) => ({
     ...baseState(), fixture: buildFix(), standA: emptyStandings(aIds()), standB: emptyStandings(bIds()),
   }),
   setUserTeam: id => set({ userTeamId: id }),
-  seedFromCareer: ({ standA, standB, userTeamId, season, difficulty, division = "primera_nacional" }) => set({
+  seedFromCareer: ({ standA, standB, userTeamId, season, difficulty, division = "primera_nacional", regionalNationalOpponent }) => set({
     fixture: [{ id: `career-import-${division}-${season}`, round: 1, home: userTeamId, away: userTeamId, played: true, homeGoals: 0, awayGoals: 0 }],
-    standA, standB, userTeamId, season, difficulty, division,
-    currentRound: 1, finalDirecta: undefined, bracket: undefined, champion: undefined, reducidoChampion: undefined,
+    standA, standB, userTeamId, season, difficulty, division, regionalNationalOpponent,
+    currentRound: 1, finalDirecta: undefined, bracket: undefined, champion: undefined, reducidoChampion: undefined, regionalNationalFinal: undefined, regionalChampion: undefined,
     introVista: false, lastRoundSummarized: 0,
   }),
   setIntroVista: v => set({ introVista: v }),
@@ -238,8 +256,14 @@ export const useTournament = create<State & Actions>()(persist((set, get) => ({
     set({ fixture: newFix, standA: a, standB: b, currentRound: roundDone && playedRound >= currentRound ? playedRound + 1 : currentRound });
   },
   startPlayoffs: () => {
-    const { standA, standB, userTeamId, division = "primera_nacional" } = get();
+    const { standA, standB, userTeamId, division = "primera_nacional", regionalNationalOpponent } = get();
     const a = sortStandings(standA), b = sortStandings(standB);
+    if (division === "regional_federal_amateur") {
+      const seeds = a.map(r => r.teamId);
+      const bracket = buildRegionalBracket(seeds);
+      set({ finalDirecta: undefined, bracket, champion: undefined, reducidoChampion: undefined, regionalChampion: undefined, regionalNationalFinal: undefined, regionalNationalOpponent });
+      return;
+    }
     const hasDirectFinal = division === "primera_nacional" || division === "primera_c" || division === "promocional_amateur";
     let finalDirecta: CareerPair | undefined;
     let loser: string | undefined;
@@ -261,7 +285,7 @@ export const useTournament = create<State & Actions>()(persist((set, get) => ({
     set({ finalDirecta, bracket, champion });
   },
   advanceBracket: () => {
-    const { bracket, userTeamId, division = "primera_nacional", standA, standB } = get();
+    const { bracket, userTeamId, division = "primera_nacional", standA, standB, regionalNationalOpponent } = get();
     if (!bracket) return;
     let { octavos, cuartos, semis, final } = bracket;
     const legs: 1 | 2 = division === "primera_nacional" ? 1 : 2;
@@ -273,7 +297,14 @@ export const useTournament = create<State & Actions>()(persist((set, get) => ({
     else if (!final.length) final = advancePairs(semis, legs);
     else if (final.some(p => !p.winner)) final = final.map(p => playOne(p, userTeamId));
     const reducedWinner = final[0]?.winner;
-    set({ bracket: { octavos, cuartos, semis, final }, reducidoChampion: reducedWinner || get().reducidoChampion });
+    const nextState: Partial<State> = { bracket: { octavos, cuartos, semis, final }, reducidoChampion: reducedWinner || get().reducidoChampion };
+    if (division === "regional_federal_amateur" && reducedWinner && !get().regionalChampion) {
+      nextState.regionalChampion = reducedWinner;
+      if (reducedWinner === userTeamId && regionalNationalOpponent && regionalNationalOpponent !== userTeamId) {
+        nextState.regionalNationalFinal = { a: userTeamId, b: regionalNationalOpponent, legs: 1 };
+      }
+    }
+    set(nextState as State);
     void standA; void standB;
   },
 }), { name: "primera-nacional-heads-2026" }));
@@ -295,6 +326,14 @@ export function recordUserPlayoff(
 ) {
   const s = useTournament.getState();
   const division = s.division ?? "primera_nacional";
+
+  if (kind === "final" && division === "regional_federal_amateur") {
+    const p = s.regionalNationalFinal;
+    if (!p?.a || !p.b || p.winner) return { finished: !!p?.winner, winner: p?.winner };
+    const winner = hg > ag ? p.a : ag > hg ? p.b : (s.userTeamId === p.a ? p.a : p.b);
+    useTournament.setState({ regionalNationalFinal: { ...p, ag: hg, bg: ag, winner }, champion: winner, reducidoChampion: winner === s.userTeamId ? winner : s.reducidoChampion });
+    return { finished: true, winner };
+  }
 
   if (kind === "final") {
     const p = s.finalDirecta;
