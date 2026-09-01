@@ -541,6 +541,11 @@ export function getCareerPlayoffNeed(state: CareerState, teamId: string): { divi
     if (division === "promocional_amateur" && pos >= 1 && pos <= 4) return { division };
     if (division === "primera_c" && pos >= 1 && pos <= 7) return { division };
   }
+  if (division === "regional_federal_amateur") {
+    const rows = sortStandings(state.standings);
+    const pos = rows.findIndex(r => r.teamId === teamId) + 1;
+    if (pos >= 1 && pos <= 2) return { division };
+  }
   return null;
 }
 
