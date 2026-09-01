@@ -234,9 +234,9 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
     // precisión de salto), no en si "le sale" al azar una jugada correcta.
     const aiCfg = {
       easy:   { speed: 0.55, jumpProb: 0.45, kickProb: 0.35, react: 40, jumpCd: 90, smart: 0.35, precision: 70 },
-      normal: { speed: 0.85, jumpProb: 0.68, kickProb: 0.62, react: 20, jumpCd: 66, smart: 0.60, precision: 58 },
-      hard:   { speed: 1.00, jumpProb: 0.90, kickProb: 0.88, react: 10, jumpCd: 56, smart: 0.85, precision: 46 },
-      expert: { speed: 1.15, jumpProb: 0.99, kickProb: 0.97, react: 5,  jumpCd: 48, smart: 1.00, precision: 36 },
+      normal: { speed: 0.88, jumpProb: 0.70, kickProb: 0.65, react: 18, jumpCd: 62, smart: 0.62, precision: 55 },
+      hard:   { speed: 1.05, jumpProb: 0.93, kickProb: 0.92, react: 8,  jumpCd: 50, smart: 0.90, precision: 40 },
+      expert: { speed: 1.22, jumpProb: 1.00, kickProb: 1.00, react: 4,  jumpCd: 42, smart: 1.00, precision: 28 },
     }[aiDifficulty] ?? { speed: 0.85, jumpProb: 0.68, kickProb: 0.62, react: 20, jumpCd: 66, smart: 0.6, precision: 58 };
     let frame = 0;
     let aiJumpCd = 0;
@@ -708,7 +708,13 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
         } else {
           // ubicarse a la derecha de la pelota para empujarla hacia la izquierda
           const attackOffset = 22 + (1 - aiCfg.smart) * 15;
-          targetX = predictedX + attackOffset;
+          // A mayor "smart", si estoy cerca del arco rival y el humano está parado
+          // cerca de mi línea de tiro, me corro un poco para cambiar el ángulo
+          // natural del golpe — en vez de rematar siempre desde el mismo lugar.
+          const nearGoal = predictedX < rivalGoalX + 260;
+          const p1BlocksShot = nearGoal && Math.abs(p1.x - predictedX) < 70;
+          const dodgeBias = p1BlocksShot ? aiCfg.smart * (p1.x > predictedX ? 26 : -26) : 0;
+          targetX = predictedX + attackOffset + dodgeBias;
         }
         targetX = Math.max(p2.r, Math.min(W - p2.r, targetX));
         // Movimiento con banda muerta para no oscilar
