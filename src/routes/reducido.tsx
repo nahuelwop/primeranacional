@@ -6,6 +6,7 @@ import { TEAMS_BY_ID } from "@/data/teams";
 import { useTeamsSync } from "@/lib/teams-sync";
 import { useTournament, recordUserPlayoff } from "@/store/tournament";
 import { Pair } from "@/lib/tournament";
+import { careerTeam, type CareerState } from "@/lib/career";
 import { Game } from "@/components/Game";
 import { useAuth } from "@/lib/auth";
 import { fetchCareer } from "@/lib/career-api";
@@ -41,13 +42,19 @@ function Reducido() {
   // usuario entró acá directo, o jugó antes con otro club — todo el bracket se arma
   // comparando contra el club viejo y termina "invirtiendo" al usuario con el rival.
   const [teamMismatch, setTeamMismatch] = useState<{ real: string } | null | undefined>(undefined);
+  const [careerState, setCareerState] = useState<CareerState | null>(null);
   useEffect(() => {
     if (!user || !s.userTeamId) { setTeamMismatch(null); return; }
     let active = true;
     fetchCareer(user.id).then(save => {
       if (!active) return;
-      if (save && save.team_id !== s.userTeamId) setTeamMismatch({ real: save.team_id });
-      else setTeamMismatch(null);
+      if (save) {
+        if (save.team_id !== s.userTeamId) setTeamMismatch({ real: save.team_id });
+        else {
+          setTeamMismatch(null);
+          setCareerState((save.state as CareerState) ?? null);
+        }
+      } else setTeamMismatch(null);
     }).catch(() => active && setTeamMismatch(null));
     return () => { active = false; };
   }, [user, s.userTeamId]);
@@ -171,8 +178,12 @@ function Reducido() {
 
         {play && play.pair.a && play.pair.b && (() => {
           const userIsAway = play.pair.b === s.userTeamId;
-          const left = userIsAway ? TEAMS_BY_ID[play.pair.b] : TEAMS_BY_ID[play.pair.a];
-          const right = userIsAway ? TEAMS_BY_ID[play.pair.a] : TEAMS_BY_ID[play.pair.b];
+          const left = userIsAway
+            ? (careerState ? careerTeam(careerState, play.pair.b) : TEAMS_BY_ID[play.pair.b])
+            : (careerState ? careerTeam(careerState, play.pair.a) : TEAMS_BY_ID[play.pair.a]);
+          const right = userIsAway
+            ? (careerState ? careerTeam(careerState, play.pair.a) : TEAMS_BY_ID[play.pair.a])
+            : (careerState ? careerTeam(careerState, play.pair.b) : TEAMS_BY_ID[play.pair.b]);
           const label = play.kind === "final" ? "FINAL POR EL 1° ASCENSO"
             : play.kind === "final_reducido" ? "FINAL DEL REDUCIDO"
             : `${play.kind.toUpperCase()} · REDUCIDO`;
