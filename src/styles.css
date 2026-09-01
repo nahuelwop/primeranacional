@@ -876,45 +876,124 @@
   }
 }
 
-/* Marcadores por categoría: hechos con HTML/CSS, no son imágenes. */
-.division-scorebug {
-  width: min(100%, 760px);
-  min-height: 72px;
+/* Marcador estilo Copa Argentina / AXION: construido 100% con HTML/CSS. */
+.ca-scorebug {
+  width: min(100%, 480px);
+  min-height: 62px;
   display: grid;
-  grid-template-columns: 62px 150px minmax(110px,1fr) 58px 58px minmax(110px,1fr) 110px 42px;
+  grid-template-columns: 88px 88px minmax(0, 1fr) 42px;
   align-items: stretch;
   overflow: hidden;
-  border: 1px solid rgba(255,255,255,.12);
-  border-radius: 12px;
-  background: rgba(7,10,16,.96);
-  box-shadow: 0 10px 28px rgba(0,0,0,.28);
+  border-radius: 1px;
+  background: #061b3f;
+  color: #07162f;
+  box-shadow: 0 10px 24px rgba(0,0,0,.42);
+  font-family: var(--font-display, Arial, sans-serif);
+}
+.ca-scorebug-brand {
+  position: relative;
+  background: #061b3f;
   color: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  border-right: 1px solid rgba(255,255,255,.08);
 }
-.division-scorebug > * { min-width: 0; }
-.division-scorebug-brand,.division-scorebug-title,.division-scorebug-clock,.division-scorebug-half { display:flex; align-items:center; justify-content:center; }
-.division-scorebug-brand { font-family: var(--font-display, system-ui); font-size: 20px; font-weight: 900; border-right:1px solid rgba(255,255,255,.1); }
-.division-scorebug-title { font-size: 10px; letter-spacing:.16em; text-transform:uppercase; color:rgba(255,255,255,.55); border-right:1px solid rgba(255,255,255,.1); padding:0 8px; }
-.division-scorebug-team { display:flex; align-items:center; justify-content:center; gap:8px; padding:0 8px; font-family: var(--font-display, system-ui); font-size:18px; font-weight:800; text-transform:uppercase; }
-.division-scorebug-team > span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.division-scorebug-score { display:flex; align-items:center; justify-content:center; font-family:ui-monospace,monospace; font-size:34px; font-weight:900; background:rgba(255,255,255,.08); }
-.division-scorebug-away-score { border-left:1px solid rgba(255,255,255,.08); }
-.division-scorebug-clock { font-family:ui-monospace,monospace; font-size:20px; font-weight:900; background:rgba(255,255,255,.06); border-left:1px solid rgba(255,255,255,.08); }
-.division-scorebug-half { font-size:13px; font-weight:800; background:rgba(255,255,255,.05); }
-.division-scorebug-primera_c .division-scorebug-brand { background:#734b16; }
-.division-scorebug-primera_c .division-scorebug-score { background:#c98a2b; color:#111; }
-.division-scorebug-federal_a .division-scorebug-brand { background:#155e55; }
-.division-scorebug-federal_a .division-scorebug-score { background:#2aa58e; color:#061413; }
-.division-scorebug-promocional_amateur .division-scorebug-brand { background:#3a4f8f; }
-.division-scorebug-promocional_amateur .division-scorebug-score { background:#6f8fe6; color:#071022; }
-.division-scorebug-regional_federal_amateur .division-scorebug-brand { background:#4d5b36; }
-.division-scorebug-regional_federal_amateur .division-scorebug-score { background:#8ca45b; color:#0b1006; }
-@media (max-width: 720px) {
-  .division-scorebug { grid-template-columns: 46px 82px minmax(72px,1fr) 38px 38px minmax(72px,1fr) 72px 34px; min-height:60px; }
-  .division-scorebug-brand { font-size:14px; }
-  .division-scorebug-title { font-size:8px; letter-spacing:.08em; }
-  .division-scorebug-team { font-size:13px; gap:4px; padding:0 4px; }
-  .division-scorebug-team img,.division-scorebug-team svg { width:20px !important; height:20px !important; }
-  .division-scorebug-score { font-size:24px; }
-  .division-scorebug-clock { font-size:15px; }
-  .division-scorebug-half { font-size:10px; }
+.ca-mark {
+  font-family: Arial, sans-serif;
+  font-weight: 900;
+  font-size: 27px;
+  letter-spacing: -0.08em;
+  transform: translateX(-1px);
 }
+.ca-mark span { margin-left: 1px; }
+.ca-sponsor {
+  margin-top: 4px;
+  font-family: Arial, sans-serif;
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+  opacity: .95;
+}
+.ca-sponsor span {
+  display: block;
+  margin-top: 1px;
+  font-size: 5px;
+  letter-spacing: .08em;
+}
+.ca-scorebug-clock {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #061b3f;
+  color: #fff;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 25px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.03em;
+}
+.ca-scorebug-teams {
+  position: relative;
+  display: grid;
+  grid-template-rows: 1fr 1fr;
+  overflow: hidden;
+  background: #f5f4ef;
+}
+.ca-scorebug-teams::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 19px;
+  height: 19px;
+  background: #ee3138;
+  clip-path: polygon(0 0, 100% 0, 0 100%);
+  z-index: 2;
+}
+.ca-team-row {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 12px 0 26px;
+  background: #f7f6f1;
+  color: #13203a;
+  font-family: Arial, sans-serif;
+  font-size: 16px;
+  font-weight: 900;
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ca-team-row + .ca-team-row { border-top: 1px solid rgba(8,25,57,.12); }
+.ca-scorebug-scores {
+  display: grid;
+  grid-template-rows: 1fr 1fr;
+  background: #061b3f;
+  color: #fff;
+  font-family: Arial, sans-serif;
+  font-size: 28px;
+  font-weight: 900;
+  line-height: 1;
+}
+.ca-scorebug-scores > div {
+  display: grid;
+  place-items: center;
+}
+.ca-scorebug-scores > div + div { border-top: 1px solid rgba(255,255,255,.12); }
+@media (max-width: 640px) {
+  .ca-scorebug { grid-template-columns: 64px 73px minmax(0, 1fr) 36px; min-height: 48px; }
+  .ca-mark { font-size: 21px; }
+  .ca-sponsor { font-size: 5px; margin-top: 2px; }
+  .ca-sponsor span { font-size: 4px; }
+  .ca-scorebug-clock { font-size: 18px; }
+  .ca-team-row { font-size: 11px; padding-left: 18px; padding-right: 6px; }
+  .ca-scorebug-teams::before { width: 13px; height: 13px; }
+  .ca-scorebug-scores { font-size: 21px; }
+}
+
