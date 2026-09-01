@@ -99,17 +99,18 @@ function Reducido() {
           {s.division === "primera_b" ? "Segundo ascenso a Primera Nacional · 2° al 9°" :
            s.division === "primera_c" ? "Final por el 1° ascenso · Reducido por el 2° ascenso" :
            s.division === "promocional_amateur" ? "Final por el ascenso · Reducido por la segunda oportunidad" :
+           s.division === "regional_federal_amateur" ? "Eliminatorias regionales · final regional · etapa nacional" :
            "Primer ascenso por final directa · Segundo por Reducido"}
         </p>
 
         {!s.finalDirecta && !s.bracket ? (
           <button onClick={() => s.startPlayoffs()}
             className="mt-6 px-6 py-3 rounded-xl bg-celeste text-primary-foreground font-display tracking-wider glow-celeste">
-            {s.division === "primera_b" ? "INICIAR REDUCIDO" : "INICIAR FASE DE ASCENSO"}
+            {s.division === "primera_b" ? "INICIAR REDUCIDO" : s.division === "regional_federal_amateur" ? "INICIAR ELIMINATORIAS REGIONALES" : "INICIAR FASE DE ASCENSO"}
           </button>
         ) : (
-          <div className={`mt-6 grid ${s.division === "primera_b" ? "lg:grid-cols-1" : "lg:grid-cols-3"} gap-6`}>
-            {s.division !== "primera_b" && (
+          <div className={`mt-6 grid ${s.division === "primera_b" || s.division === "regional_federal_amateur" ? "lg:grid-cols-1" : "lg:grid-cols-3"} gap-6`}>
+            {s.division !== "primera_b" && s.division !== "regional_federal_amateur" && (
               <div className="rounded-2xl bg-gradient-to-br from-celeste/20 to-accent/10 border border-celeste/40 p-5">
                 <div className="font-display text-celeste text-xl">FINAL POR EL 1° ASCENSO</div>
                 {s.finalDirecta ? <PairView pair={s.finalDirecta} big /> : <div className="text-xs text-muted-foreground mt-3">Esperando que comience la final.</div>}
@@ -130,7 +131,7 @@ function Reducido() {
 
             <div className={`${s.division === "primera_b" ? "lg:col-span-1" : "lg:col-span-2"} rounded-2xl bg-card border border-border p-5`}>
               <div className="flex items-center justify-between">
-                <div className="font-display text-xl">REDUCIDO · 2° ASCENSO</div>
+                <div className="font-display text-xl">{s.division === "regional_federal_amateur" ? "ELIMINATORIAS REGIONALES" : "REDUCIDO · 2° ASCENSO"}</div>
                 <button onClick={() => s.advanceBracket()}
                   disabled={!!s.reducidoChampion}
                   className="px-4 py-2 rounded-lg bg-accent text-accent-foreground font-display tracking-wider disabled:opacity-40">
@@ -139,16 +140,29 @@ function Reducido() {
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-5">
-                <BracketCol title="Octavos" pairs={s.bracket?.octavos ?? []} kind="octavos" onPlay={setPlay} userId={s.userTeamId} />
+                <BracketCol title={s.division === "regional_federal_amateur" ? "Ronda regional 1" : "Octavos"} pairs={s.bracket?.octavos ?? []} kind="octavos" onPlay={setPlay} userId={s.userTeamId} />
                 <BracketCol title="Cuartos" pairs={s.bracket?.cuartos ?? []} kind="cuartos" onPlay={setPlay} userId={s.userTeamId} />
                 <BracketCol title="Semis"   pairs={s.bracket?.semis ?? []}   kind="semis"   onPlay={setPlay} userId={s.userTeamId} />
                 <BracketCol title="Final"   pairs={s.bracket?.final ?? []}   kind="final_reducido" onPlay={setPlay} userId={s.userTeamId} />
               </div>
 
-              {s.reducidoChampion && (
+              {s.reducidoChampion && s.division !== "regional_federal_amateur" && (
                 <div className="mt-6 text-center p-4 rounded-xl bg-accent/10 border border-accent/40">
                   <div className="text-xs text-muted-foreground">CAMPEÓN DEL REDUCIDO · 2° ASCENSO</div>
                   <div className="font-display text-3xl text-accent">{TEAMS_BY_ID[s.reducidoChampion]?.name}</div>
+                </div>
+              )}
+
+              {s.division === "regional_federal_amateur" && s.regionalNationalFinal && (
+                <div className="mt-6 rounded-2xl bg-gradient-to-br from-celeste/15 to-accent/10 border border-celeste/40 p-5">
+                  <div className="font-display text-celeste text-xl">ETAPA FINAL NACIONAL · ASCENSO AL FEDERAL A</div>
+                  <PairView pair={s.regionalNationalFinal} big />
+                  {!s.regionalNationalFinal.winner && isUserPair(s.regionalNationalFinal) && (
+                    <button onClick={() => setPlay({ kind: "final", idx: 0, pair: s.regionalNationalFinal! })}
+                      className="mt-3 w-full px-4 py-3 rounded-lg bg-celeste text-primary-foreground font-display tracking-wider">
+                      JUGAR FINAL NACIONAL
+                    </button>
+                  )}
                 </div>
               )}
             </div>
