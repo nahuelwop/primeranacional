@@ -98,6 +98,35 @@ function PrimeraDivisionScorebug({
     </div>
   );
 }
+
+function DivisionScorebug({
+  home, away, score, time,
+}: {
+  home: Team; away: Team; score: { h: number; a: number }; time: number;
+}) {
+  const clock = `${String(Math.floor(time / 60)).padStart(2, "0")}:${String(time % 60).padStart(2, "0")}`;
+  const division = home.division === away.division ? home.division : "default";
+  const labels: Record<string, { brand: string; title: string }> = {
+    primera_c: { brand: "PC", title: "PRIMERA C" },
+    federal_a: { brand: "FA", title: "FEDERAL A" },
+    promocional_amateur: { brand: "PA", title: "PROMOCIONAL AMATEUR" },
+    regional_federal_amateur: { brand: "RF", title: "REGIONAL FEDERAL AMATEUR" },
+    default: { brand: "N", title: "PRIMERA HEADS" },
+  };
+  const meta = labels[division] ?? labels.default;
+  return (
+    <div className={`division-scorebug division-scorebug-${division}`} role="status" aria-label={`${home.short} ${score.h}, ${away.short} ${score.a}, ${clock}`}>
+      <div className="division-scorebug-brand">{meta.brand}</div>
+      <div className="division-scorebug-title">{meta.title}</div>
+      <div className="division-scorebug-team division-scorebug-home"><Shield team={home} size={25} /><span>{home.short}</span></div>
+      <div className="division-scorebug-score">{score.h}</div>
+      <div className="division-scorebug-score division-scorebug-away-score">{score.a}</div>
+      <div className="division-scorebug-team division-scorebug-away"><span>{away.short}</span><Shield team={away} size={25} /></div>
+      <div className="division-scorebug-clock">{clock}</div>
+      <div className="division-scorebug-half">1T</div>
+    </div>
+  );
+}
 // Football Heads style arcade — sin poderes, físicas con postes y travesaño.
 export function Game({ home, away, duration = 60, weather = "clear", aiDifficulty = "normal", mode = "1vAI", sharedNarrator = false, crowdIntensity = "normal", matchLabel, startingScore, cancelOpponentGoals = 0, doubleGoalChance = 0, initialSharedName, initialHomeNarratorId, initialAwayNarratorId, initialNarratorVol, initialCrowdVol, onEnd, onExit }: Props) {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -1412,6 +1441,8 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
       )}
       {isPrimeraDivisionMatch ? (
         <PrimeraDivisionScorebug home={home} away={away} score={score} time={time} />
+      ) : home.division === "primera_c" || home.division === "federal_a" || home.division === "promocional_amateur" || home.division === "regional_federal_amateur" ? (
+        <DivisionScorebug home={home} away={away} score={score} time={time} />
       ) : (
         <div className="scorebug" role="status" aria-label={`${home.short} ${score.h}, ${away.short} ${score.a}, ${time} segundos`}>
           <div className="scorebug-brand">N</div>
