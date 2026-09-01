@@ -854,6 +854,19 @@ export function teamOf(id: string | undefined | null): Team | undefined {
   return id ? getTeamById(id) : undefined;
 }
 
+/**
+ * Equipo para disputar un partido dentro de una carrera. A diferencia de
+ * getTeamById(), aplica los ratings evolucionados de la temporada actual sin
+ * mutar el catálogo global. Así los cambios de stats realmente se ven y
+ * afectan al gameplay en la temporada siguiente.
+ */
+export function careerTeam(state: CareerState | null | undefined, id: string): Team | undefined {
+  const base = getTeamById(id);
+  if (!base) return undefined;
+  const rating = state?.teamRatings?.[id];
+  return rating ? { ...base, stats: { ...rating } } : { ...base, stats: { ...base.stats } };
+}
+
 // ============ Indicadores del club (para el panel de Modo Carrera) ============
 export type ClubIndicator = { key: string; label: string; icon: string; value: number; hint: string };
 
