@@ -1,0 +1,226 @@
+import { createFileRoute, Link, useSearch } from "@tanstack/react-router";
+import { useEffect, useMemo, useState } from "react";
+import { Nav } from "@/components/Nav";
+import { Shield } from "@/components/Shield";
+import { TEAMS_BY_ID } from "@/data/teams";
+import { useTeamsSync } from "@/lib/teams-sync";
+import { Game, type Difficulty } from "@/components/Game";
+import { Penales } from "@/components/Penales";
+import {
+  buildCopaBracket, simulateCopaRoundExceptUser, recordCopaUserMatch, nextCopaMatchForUser,
+  isCopaFinished, isCopaUnlocked, COPA_ROUND_ORDER, COPA_ROUND_LABEL,
+  type CopaState, type CopaRound,
+} from "@/lib/copaArgentina";
+
+export const Route = createFileRoute("/copa-argentina")({
+  validateSearch: (s: Record<string, unknown>) => ({
+    teamId: (s.teamId as string) ?? "",
+    season: Number(s.season ?? 1),
+    difficulty: (s.difficulty as Difficulty) ?? "normal",
+  }),
+  head: () => ({
+    meta: [
+      { title: "Copa Argentina · Primera Heads" },
+      { name: "description", content: "Eliminación directa a partido único, cancha neutral. 64 equipos, un campeón." },
+    ],
+  }),
+  component: CopaArgentinaPage,
+});
+
+const STORAGE_KEY = "ph_copa_argentina_v1";
+
+function loadOrBuild(teamId: string, season: number): CopaState {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const saved = JSON.parse(raw) as CopaState;
+      if (saved.userTeamId === teamId && saved.season === season) return saved;
+    }
+  } catch { /* noop */ }
+  const fresh = buildCopaBracket(teamId, season);
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(fresh)); } catch { /* noop */ }
+  return fresh;
+}
+
+function CopaArgentinaPage() {
+  useTeamsSync();
+  const { teamId, season, difficulty } = useSearch({ from: "/copa-argentina" });
+  const [state, setState] = useState<CopaState | null>(null);
+  const [playing, setPlaying] = useState(false);
+  const [showPenales, setShowPenales] = useState(false);
+  const [pendingScore, setPendingScore] = useState<{ h: number; a: number } | null>(null);
+
+  useEffect(() => {
+    if (!teamId) return;
+    setState(loadOrBuild(teamId, season));
+  }, [teamId, season]);
+
+  useEffect(() => {
+    if (state) { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch { /* noop */ } }
+  }, [state]);
+
+  const nextMatch = state ? nextCopaMatchForUser(state) : null;
+  const home = nextMatch ? TEAMS_BY_ID[nextMatch.home] : undefined;
+  const away = nextMatch ? TEAMS_BY_ID[nextMatch.away] : undefined;
+
+  if (!teamId) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <Nav />
+        <main className="flex-1 max-w-4xl w-full mx-auto px-4 py-10 text-center">
+          <div className="font-display text-3xl">Copa Argentina</div>
+          <p className="text-muted-foreground mt-3">Entrá desde tu Modo Carrera (botón "Copa Argentina" en Inicio) para jugarla con tu equipo.</p>
+          <Link to="/carrera" className="inline-block mt-6 px-5 py-2.5 rounded-lg bg-celeste text-primary-foreground font-display tracking-wider">
+            Ir a Modo Carrera
+          </Link>
+        </main>
+      </div>
+    );
+  }
+
+  if (!isCopaUnlocked(season)) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <Nav />
+        <main className="flex-1 max-w-4xl w-full mx-auto px-4 py-10 text-center">
+          <div className="font-display text-3xl">Copa Argentina</div>
+          <p className="text-muted-foreground mt-3">Se juega recién a partir de la 2ª temporada de tu carrera. Todavía estás en la 1ª.</p>
+          <Link to="/carrera" className="inline-block mt-6 px-5 py-2.5 rounded-lg bg-celeste text-primary-foreground font-display tracking-wider">
+            Volver a Carrera
+          </Link>
+        </main>
+      </div>
+    );
+  }
+
+  if (!state) return null;
+
+  // Partido del usuario en curso
+  if (playing && home && away && nextMatch) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <Nav />
+        <main className="flex-1 max-w-5xl w-full mx-auto px-4 py-6">
+          <div className="text-center mb-3">
+            <div className="text-[11px] uppercase tracking-[0.3em] text-celeste">{COPA_ROUND_LABEL[nextMatch.round]} · Cancha neutral</div>
+          </div>
+          {!showPenales ? (
+            <Game
+              home={home} away={away} duration={60} aiDifficulty={difficulty} mode="1vAI"
+              matchLabel="Copa Argentina — a partido único"
+              onEnd={(hg, ag) => {
+                if (hg === ag) { setPendingScore({ h: hg, a: ag }); setShowPenales(true); return; }
+                const winner = hg > ag ? nextMatch.home : nextMatch.away;
+                setState(s => s && recordCopaUserMatch(s, nextMatch.id, hg, ag, winner));
+                setPlaying(false);
+              }}
+              onExit={() => setPlaying(false)}
+            />
+          ) : (
+            <Penales
+              home={home} away={away} mode="1vAI"
+              onEnd={(winner) => {
+                const winnerId = winner === "H" ? nextMatch.home : nextMatch.away;
+                setState(s => s && recordCopaUserMatch(s, nextMatch.id, pendingScore?.h ?? 0, pendingScore?.a ?? 0, winnerId));
+                setShowPenales(false); setPendingScore(null); setPlaying(false);
+              }}
+            />
+          )}
+        </main>
+      </div>
+    );
+  }
+
+  const finished = isCopaFinished(state);
+
+  return (
+    <div className="min-h-screen flex flex-col">
+      <Nav />
+      <main className="flex-1 max-w-5xl w-full mx-auto px-4 py-6">
+        <div className="text-center mb-6">
+          <div className="font-display text-3xl">COPA ARGENTINA</div>
+          <div className="text-xs text-muted-foreground">64 equipos · eliminación directa · cancha neutral · penales si hay empate</div>
+        </div>
+
+        {finished ? (
+          <div className="hud-panel p-6 text-center">
+            {state.champion === state.userTeamId ? (
+              <div className="font-display text-2xl text-hud-green">🏆 ¡Campeón de la Copa Argentina!</div>
+            ) : state.userEliminated ? (
+              <div className="font-display text-xl text-destructive">Quedaste eliminado. Campeón: {TEAMS_BY_ID[state.champion ?? ""]?.name ?? "—"}</div>
+            ) : (
+              <div className="font-display text-xl">Campeón: {TEAMS_BY_ID[state.champion ?? ""]?.name ?? "—"}</div>
+            )}
+          </div>
+        ) : nextMatch && home && away ? (
+          <div className="hud-panel p-6 text-center mb-6">
+            <div className="text-[11px] uppercase tracking-[0.25em] text-celeste mb-3">{COPA_ROUND_LABEL[nextMatch.round]}</div>
+            <div className="flex items-center justify-center gap-6">
+              <div className="text-center">
+                <Shield team={home} size={64} />
+                <div className="font-display text-lg mt-2">{home.short}</div>
+              </div>
+              <div className="font-display text-2xl text-muted-foreground">VS</div>
+              <div className="text-center">
+                <Shield team={away} size={64} />
+                <div className="font-display text-lg mt-2">{away.short}</div>
+              </div>
+            </div>
+            <button
+              onClick={() => setPlaying(true)}
+              className="mt-6 px-6 py-3 rounded-xl bg-celeste text-primary-foreground font-display tracking-widest"
+            >
+              JUGAR PARTIDO
+            </button>
+          </div>
+        ) : (
+          <div className="hud-panel p-6 text-center mb-6 text-muted-foreground">
+            Esperando que se complete la ronda…
+            <button
+              onClick={() => setState(s => {
+                if (!s) return s;
+                const r = COPA_ROUND_ORDER.find(rd => s.rounds[rd].some(m => !m.played));
+                return r ? simulateCopaRoundExceptUser(s, r) : s;
+              })}
+              className="block mx-auto mt-3 text-xs text-celeste hover:underline"
+            >
+              Avanzar ronda
+            </button>
+          </div>
+        )}
+
+        <BracketView state={state} />
+      </main>
+    </div>
+  );
+}
+
+function BracketView({ state }: { state: CopaState }) {
+  return (
+    <div className="grid md:grid-cols-3 gap-3">
+      {COPA_ROUND_ORDER.map(round => {
+        const matches = state.rounds[round];
+        if (!matches || matches.length === 0) return null;
+        return (
+          <div key={round} className="hud-panel p-3">
+            <div className="font-display text-sm text-celeste tracking-wider mb-2">{COPA_ROUND_LABEL[round]}</div>
+            <div className="space-y-1.5">
+              {matches.map(m => {
+                const h = TEAMS_BY_ID[m.home]; const a = TEAMS_BY_ID[m.away];
+                const mine = m.home === state.userTeamId || m.away === state.userTeamId;
+                return (
+                  <div key={m.id} className={`text-xs rounded px-2 py-1.5 flex items-center justify-between gap-2 ${mine ? "bg-celeste/15 border border-celeste/40" : "bg-card/40"}`}>
+                    <span className="truncate">{h?.short ?? "?"} <span className="text-muted-foreground">vs</span> {a?.short ?? "?"}</span>
+                    <span className="font-display tabular-nums shrink-0">
+                      {m.played ? `${m.homeGoals}-${m.awayGoals}${m.wentToPenalties ? " (p)" : ""}` : "—"}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
