@@ -152,6 +152,14 @@ export function buildSeason(
   if (ids.length === 1) ids.push(...getTeamsByDivision(division).map(t => t.id).filter(id => id !== teamId));
 
   const fixture = buildDivisionCareerFixture(division, ids, teamId, federalZoneMap);
+  // Defensa contra fixtures duplicados/corruptos que puedan quedar guardados entre
+  // versiones: un partido idéntico en la misma fecha se juega una sola vez.
+  fixture.matches = fixture.matches.filter((m, i, arr) =>
+    arr.findIndex(x => x.round === m.round && x.home === m.home && x.away === m.away) === i
+  );
+  fixture.otherMatches = fixture.otherMatches.filter((m, i, arr) =>
+    arr.findIndex(x => x.round === m.round && x.home === m.home && x.away === m.away) === i
+  );
   let standings = emptyStandings(fixture.activeTeamIds);
   let otherStandings: StandingRow[] | undefined;
   let otherMatches: Match[] | undefined = fixture.otherMatches.length > 0 ? fixture.otherMatches.map(m => ({ ...m })) : undefined;
@@ -533,7 +541,7 @@ export function simulateRoundExceptUser(state: CareerState, round: number, userT
 
 export function recordUserMatch(state: CareerState, matchId: string, hg: number, ag: number, userTeamId: string): CareerState {
   const next = { ...state, matches: [...state.matches], standings: [...state.standings] };
-  const idx = next.matches.findIndex(m => m.id === matchId);
+  const idx = next.matches.findIndex(m => m.id === matchId && !m.played);
   if (idx < 0) return state;
   const played = { ...next.matches[idx], played: true, homeGoals: hg, awayGoals: ag };
   next.matches[idx] = played;
@@ -553,7 +561,12 @@ export function recordUserMatch(state: CareerState, matchId: string, hg: number,
 }
 
 export function nextPendingMatchForUser(state: CareerState, userTeamId: string): Match | null {
-  return state.matches.find(m => !m.played && (m.home === userTeamId || m.away === userTeamId)) ?? null;
+  // Elegimos siempre el primer partido pendiente por fecha. El desempate por ID
+  // evita que fixtures guardados con un orden distinto vuelvan a ofrecer un
+  // partido anterior y se genere el bucle de la misma fecha/rival.
+  return state.matches
+    .filter(m => !m.played && (m.home === userTeamId || m.away === userTeamId))
+    .sort((a, b) => a.round - b.round || a.id.localeCompare(b.id))[0] ?? null;
 }
 
 export function catchUpOtherMatches(state: CareerState): CareerState {
