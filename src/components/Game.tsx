@@ -105,25 +105,25 @@ function DivisionScorebug({
   home: Team; away: Team; score: { h: number; a: number }; time: number;
 }) {
   const clock = `${String(Math.floor(time / 60)).padStart(2, "0")}:${String(time % 60).padStart(2, "0")}`;
-  const division = home.division === away.division ? home.division : "default";
-  const labels: Record<string, { brand: string; title: string }> = {
-    primera_c: { brand: "PC", title: "PRIMERA C" },
-    federal_a: { brand: "FA", title: "FEDERAL A" },
-    promocional_amateur: { brand: "PA", title: "PROMOCIONAL AMATEUR" },
-    regional_federal_amateur: { brand: "RF", title: "REGIONAL FEDERAL AMATEUR" },
-    default: { brand: "N", title: "PRIMERA HEADS" },
-  };
-  const meta = labels[division] ?? labels.default;
   return (
-    <div className={`division-scorebug division-scorebug-${division}`} role="status" aria-label={`${home.short} ${score.h}, ${away.short} ${score.a}, ${clock}`}>
-      <div className="division-scorebug-brand">{meta.brand}</div>
-      <div className="division-scorebug-title">{meta.title}</div>
-      <div className="division-scorebug-team division-scorebug-home"><Shield team={home} size={25} /><span>{home.short}</span></div>
-      <div className="division-scorebug-score">{score.h}</div>
-      <div className="division-scorebug-score division-scorebug-away-score">{score.a}</div>
-      <div className="division-scorebug-team division-scorebug-away"><span>{away.short}</span><Shield team={away} size={25} /></div>
-      <div className="division-scorebug-clock">{clock}</div>
-      <div className="division-scorebug-half">1T</div>
+    <div className="ca-scorebug" role="status" aria-label={`${home.short} ${score.h}, ${away.short} ${score.a}, ${clock}`}>
+      <div className="ca-scorebug-brand">
+        <div className="ca-mark">C<span>A</span></div>
+        <div className="ca-sponsor">AXION<span>energy</span></div>
+      </div>
+      <div className="ca-scorebug-clock">{clock}</div>
+      <div className="ca-scorebug-teams">
+        <div className="ca-team-row ca-team-home">
+          <span>{home.name}</span>
+        </div>
+        <div className="ca-team-row ca-team-away">
+          <span>{away.name}</span>
+        </div>
+      </div>
+      <div className="ca-scorebug-scores">
+        <div>{score.h}</div>
+        <div>{score.a}</div>
+      </div>
     </div>
   );
 }
