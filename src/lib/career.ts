@@ -69,6 +69,7 @@ export type AverageRow = {
 };
 
 export type CareerState = {
+  pendingPlayoff?: { division: DivisionId; season: number };
   zone: string;
   division?: DivisionId;
   matches: Match[];
@@ -152,14 +153,6 @@ export function buildSeason(
   if (ids.length === 1) ids.push(...getTeamsByDivision(division).map(t => t.id).filter(id => id !== teamId));
 
   const fixture = buildDivisionCareerFixture(division, ids, teamId, federalZoneMap);
-  // Defensa contra fixtures duplicados/corruptos que puedan quedar guardados entre
-  // versiones: un partido idéntico en la misma fecha se juega una sola vez.
-  fixture.matches = fixture.matches.filter((m, i, arr) =>
-    arr.findIndex(x => x.round === m.round && x.home === m.home && x.away === m.away) === i
-  );
-  fixture.otherMatches = fixture.otherMatches.filter((m, i, arr) =>
-    arr.findIndex(x => x.round === m.round && x.home === m.home && x.away === m.away) === i
-  );
   let standings = emptyStandings(fixture.activeTeamIds);
   let otherStandings: StandingRow[] | undefined;
   let otherMatches: Match[] | undefined = fixture.otherMatches.length > 0 ? fixture.otherMatches.map(m => ({ ...m })) : undefined;
@@ -220,7 +213,7 @@ export type LeagueMovement = { teamId: string; from: DivisionId; to: DivisionId 
  * simulados al finalizar la fase regular y el ganador efectivo es el que se mueve
  * de división; no se muestran ascensos ficticios.
  */
-export function resolveLeagueMovements(currentState: CareerState, season: number): {
+export function resolveLeagueMovements(currentState: CareerState, season: number, userPlayoffResult?: { promoted: boolean }): {
   rosters: Partial<Record<DivisionId, string[]>>;
   movements: LeagueMovement[];
   userNextDivision: DivisionId | null;
@@ -243,6 +236,7 @@ export function resolveLeagueMovements(currentState: CareerState, season: number
   }
 
   const moves: LeagueMovement[] = [];
+  const userIdForPlayoff = currentState.userTeamId;
   const move = (teamId: string, from: DivisionId, to: DivisionId | null, reason: string) => {
     if (!teamId || moves.some(m => m.teamId === teamId)) return;
     moves.push({ teamId, from, to, reason });
@@ -314,8 +308,68 @@ export function resolveLeagueMovements(currentState: CareerState, season: number
   for (const id of regional.promotedToFederalA) move(id, "regional_federal_amateur", "federal_a", "Ascenso · ganador de final nacional del Regional Federal Amateur");
 
   const userId = currentState.userTeamId;
+  if (userId && userPlayoffResult === undefined && getCareerPlayoffNeed(currentState, userId)) {
+    // El club del usuario no puede cambiar de división por un playoff que todavía
+    // no disputó. Quitamos cualquier movimiento automático generado por la
+    // simulación global y devolvemos la categoría actual.
+    for (let i = moves.length - 1; i >= 0; i--) {
+      if (moves[i].teamId === userId) {
+        const m = moves[i];
+        rosters[m.from] = Array.from(new Set([...(rosters[m.from] ?? []), userId]));
+        if (m.to) rosters[m.to] = (rosters[m.to] ?? []).filter(id => id !== userId);
+        moves.splice(i, 1);
+      }
+    }
+  } else if (userId && userPlayoffResult !== undefined) {
+    // Reemplazamos el resultado automático del usuario por el resultado real del
+    // Reducido/Final que acaba de disputar.
+    for (let i = moves.length - 1; i >= 0; i--) {
+      if (moves[i].teamId === userId) {
+        const m = moves[i];
+        rosters[m.from] = Array.from(new Set([...(rosters[m.from] ?? []), userId]));
+        if (m.to) rosters[m.to] = (rosters[m.to] ?? []).filter(id => id !== userId);
+        moves.splice(i, 1);
+      }
+    }
+    if (userPlayoffResult.promoted) {
+      const target = currentDivision === "primera_b" ? "primera_nacional"
+        : currentDivision === "primera_c" ? "primera_b"
+        : currentDivision === "promocional_amateur" ? "primera_c"
+        : currentDivision === "primera_nacional" ? "primera_division"
+        : null;
+      if (target) {
+        rosters[currentDivision] = (rosters[currentDivision] ?? []).filter(id => id !== userId);
+        rosters[target] = Array.from(new Set([...(rosters[target] ?? []), userId]));
+        moves.push({ teamId: userId, from: currentDivision, to: target, reason: `Ascenso · resolución del playoff de ${COMPETITIONS[currentDivision].name}` });
+      }
+    }
+  }
   const userMove = userId ? moves.find(m => m.teamId === userId) : undefined;
   return { rosters, movements: moves, userNextDivision: userMove?.to ?? currentDivision, ended: false };
+}
+
+export function getCareerPlayoffNeed(state: CareerState, teamId: string): { division: DivisionId } | null {
+  if (!isSeasonFinished(state)) return null;
+  const division = careerDivision(state, teamId);
+  if (division === "primera_nacional") {
+    const z = state.zone || "A";
+    const rows = sortStandings(z === "A" ? state.standings : (state.otherStandings ?? []));
+    const pos = rows.findIndex(r => r.teamId === teamId) + 1;
+    if (pos >= 1 && pos <= 8) return { division };
+  }
+  if (division === "primera_b") {
+    const pos = sortStandings(state.standings).findIndex(r => r.teamId === teamId) + 1;
+    if (pos >= 2 && pos <= 9) return { division };
+  }
+  if (division === "primera_c" || division === "promocional_amateur") {
+    const zoneMap = state.federalZoneMap ?? {};
+    const z = zoneMap[teamId] ?? state.zone;
+    const rows = sortStandings(z === "B" ? (state.otherStandings ?? []) : state.standings);
+    const pos = rows.findIndex(r => r.teamId === teamId) + 1;
+    if (division === "promocional_amateur" && pos >= 1 && pos <= 4) return { division };
+    if (division === "primera_c" && pos >= 1 && pos <= 7) return { division };
+  }
+  return null;
 }
 
 function buildAverageTableForSeasonHistory(state: CareerState, currentStandings: StandingRow[]): AverageRow[] {
@@ -541,7 +595,7 @@ export function simulateRoundExceptUser(state: CareerState, round: number, userT
 
 export function recordUserMatch(state: CareerState, matchId: string, hg: number, ag: number, userTeamId: string): CareerState {
   const next = { ...state, matches: [...state.matches], standings: [...state.standings] };
-  const idx = next.matches.findIndex(m => m.id === matchId && !m.played);
+  const idx = next.matches.findIndex(m => m.id === matchId);
   if (idx < 0) return state;
   const played = { ...next.matches[idx], played: true, homeGoals: hg, awayGoals: ag };
   next.matches[idx] = played;
@@ -561,12 +615,7 @@ export function recordUserMatch(state: CareerState, matchId: string, hg: number,
 }
 
 export function nextPendingMatchForUser(state: CareerState, userTeamId: string): Match | null {
-  // Elegimos siempre el primer partido pendiente por fecha. El desempate por ID
-  // evita que fixtures guardados con un orden distinto vuelvan a ofrecer un
-  // partido anterior y se genere el bucle de la misma fecha/rival.
-  return state.matches
-    .filter(m => !m.played && (m.home === userTeamId || m.away === userTeamId))
-    .sort((a, b) => a.round - b.round || a.id.localeCompare(b.id))[0] ?? null;
+  return state.matches.find(m => !m.played && (m.home === userTeamId || m.away === userTeamId)) ?? null;
 }
 
 export function catchUpOtherMatches(state: CareerState): CareerState {
