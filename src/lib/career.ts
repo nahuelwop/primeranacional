@@ -68,6 +68,32 @@ export type AverageRow = {
   dg: number;
 };
 
+export type TeamRating = { speed: number; jump: number; power: number; defense: number };
+export type TeamRatings = Record<string, TeamRating>;
+
+export type ClubDevelopment = {
+  academy: number;
+  training: number;
+  scouting: number;
+  medical: number;
+  marketing: number;
+  analytics: number;
+};
+
+export const CLUB_DEVELOPMENT_CATALOG: Array<{
+  key: keyof ClubDevelopment;
+  name: string;
+  desc: string;
+  costs: number[];
+}> = [
+  { key: "academy", name: "Cantera", desc: "Mejora gradual del potencial y reduce la caída de rendimiento entre temporadas.", costs: [500, 900, 1500] },
+  { key: "training", name: "Centro de entrenamiento", desc: "Mayor crecimiento de stats cuando la temporada es buena.", costs: [600, 1100, 1800] },
+  { key: "scouting", name: "Red de scouting", desc: "Hace más estables las renovaciones de stats y beneficia a clubes con buenos resultados.", costs: [450, 850, 1400] },
+  { key: "medical", name: "Centro médico", desc: "Aumenta la estabilidad del plantel y evita bajones fuertes.", costs: [550, 1000, 1600] },
+  { key: "marketing", name: "Departamento de marketing", desc: "+8% ingresos por nivel y mejor caja al ganar partidos.", costs: [400, 800, 1300] },
+  { key: "analytics", name: "Departamento de análisis", desc: "Pequeño bono de rendimiento en simulaciones y menor azar.", costs: [650, 1200, 1900] },
+];
+
 export type CareerState = {
   pendingPlayoff?: { division: DivisionId; season: number };
   zone: string;
@@ -99,6 +125,13 @@ export type CareerState = {
   careerEnded?: boolean;
   careerEndReason?: string;
   userTeamId?: string;
+  teamRatings?: TeamRatings;
+  clubDevelopment?: ClubDevelopment;
+  totalMatchesPlayed?: number;
+  totalWins?: number;
+  totalDraws?: number;
+  totalLosses?: number;
+  careerTrophies?: number;
 };
 
 export function teamZone(teamId: string): string {
@@ -141,6 +174,134 @@ function rosterFor(rosters: Partial<Record<DivisionId, string[]>> | undefined, d
   return ids && ids.length ? [...ids] : getTeamsByDivision(division).map(t => t.id);
 }
 
+const DEFAULT_DEVELOPMENT: ClubDevelopment = { academy: 0, training: 0, scouting: 0, medical: 0, marketing: 0, analytics: 0 };
+
+export function initialTeamRatings(teamIds: string[] = getTeamsByDivision("primera_nacional").map(t => t.id)): TeamRatings {
+  const out: TeamRatings = {};
+  for (const id of teamIds) {
+    const t = getTeamById(id);
+    if (!t) continue;
+    out[id] = { speed: t.stats.speed, jump: t.stats.jump, power: t.stats.power, defense: t.stats.defense };
+  }
+  return out;
+}
+
+function normalizeRating(v: number): number { return Math.max(50, Math.min(95, Math.round(v))); }
+
+function ratingWithBase(base: TeamRating, prior?: TeamRating): TeamRating {
+  return prior ?? { ...base };
+}
+
+function allCareerRows(state: CareerState): StandingRow[] {
+  return combinedStandings(state);
+}
+
+export function evolveTeamRatings(
+  state: CareerState,
+  promotedIds: string[] = [],
+  relegatedIds: string[] = [],
+  performanceRows?: Record<string, StandingRow>,
+): TeamRatings {
+  const current = { ...(state.teamRatings ?? {}) } as TeamRatings;
+  const ratings = initialTeamRatings(Object.keys(state.leagueRosters ?? {}).flatMap(d => rosterFor(state.leagueRosters, d as DivisionId)));
+  const rosters = Object.values(state.leagueRosters ?? {}).flatMap(x => x ?? []);
+  for (const id of rosters) if (!ratings[id]) ratings[id] = current[id] ?? initialTeamRatings([id])[id];
+  const rows = performanceRows ? Object.values(performanceRows) : allCareerRows(state);
+  const rowMap = new Map(rows.map(r => [r.teamId, r]));
+  const avg = rows.length ? rows.reduce((n, r) => n + r.pts / Math.max(1, r.pj), 0) / rows.length : 1.1;
+  const dev = { ...DEFAULT_DEVELOPMENT, ...(state.clubDevelopment ?? {}) };
+  for (const id of rosters) {
+    const t = getTeamById(id);
+    if (!t) continue;
+    const base = ratingWithBase(t.stats, current[id] ?? ratings[id]);
+    const row = rowMap.get(id);
+    const ppg = row ? row.pts / Math.max(1, row.pj) : avg;
+    let delta = (ppg - avg) * 1.8;
+    if (ppg >= 1.65) delta += 0.8;
+    else if (ppg <= 0.65) delta -= 0.8;
+    delta += dev.academy * 0.20 + dev.training * 0.35 + dev.scouting * 0.15 + dev.medical * 0.10;
+    if (promotedIds.includes(id)) delta += 0.7;
+    if (relegatedIds.includes(id)) delta -= 0.5;
+    const variance = dev.scouting >= 2 ? 0.15 : 0.35;
+    const jitter = (Math.random() - 0.5) * variance;
+    const next = (Object.keys(base) as Array<keyof TeamRating>).reduce((acc, k) => ({ ...acc, [k]: normalizeRating(base[k] + delta + jitter) }), {} as TeamRating);
+    current[id] = next;
+  }
+  return current;
+}
+
+export function applyTeamRatingsTemporarily<T>(ratings: TeamRatings | undefined, fn: () => T): T {
+  if (!ratings || Object.keys(ratings).length === 0) return fn();
+  const originals = new Map<string, TeamRating>();
+  for (const [id, rating] of Object.entries(ratings)) {
+    const t = getTeamById(id);
+    if (!t) continue;
+    originals.set(id, { ...t.stats });
+    t.stats = { ...rating };
+  }
+  try { return fn(); }
+  finally {
+    for (const [id, rating] of originals) {
+      const t = getTeamById(id);
+      if (t) t.stats = { ...rating };
+    }
+  }
+}
+
+export function buyDevelopment(state: CareerState, budget: number, key: keyof ClubDevelopment) {
+  const dev = { ...DEFAULT_DEVELOPMENT, ...(state.clubDevelopment ?? {}) };
+  const level = dev[key] ?? 0;
+  const option = CLUB_DEVELOPMENT_CATALOG.find(x => x.key === key);
+  if (!option || level >= option.costs.length) return { state, budget, ok: false, error: "Ya alcanzaste el nivel máximo" };
+  const cost = option.costs[level];
+  if (budget < cost) return { state, budget, ok: false, error: "Sin presupuesto suficiente" };
+  dev[key] = level + 1;
+  return { state: { ...state, clubDevelopment: dev }, budget: budget - cost, ok: true };
+}
+
+export function developmentIncomeBonus(state: CareerState): number {
+  return 1 + ((state.clubDevelopment?.marketing ?? 0) * 0.08);
+}
+
+export function checkCareerAchievementKeys(state: CareerState, budget: number): string[] {
+  const teamId = state.userTeamId;
+  if (!teamId) return [];
+  const matches = state.matches.filter(m => m.played && (m.home === teamId || m.away === teamId));
+  const wins = matches.filter(m => {
+    const mine = m.home === teamId ? m.homeGoals ?? 0 : m.awayGoals ?? 0;
+    const opp = m.home === teamId ? m.awayGoals ?? 0 : m.homeGoals ?? 0;
+    return mine > opp;
+  }).length;
+  const cleanSheets = matches.filter(m => (m.home === teamId ? m.awayGoals : m.homeGoals) === 0).length;
+  const titleCount = (state.seasonHistory ?? []).filter(s => s.standings[0]?.teamId === teamId).length;
+  const devTotal = Object.values(state.clubDevelopment ?? DEFAULT_DEVELOPMENT).reduce((a, b) => a + b, 0);
+  const keys: string[] = [];
+  const add = (ok: boolean, key: string) => { if (ok) keys.push(key); };
+  add(matches.length >= 1, "debut_carrera");
+  add(wins >= 1, "primera_victoria");
+  add(wins >= 10, "10_victorias");
+  add(wins >= 25, "25_victorias");
+  add(wins >= 50, "50_victorias");
+  add(state.totalGoalsScored >= 100, "100_goles");
+  add(state.totalGoalsScored >= 250, "250_goles");
+  add(state.totalGoalsScored >= 500, "500_goles");
+  add(state.bestUnbeaten >= 10, "10_invicto");
+  add(state.bestUnbeaten >= 20, "20_invicto");
+  add(cleanSheets >= 10, "10_vallas_invictas");
+  add(titleCount >= 1, "primer_titulo");
+  add(titleCount >= 3, "tres_titulos");
+  add((state.careerTrophies ?? 0) >= 5, "5_trofeos");
+  add(budget >= 5000, "caja_5000");
+  add(budget >= 15000, "caja_15000");
+  add(budget >= 30000, "caja_30000");
+  add(devTotal >= 3, "proyecto_club");
+  add(devTotal >= 8, "club_de_primera");
+  add(state.activeCorruption?.kind === "seca_nuca", "seca_nuca");
+  return keys;
+}
+
+function rostersForAll(rosters: Partial<Record<DivisionId, string[]>>): string[] { return Array.from(new Set(Object.values(rosters).flatMap(x => x ?? []))); }
+
 export function buildSeason(
   teamId: string,
   division: DivisionId = getTeamById(teamId)?.division ?? "primera_nacional",
@@ -172,6 +333,9 @@ export function buildSeason(
     federalZoneMap: fixture.zoneMap ?? federalZoneMap,
     careerEnded: false,
     userTeamId: teamId,
+    teamRatings: initialTeamRatings(rostersForAll(rosters)),
+    clubDevelopment: { ...DEFAULT_DEVELOPMENT },
+    totalMatchesPlayed: 0, totalWins: 0, totalDraws: 0, totalLosses: 0, careerTrophies: 0,
   };
 }
 
@@ -188,10 +352,10 @@ export function simulateDivisionSeason(division: DivisionId, roster: string[], u
 }
 
 function simulateDivisionSeasonCore(division: DivisionId, roster: string[], userState?: CareerState): LeagueSeasonResult {
-  const source = simulateDivisionSeasonEngine(division, roster, userState ? {
+  const source = applyTeamRatingsTemporarily(userState?.teamRatings, () => simulateDivisionSeasonEngine(division, roster, userState ? {
     zone: userState.zone, standings: userState.standings, otherStandings: userState.otherStandings,
     matches: userState.matches, otherMatches: userState.otherMatches, federalZoneMap: userState.federalZoneMap,
-  } : undefined);
+  } : undefined));
   return source;
 }
 
@@ -219,6 +383,7 @@ export function resolveLeagueMovements(currentState: CareerState, season: number
   userNextDivision: DivisionId | null;
   ended: boolean;
   endReason?: string;
+  teamRatings?: TeamRatings;
 } {
   const currentDivision = careerDivision(currentState);
   const base = currentState.leagueRosters ?? initialLeagueRosters();
@@ -345,7 +510,14 @@ export function resolveLeagueMovements(currentState: CareerState, season: number
     }
   }
   const userMove = userId ? moves.find(m => m.teamId === userId) : undefined;
-  return { rosters, movements: moves, userNextDivision: userMove?.to ?? currentDivision, ended: false };
+  const promotedIds = moves.filter(m => m.to && ["primera_nacional", "primera_division", "primera_b", "primera_c", "federal_a"].includes(m.to)).map(m => m.teamId);
+  const relegatedIds = moves.filter(m => /descenso/i.test(m.reason)).map(m => m.teamId);
+  const performanceRows: Record<string, StandingRow> = {};
+  for (const result of results.values()) {
+    for (const row of result.standings) performanceRows[row.teamId] = row;
+  }
+  const nextRatings = evolveTeamRatings(currentState, promotedIds, relegatedIds, performanceRows);
+  return { rosters, movements: moves, userNextDivision: userMove?.to ?? currentDivision, ended: false, teamRatings: nextRatings };
 }
 
 export function getCareerPlayoffNeed(state: CareerState, teamId: string): { division: DivisionId } | null {
@@ -554,6 +726,7 @@ export function tickCorruption(state: CareerState): CareerState {
 
 // Avanza simulando todos los partidos NO jugados de una fecha (excepto los del usuario).
 export function simulateRoundExceptUser(state: CareerState, round: number, userTeamId: string): CareerState {
+  return applyTeamRatingsTemporarily(state.teamRatings, () => {
   const next = {
     ...state,
     matches: [...state.matches],
@@ -591,6 +764,7 @@ export function simulateRoundExceptUser(state: CareerState, round: number, userT
     }
   }
   return next;
+  });
 }
 
 export function recordUserMatch(state: CareerState, matchId: string, hg: number, ag: number, userTeamId: string): CareerState {
@@ -605,6 +779,10 @@ export function recordUserMatch(state: CareerState, matchId: string, hg: number,
   const myGoals = userIsHome ? hg : ag;
   const oppGoals = userIsHome ? ag : hg;
   next.totalGoalsScored = state.totalGoalsScored + myGoals;
+  next.totalMatchesPlayed = (state.totalMatchesPlayed ?? 0) + 1;
+  next.totalWins = (state.totalWins ?? 0) + (myGoals > oppGoals ? 1 : 0);
+  next.totalDraws = (state.totalDraws ?? 0) + (myGoals === oppGoals ? 1 : 0);
+  next.totalLosses = (state.totalLosses ?? 0) + (myGoals < oppGoals ? 1 : 0);
   if (myGoals >= oppGoals) {
     next.streakUnbeaten = state.streakUnbeaten + 1;
     next.bestUnbeaten = Math.max(state.bestUnbeaten, next.streakUnbeaten);
@@ -620,6 +798,10 @@ export function nextPendingMatchForUser(state: CareerState, userTeamId: string):
 
 export function catchUpOtherMatches(state: CareerState): CareerState {
   if (!state.otherMatches || state.otherMatches.every(m => m.played)) return state;
+  return applyTeamRatingsTemporarily(state.teamRatings, () => catchUpOtherMatchesInternal(state));
+}
+
+function catchUpOtherMatchesInternal(state: CareerState): CareerState {
   // Salvaguarda: si tu fixture ya terminó pero a la otra zona le quedan partidos
   // sin jugar (por ejemplo, por numeración de rondas distinta en interzonales),
   // los resolvemos acá para que la temporada nunca quede trabada esperando algo
@@ -661,6 +843,7 @@ export function budgetReward(myGoals: number, oppGoals: number): number {
   if (myGoals === oppGoals) return 20;
   return 5;
 }
+
 
 export function teamOf(id: string | undefined | null): Team | undefined {
   return id ? getTeamById(id) : undefined;
