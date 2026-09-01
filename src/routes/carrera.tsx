@@ -16,6 +16,7 @@ import {
   buyUpgrade, activateCorruption, tickCorruption, currentCorruptionEffects, incomeMultiplier,
   OBJETIVO_LABEL, type Objetivo, clubIndicators, currentRound, totalRounds,
   careerDivision, isFirstDivision, recordSeasonSnapshot, firstDivisionRelegated, firstDivisionRelegationDetails,
+  careerTeam,
   getCareerPlayoffNeed,
   divisionRelegationCandidates, divisionPromotionCandidates, buildAverageTable,
 } from "@/lib/career";
@@ -143,7 +144,7 @@ function CarreraPage() {
   }
 
   const nextMatch = useMemo(() => state && teamId ? nextPendingMatchForUser(state, teamId) : null, [state, teamId]);
-  const team = teamId ? getTeamById(teamId) : undefined;
+  const team = teamId ? careerTeam(state, teamId) : undefined;
 
   async function onMatchEnd(lg: number, rg: number, _stats: MatchStats) {
     if (!state || !teamId || !user || !nextMatch) return;
@@ -211,40 +212,47 @@ function CarreraPage() {
     await persist(next, budget, season);
   }
 
+  function seedRegionalPlayoffFromState(source: CareerState, userId: string) {
+    const myMeta = getRegionalTeamMeta(userId);
+    if (!myMeta) return false;
+    const allRows = [...source.standings, ...(source.otherStandings ?? [])];
+    const roster = source.leagueRosters?.regional_federal_amateur ?? getTeamsByDivision("regional_federal_amateur").map(t => t.id);
+    const groups = new Map<string, StandingRow[]>();
+    for (const id of roster) {
+      const meta = getRegionalTeamMeta(id);
+      if (!meta || meta.region !== myMeta.region) continue;
+      const row = allRows.find(r => r.teamId === id);
+      if (!row) continue;
+      const key = `${meta.region}::${meta.group}`;
+      (groups.get(key) ?? groups.set(key, []).get(key)!).push(row);
+    }
+    const seeds: StandingRow[] = [];
+    for (const rows of groups.values()) {
+      const sorted = sortStandings(rows);
+      if (sorted[0]) seeds.push(sorted[0]);
+      if (sorted[1]) seeds.push(sorted[1]);
+    }
+    const unique = Array.from(new Map(seeds.map(r => [r.teamId, r])).values())
+      .sort((a, b) => (b.pts / Math.max(1, b.pj)) - (a.pts / Math.max(1, a.pj)) || b.dg - a.dg || b.pts - a.pts);
+    const opponentCandidates = (source.leagueRosters?.regional_federal_amateur ?? [])
+      .map(id => getRegionalTeamMeta(id))
+      .filter((m): m is NonNullable<typeof m> => !!m && m.region !== myMeta.region)
+      .map(m => allRows.find(r => r.teamId === m.id))
+      .filter(Boolean) as StandingRow[];
+    const nationalOpponent = sortStandings(opponentCandidates)[0]?.teamId;
+    seedReducidoFromCareer({
+      standA: unique, standB: [], userTeamId: userId, season, difficulty: (source.difficulty ?? "normal") as any,
+      division: "regional_federal_amateur", regionalNationalOpponent: nationalOpponent,
+    });
+    return true;
+  }
+
   async function goToReducido() {
     if (!state || !teamId) return;
     const d = careerDivision(state, teamId);
 
     if (d === "regional_federal_amateur") {
-      const ownRows = sortStandings(state.standings);
-      const myMeta = getRegionalTeamMeta(teamId);
-      if (!myMeta) return;
-      const allRows = [...state.standings, ...(state.otherStandings ?? [])];
-      const groups = new Map<string, StandingRow[]>();
-      const roster = state.leagueRosters?.regional_federal_amateur ?? getTeamsByDivision(d).map(t => t.id);
-      for (const id of roster) {
-        const meta = getRegionalTeamMeta(id);
-        if (!meta || meta.region !== myMeta.region) continue;
-        const row = allRows.find(r => r.teamId === id);
-        if (!row) continue;
-        const key = `${meta.region}::${meta.group}`;
-        (groups.get(key) ?? groups.set(key, []).get(key)!).push(row);
-      }
-      const seeds = [...groups.values()]
-        .map(rows => sortStandings(rows)[0])
-        .concat([...groups.values()].map(rows => sortStandings(rows)[1]).filter(Boolean) as StandingRow[])
-        .filter(Boolean) as StandingRow[];
-      const unique = Array.from(new Map(seeds.map(r => [r.teamId, r])).values())
-        .sort((a,b) => (b.pts / Math.max(1,b.pj)) - (a.pts / Math.max(1,a.pj)) || b.dg - a.dg || b.pts - a.pts);
-      const opponentCandidates = allRows.filter(r => {
-        const meta = getRegionalTeamMeta(r.teamId);
-        return meta && meta.region !== myMeta.region;
-      });
-      const nationalOpponent = sortStandings(opponentCandidates)[0]?.teamId;
-      seedReducidoFromCareer({
-        standA: unique, standB: [], userTeamId: teamId, season, difficulty: (state.difficulty ?? "normal") as any,
-        division: "regional_federal_amateur", regionalNationalOpponent: nationalOpponent,
-      });
+      if (!seedRegionalPlayoffFromState(state, teamId)) return;
       navigate({ to: "/reducido" });
       return;
     }
@@ -307,11 +315,15 @@ function CarreraPage() {
 
       if (!playoffReady) {
         if (!tournamentMatches) {
-          const standA = currentDivision === "primera_b" ? completed.standings : (completed.zone === "A" ? completed.standings : (completed.otherStandings ?? []));
-          const standB = currentDivision === "primera_b" ? [] : (completed.zone === "B" ? completed.standings : (completed.otherStandings ?? []));
-          seedReducidoFromCareer({
-            standA, standB, userTeamId: teamId, season, difficulty: (completed.difficulty ?? "normal") as any, division: currentDivision as any,
-          });
+          if (currentDivision === "regional_federal_amateur") {
+            seedRegionalPlayoffFromState(completed, teamId);
+          } else {
+            const standA = currentDivision === "primera_b" ? completed.standings : (completed.zone === "A" ? completed.standings : (completed.otherStandings ?? []));
+            const standB = currentDivision === "primera_b" ? [] : (completed.zone === "B" ? completed.standings : (completed.otherStandings ?? []));
+            seedReducidoFromCareer({
+              standA, standB, userTeamId: teamId, season, difficulty: (completed.difficulty ?? "normal") as any, division: currentDivision as any,
+            });
+          }
         }
         const pending = { ...completed, pendingPlayoff: { division: currentDivision, season } };
         setState(pending);
@@ -436,8 +448,8 @@ function CarreraPage() {
   if (playing && state && team && nextMatch && teamId) {
     const userIsHome = nextMatch.home === teamId;
     const effectiveDivision = careerDivision(state, teamId);
-    const leftBase = getTeamById(teamId);
-    const rightBase = userIsHome ? getTeamById(nextMatch.away) : getTeamById(nextMatch.home);
+    const leftBase = careerTeam(state, teamId);
+    const rightBase = userIsHome ? careerTeam(state, nextMatch.away) : careerTeam(state, nextMatch.home);
     const leftTeam = leftBase ? { ...leftBase, division: effectiveDivision } : undefined;
     const rightTeam = rightBase ? { ...rightBase, division: effectiveDivision } : undefined;
     if (!leftTeam || !rightTeam) {
@@ -663,8 +675,8 @@ function InicioTab({ state, teamId, season, nextMatch, indicators, standings, bu
   onPlay: () => void; onSimulate: () => void; onAdvance: () => void; onGo: (t: TopTab) => void; onGoReducido: () => void;
 }) {
   const rival = nextMatch ? (nextMatch.home === teamId ? nextMatch.away : nextMatch.home) : null;
-  const rivalTeam = rival ? getTeamById(rival) : undefined;
-  const myTeam = getTeamById(teamId);
+  const rivalTeam = rival ? careerTeam(state, rival) : undefined;
+  const myTeam = careerTeam(state, teamId);
   const isHome = nextMatch ? nextMatch.home === teamId : true;
   const flags = [...(myTeam?.flagUrls ?? []), ...(rivalTeam?.flagUrls ?? [])];
   const flag = flags[0];
@@ -743,9 +755,9 @@ function InicioTab({ state, teamId, season, nextMatch, indicators, standings, bu
                   </div>
                 </div>
                 <div className="mt-5 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-                  <TeamBig team={getTeamById(nextMatch.home)} />
+                  <TeamBig team={careerTeam(state, nextMatch.home)} />
                   <div className="font-display text-4xl">VS</div>
-                  <TeamBig team={getTeamById(nextMatch.away)} />
+                  <TeamBig team={careerTeam(state, nextMatch.away)} />
                 </div>
                 <div className="mt-5 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-foreground/90">
                   <span>🗓️ Temporada {season}</span>
@@ -896,7 +908,7 @@ function InicioTab({ state, teamId, season, nextMatch, indicators, standings, bu
           <div className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground mb-2">Próximos rivales</div>
           <div className="space-y-1.5">
             {nextRivals(state, teamId, 4).map(m => {
-              const other = getTeamById(m.home === teamId ? m.away : m.home);
+              const other = careerTeam(state, m.home === teamId ? m.away : m.home);
               return (
                 <div key={m.id} className="flex items-center gap-2 text-xs">
                   <span className="text-muted-foreground tabular-nums w-10">F{m.round}</span>
@@ -920,7 +932,7 @@ function InicioTab({ state, teamId, season, nextMatch, indicators, standings, bu
               const mine = m.home === teamId ? (m.homeGoals ?? 0) : (m.awayGoals ?? 0);
               const opp = m.home === teamId ? (m.awayGoals ?? 0) : (m.homeGoals ?? 0);
               const r = mine > opp ? "V" : mine === opp ? "E" : "D";
-              const other = getTeamById(m.home === teamId ? m.away : m.home);
+              const other = careerTeam(state, m.home === teamId ? m.away : m.home);
               return (
                 <div key={m.id} style={{ animationDelay: `${i * 70}ms` }}
                   className="row-drop flex items-center gap-2 text-xs">
@@ -1042,8 +1054,8 @@ function CalendarioTab({ state, teamId }: { state: CareerState; teamId: string }
               <div className="space-y-1">
                 {ms.map(m => {
                   const mine = m.home === teamId || m.away === teamId;
-                  const home = getTeamById(m.home);
-                  const away = getTeamById(m.away);
+                  const home = careerTeam(state, m.home);
+                  const away = careerTeam(state, m.away);
                   let resultColor = "";
                   if (mine && m.played) {
                     const myGoals = m.home === teamId ? m.homeGoals! : m.awayGoals!;
