@@ -214,6 +214,41 @@ function CarreraPage() {
   async function goToReducido() {
     if (!state || !teamId) return;
     const d = careerDivision(state, teamId);
+
+    if (d === "regional_federal_amateur") {
+      const ownRows = sortStandings(state.standings);
+      const myMeta = getRegionalTeamMeta(teamId);
+      if (!myMeta) return;
+      const allRows = [...state.standings, ...(state.otherStandings ?? [])];
+      const groups = new Map<string, StandingRow[]>();
+      const roster = state.leagueRosters?.regional_federal_amateur ?? getTeamsByDivision(d).map(t => t.id);
+      for (const id of roster) {
+        const meta = getRegionalTeamMeta(id);
+        if (!meta || meta.region !== myMeta.region) continue;
+        const row = allRows.find(r => r.teamId === id);
+        if (!row) continue;
+        const key = `${meta.region}::${meta.group}`;
+        (groups.get(key) ?? groups.set(key, []).get(key)!).push(row);
+      }
+      const seeds = [...groups.values()]
+        .map(rows => sortStandings(rows)[0])
+        .concat([...groups.values()].map(rows => sortStandings(rows)[1]).filter(Boolean) as StandingRow[])
+        .filter(Boolean) as StandingRow[];
+      const unique = Array.from(new Map(seeds.map(r => [r.teamId, r])).values())
+        .sort((a,b) => (b.pts / Math.max(1,b.pj)) - (a.pts / Math.max(1,a.pj)) || b.dg - a.dg || b.pts - a.pts);
+      const opponentCandidates = allRows.filter(r => {
+        const meta = getRegionalTeamMeta(r.teamId);
+        return meta && meta.region !== myMeta.region;
+      });
+      const nationalOpponent = sortStandings(opponentCandidates)[0]?.teamId;
+      seedReducidoFromCareer({
+        standA: unique, standB: [], userTeamId: teamId, season, difficulty: (state.difficulty ?? "normal") as any,
+        division: "regional_federal_amateur", regionalNationalOpponent: nationalOpponent,
+      });
+      navigate({ to: "/reducido" });
+      return;
+    }
+
     const standA = d === "primera_b" ? state.standings : (state.zone === "A" ? state.standings : (state.otherStandings ?? []));
     const standB = d === "primera_b" ? [] : (state.zone === "B" ? state.standings : (state.otherStandings ?? []));
     seedReducidoFromCareer({
@@ -243,7 +278,21 @@ function CarreraPage() {
         const finalWon = userInFinal && final?.winner === teamId;
         const finalLost = userInFinal && !!final?.winner && final.winner !== teamId;
         const reducedFinished = tournamentState.reducidoChampion !== undefined;
-        if (currentDivision === "primera_b") {
+        if (currentDivision === "regional_federal_amateur") {
+          const regionalChampion = tournamentState.regionalChampion;
+          const nationalFinal = tournamentState.regionalNationalFinal;
+          const regionalWon = regionalChampion === teamId;
+          const nationalFinished = !!nationalFinal?.winner;
+          if (!regionalWon) {
+            playoffReady = !!regionalChampion;
+            promoted = false;
+          } else if (!nationalFinal) {
+            playoffReady = false;
+          } else if (nationalFinished) {
+            playoffReady = true;
+            promoted = nationalFinal?.winner === teamId;
+          }
+        } else if (currentDivision === "primera_b") {
           playoffReady = reducedFinished;
           promoted = tournamentState.reducidoChampion === teamId;
         } else if (userInFinal) {
