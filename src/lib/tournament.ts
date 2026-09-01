@@ -365,43 +365,37 @@ export function simulateRegionalTournament(roster: string[]): RegionalSeasonResu
 }
 
 export function buildFederalZoneMap(teamIds: string[]): Record<string, string> {
-  // Distribución fija y geográfica para 37 equipos: 10 + 9 + 9 + 9.
-  // No usamos el viejo campo zone A/B del catálogo porque ese campo nació
-  // para otras competencias.
+  // Federal A 2026: zonas de la fase regular según la tabla 2026.
+  // A=10, B=9, C=9, D=9. Para futuras temporadas, los clubes nuevos se
+  // distribuyen por cupo sin desarmar las zonas de los equipos ya existentes.
   const fixed: Record<string, "A" | "B" | "C" | "D"> = {
-    // A · Norte / NEA
-    "9dejulio": "A", "bartolomemitre": "A", "bocaunidos": "A", "defensores": "A", "juventudantoniana": "A",
-    "sanmartin": "A", "sarmiento": "A", "sarmiento2": "A", "soldeamerica": "A", "tucumancentral": "A",
-    // B · Centro / Cuyo
-    "atenas": "B", "atleticoclubsanmartin": "B", "costabrava": "B", "deportivoargentino": "B", "fadep": "B",
-    "huracanlasheras": "B", "juventudunidauniversitario": "B", "sportivoatleticoclub": "B", "sportivobelgrano": "B",
-    // C · Buenos Aires / litoral sur
-    "circulodeportivo": "C", "defensoresdebelgrano2": "C", "douglashaig": "C", "ellinqueno": "C", "escobarfutbolclub": "C",
-    "gimnasiayesgrima": "C", "independiente2": "C", "santamarina": "C", "kimberley": "C",
-    // D · Patagonia y extremo sur; Alvarado completa el corredor bonaerense sur.
-    "alvarado": "D", "cipolletti": "D", "deportivorincon": "D", "germinal": "D", "gimnasiayesgrima2": "D",
-    "guillermobrown": "D", "olimpo": "D", "soldemayo": "D", "villamitre": "D",
+    // Grupo A
+    "douglashaig": "A", "sportivobelgrano": "A", "gimnasiayesgrima": "A",
+    "defensoresdebelgrano2": "A", "9dejulio": "A", "sportivoatleticoclub": "A",
+    "escobarfutbolclub": "A", "independiente2": "A", "ellinqueno": "A", "gimnasiayesgrima2": "A",
+    // Grupo B
+    "sanmartin": "B", "bartolomemitre": "B", "soldeamerica": "B", "sarmiento": "B",
+    "juventudantoniana": "B", "defensores": "B", "bocaunidos": "B", "tucumancentral": "B", "sarmiento2": "B",
+    // Grupo C
+    "cipolletti": "C", "deportivoargentino": "C", "atenas": "C", "huracanlasheras": "C",
+    "fadep": "C", "deportivorincon": "C", "atleticoclubsanmartin": "C", "costabrava": "C", "juventudunidauniversitario": "C",
+    // Grupo D
+    "olimpo": "D", "alvarado": "D", "kimberley": "D", "villamitre": "D",
+    "germinal": "D", "soldemayo": "D", "guillermobrown": "D", "santamarina": "D", "circulodeportivo": "D",
   };
 
   const valid = new Set(teamIds);
   const map: Record<string, string> = {};
   for (const [id, zone] of Object.entries(fixed)) if (valid.has(id)) map[id] = zone;
-
-  const sizes = { A: 10, B: 9, C: 9, D: 9 } as const;
-  const counts = { A: 0, B: 0, C: 0, D: 0 };
-  for (const z of Object.values(map)) counts[z as keyof typeof counts]++;
-
-  // Fallback para equipos que lleguen por ascenso/descenso o tengan un ID nuevo:
-  // completamos los cupos manteniendo la estabilidad y sin volver a usar A/B legacy.
-  const pending = stableSortIds(teamIds.filter(id => !map[id]));
-  for (const id of pending) {
-    const target = (Object.keys(sizes) as Array<keyof typeof sizes>).sort((a, b) => counts[a] - counts[b] || a.localeCompare(b))[0];
+  const counts: Record<string, number> = { A: 0, B: 0, C: 0, D: 0 };
+  for (const z of Object.values(map)) counts[z]++;
+  for (const id of stableSortIds(teamIds.filter(id => !map[id]))) {
+    const target = (["A", "B", "C", "D"] as const).sort((x, y) => counts[x] - counts[y] || x.localeCompare(y))[0];
     map[id] = target;
     counts[target]++;
   }
   return map;
 }
-
 export function buildDivisionCareerFixture(division: DivisionId, teamIds: string[], userTeamId?: string, persistedZoneMap?: Record<string, string>): {
   matches: Match[];
   zone: string;
