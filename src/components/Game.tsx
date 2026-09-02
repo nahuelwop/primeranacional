@@ -99,7 +99,7 @@ function PrimeraDivisionScorebug({
   );
 }
 
-type DivisionScorebugVariant =
+type CompetitionScorebugVariant =
   | "copa_argentina"
   | "primera_b"
   | "primera_c"
@@ -107,28 +107,44 @@ type DivisionScorebugVariant =
   | "regional_federal_amateur"
   | "promocional_amateur";
 
-function DivisionScorebug({
-  home, away, score, time, variant = "copa_argentina",
+const SCOREBUG_META: Record<CompetitionScorebugVariant, {
+  className: string;
+  brand: string;
+  sub: string;
+}> = {
+  copa_argentina: { className: "copa", brand: "CA", sub: "COPA ARGENTINA" },
+  primera_b: { className: "bmetro", brand: "B", sub: "PRIMERA B METROPOLITANA" },
+  primera_c: { className: "pc", brand: "C", sub: "PRIMERA C" },
+  federal_a: { className: "federal", brand: "FA", sub: "FEDERAL A" },
+  regional_federal_amateur: { className: "regional", brand: "RA", sub: "REGIONAL AMATEUR" },
+  promocional_amateur: { className: "promocional", brand: "PA", sub: "PROMOCIONAL AMATEUR" },
+};
+
+function CompetitionScorebug({
+  variant, home, away, score, time,
 }: {
-  home: Team; away: Team; score: { h: number; a: number }; time: number; variant?: DivisionScorebugVariant;
+  variant: CompetitionScorebugVariant;
+  home: Team; away: Team; score: { h: number; a: number }; time: number;
 }) {
   const clock = `${String(Math.floor(time / 60)).padStart(2, "0")}:${String(time % 60).padStart(2, "0")}`;
+  const meta = SCOREBUG_META[variant];
   return (
-    <div className={`ca-scorebug ca-scorebug--${variant}`} role="status" aria-label={`${home.short} ${score.h}, ${away.short} ${score.a}, ${clock}`}>
-      <div className="ca-scorebug-brand">
-        <div className="ca-mark">C<span>A</span></div>
-        <div className="ca-sponsor">AXION<span>energy</span></div>
+    <div
+      className={`competition-scorebug competition-scorebug--${meta.className}`}
+      role="status"
+      aria-label={`${home.name} ${score.h}, ${away.name} ${score.a}, ${clock}`}
+    >
+      <div className="competition-scorebug__brand">
+        <div className="competition-scorebug__brand-mark">{meta.brand}</div>
+        <div className="competition-scorebug__brand-sub">{meta.sub}</div>
+        {variant === "copa_argentina" && <div className="competition-scorebug__sponsor">AXION<span>energy</span></div>}
       </div>
-      <div className="ca-scorebug-clock">{clock}</div>
-      <div className="ca-scorebug-teams">
-        <div className="ca-team-row ca-team-home">
-          <span>{home.name}</span>
-        </div>
-        <div className="ca-team-row ca-team-away">
-          <span>{away.name}</span>
-        </div>
+      <div className="competition-scorebug__clock">{clock}</div>
+      <div className="competition-scorebug__teams">
+        <div className="competition-scorebug__team"><span>{home.name}</span></div>
+        <div className="competition-scorebug__team"><span>{away.name}</span></div>
       </div>
-      <div className="ca-scorebug-scores">
+      <div className="competition-scorebug__scores">
         <div>{score.h}</div>
         <div>{score.a}</div>
       </div>
@@ -1440,14 +1456,20 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
   };
   const possA = 100 - stats.possessionH;
   const isPrimeraDivisionMatch = home.division === "primera_division" && away.division === "primera_division";
-  const divisionScorebugVariant: DivisionScorebugVariant | null =
-    matchLabel?.toLowerCase().includes("copa argentina") ? "copa_argentina" :
-    home.division === "primera_b" ? "primera_b" :
-    home.division === "primera_c" ? "primera_c" :
-    home.division === "federal_a" ? "federal_a" :
-    home.division === "regional_federal_amateur" ? "regional_federal_amateur" :
-    home.division === "promocional_amateur" ? "promocional_amateur" :
-    null;
+  const competitionScorebugVariant: CompetitionScorebugVariant | null =
+    matchLabel?.toLowerCase().includes("copa argentina")
+      ? "copa_argentina"
+      : home.division === "primera_b"
+        ? "primera_b"
+        : home.division === "primera_c"
+          ? "primera_c"
+          : home.division === "federal_a"
+            ? "federal_a"
+            : home.division === "regional_federal_amateur"
+              ? "regional_federal_amateur"
+              : home.division === "promocional_amateur"
+                ? "promocional_amateur"
+                : null;
   return (
     <div className="flex flex-col items-center gap-3 w-full relative">
       {matchLabel && (
@@ -1455,12 +1477,10 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
           ★ {matchLabel} ★
         </div>
       )}
-      {divisionScorebugVariant === "copa_argentina" ? (
-        <DivisionScorebug home={home} away={away} score={score} time={time} variant="copa_argentina" />
-      ) : isPrimeraDivisionMatch ? (
+      {isPrimeraDivisionMatch ? (
         <PrimeraDivisionScorebug home={home} away={away} score={score} time={time} />
-      ) : divisionScorebugVariant ? (
-        <DivisionScorebug home={home} away={away} score={score} time={time} variant={divisionScorebugVariant} />
+      ) : competitionScorebugVariant ? (
+        <CompetitionScorebug variant={competitionScorebugVariant} home={home} away={away} score={score} time={time} />
       ) : (
         <div className="scorebug" role="status" aria-label={`${home.short} ${score.h}, ${away.short} ${score.a}, ${time} segundos`}>
           <div className="scorebug-brand">N</div>
