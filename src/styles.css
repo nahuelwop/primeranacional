@@ -876,158 +876,247 @@
   }
 }
 
-/* Marcador estilo Copa Argentina / AXION: construido 100% con HTML/CSS. */
-.ca-scorebug {
-  width: min(100%, 480px);
-  min-height: 62px;
+/* ===== Marcadores por competencia — 100% HTML/CSS, sin imágenes =====
+   Misma estructura visual para todas las categorías, basada en la referencia:
+   bloque de competencia + reloj + dos filas blancas de equipos + marcador vertical. */
+.competition-scorebug {
+  --sb-dark: #061b3f;
+  --sb-accent: #0b78d0;
+  --sb-text: #ffffff;
+  --sb-row: #f5f5f2;
+  width: min(100%, 760px);
+  min-height: 72px;
   display: grid;
-  grid-template-columns: 88px 88px minmax(0, 1fr) 42px;
+  grid-template-columns: 150px 86px minmax(0, 1fr) 58px;
   align-items: stretch;
   overflow: hidden;
   border-radius: 1px;
-  background: #061b3f;
-  color: #07162f;
-  box-shadow: 0 10px 24px rgba(0,0,0,.42);
-  font-family: var(--font-display, Arial, sans-serif);
-}
-.ca-scorebug-brand {
-  position: relative;
-  background: #061b3f;
-  color: #fff;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  box-shadow: 0 10px 25px rgba(0,0,0,.42);
+  font-family: Arial, Helvetica, sans-serif;
   line-height: 1;
-  border-right: 1px solid rgba(255,255,255,.08);
+  background: var(--sb-dark);
 }
-.ca-mark {
-  font-family: Arial, sans-serif;
-  font-weight: 900;
-  font-size: 27px;
-  letter-spacing: -0.08em;
-  transform: translateX(-1px);
-}
-.ca-mark span { margin-left: 1px; }
-.ca-sponsor {
-  margin-top: 4px;
-  font-family: Arial, sans-serif;
-  font-size: 7px;
-  font-weight: 800;
-  letter-spacing: .03em;
-  text-transform: uppercase;
-  opacity: .95;
-}
-.ca-sponsor span {
-  display: block;
-  margin-top: 1px;
-  font-size: 5px;
-  letter-spacing: .08em;
-}
-.ca-scorebug-clock {
+.competition-scorebug > * { min-width: 0; }
+.competition-scorebug__brand {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #061b3f;
-  color: #fff;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 25px;
+  gap: 8px;
+  padding: 0 10px;
+  color: var(--sb-text);
+  background: var(--sb-dark);
+  overflow: hidden;
+}
+.competition-scorebug__brand-mark {
+  position: relative;
+  z-index: 1;
+  font-size: 36px;
+  font-weight: 950;
+  letter-spacing: -.08em;
+  white-space: nowrap;
+}
+.competition-scorebug__brand-sub {
+  position: relative;
+  z-index: 1;
+  max-width: 86px;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .025em;
+  line-height: 1.05;
+  text-transform: uppercase;
+}
+.competition-scorebug__sponsor {
+  position: absolute;
+  left: 9px;
+  bottom: 4px;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: .02em;
+  text-transform: uppercase;
+  opacity: .98;
+}
+.competition-scorebug__sponsor span { margin-left: 1px; font-size: 6px; }
+.competition-scorebug__clock {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--sb-dark);
+  color: var(--sb-text);
+  font-size: 31px;
   font-weight: 900;
   font-variant-numeric: tabular-nums;
-  letter-spacing: -.03em;
+  letter-spacing: -.045em;
+  border-left: 1px solid rgba(255,255,255,.08);
 }
-.ca-scorebug-teams {
+.competition-scorebug__teams {
   position: relative;
   display: grid;
   grid-template-rows: 1fr 1fr;
+  background: var(--sb-row);
   overflow: hidden;
-  background: #f5f4ef;
 }
-.ca-scorebug-teams::before {
+.competition-scorebug__teams::before {
   content: "";
   position: absolute;
   left: 0;
   top: 0;
-  width: 19px;
-  height: 19px;
-  background: #ee3138;
-  clip-path: polygon(0 0, 100% 0, 0 100%);
+  width: 21px;
+  height: 21px;
+  background: var(--sb-accent);
+  clip-path: polygon(0 0,100% 0,0 100%);
   z-index: 2;
 }
-.ca-team-row {
+.competition-scorebug__team {
   min-width: 0;
   display: flex;
   align-items: center;
-  padding: 0 12px 0 26px;
-  background: #f7f6f1;
-  color: #13203a;
-  font-family: Arial, sans-serif;
-  font-size: 16px;
+  padding: 0 14px 0 29px;
+  color: #14203a;
+  font-size: 18px;
   font-weight: 900;
-  line-height: 1;
   text-transform: uppercase;
   white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
-.ca-team-row + .ca-team-row { border-top: 1px solid rgba(8,25,57,.12); }
-.ca-scorebug-scores {
+.competition-scorebug__team span { overflow: hidden; text-overflow: ellipsis; }
+.competition-scorebug__team + .competition-scorebug__team {
+  border-top: 1px solid rgba(8,25,57,.14);
+}
+.competition-scorebug__scores {
   display: grid;
   grid-template-rows: 1fr 1fr;
-  background: #061b3f;
-  color: #fff;
-  font-family: Arial, sans-serif;
-  font-size: 28px;
-  font-weight: 900;
-  line-height: 1;
+  background: var(--sb-dark);
+  color: var(--sb-text);
+  font-size: 30px;
+  font-weight: 950;
+  font-variant-numeric: tabular-nums;
 }
-.ca-scorebug-scores > div {
+.competition-scorebug__scores > div {
   display: grid;
   place-items: center;
 }
-.ca-scorebug-scores > div + div { border-top: 1px solid rgba(255,255,255,.12); }
-@media (max-width: 640px) {
-  .ca-scorebug { grid-template-columns: 64px 73px minmax(0, 1fr) 36px; min-height: 48px; }
-  .ca-mark { font-size: 21px; }
-  .ca-sponsor { font-size: 5px; margin-top: 2px; }
-  .ca-sponsor span { font-size: 4px; }
-  .ca-scorebug-clock { font-size: 18px; }
-  .ca-team-row { font-size: 11px; padding-left: 18px; padding-right: 6px; }
-  .ca-scorebug-teams::before { width: 13px; height: 13px; }
-  .ca-scorebug-scores { font-size: 21px; }
+.competition-scorebug__scores > div + div {
+  border-top: 1px solid rgba(255,255,255,.16);
 }
 
+/* Copa Argentina — azul con acento rojo + AXION. */
+.competition-scorebug--copa {
+  --sb-dark: #061b3f;
+  --sb-accent: #ee3138;
+}
+.competition-scorebug--copa .competition-scorebug__brand {
+  justify-content: flex-start;
+  padding-left: 14px;
+}
+.competition-scorebug--copa .competition-scorebug__brand-mark { font-size: 38px; }
+.competition-scorebug--copa .competition-scorebug__brand-sub { display: none; }
+.competition-scorebug--copa .competition-scorebug__brand::after {
+  content: "";
+  position: absolute;
+  right: -1px;
+  top: 0;
+  width: 28px;
+  height: 28px;
+  background: #ee3138;
+  clip-path: polygon(100% 0,100% 100%,0 0);
+}
 
+/* Primera B Metropolitana — misma geometría, negro + naranja. */
+.competition-scorebug--bmetro {
+  --sb-dark: #090909;
+  --sb-accent: #ff7a00;
+}
+.competition-scorebug--bmetro .competition-scorebug__scores { color: #ff7a00; }
+.competition-scorebug--bmetro .competition-scorebug__brand::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 28px;
+  height: 100%;
+  background: linear-gradient(135deg, transparent 0 30%, #ff7a00 30% 38%, transparent 38% 50%, #ff7a00 50% 58%, transparent 58%);
+  opacity: .9;
+}
 
-/* Variantes por competición. La Primera Nacional conserva su marcador original. */
-.ca-scorebug--primera_b .ca-scorebug-brand,
-.ca-scorebug--primera_b .ca-scorebug-clock,
-.ca-scorebug--primera_b .ca-scorebug-scores { background: #090909; }
-.ca-scorebug--primera_b .ca-scorebug-scores { color: #ff7a00; }
-.ca-scorebug--primera_b .ca-scorebug-teams::before { background: #ff7a00; }
+/* Primera C — misma geometría, verde + negro. */
+.competition-scorebug--pc {
+  --sb-dark: #050505;
+  --sb-accent: #14bf4a;
+}
+.competition-scorebug--pc .competition-scorebug__scores { color: #14bf4a; }
+.competition-scorebug--pc .competition-scorebug__brand::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 28px;
+  height: 100%;
+  background: repeating-linear-gradient(135deg, transparent 0 8px, #14bf4a 8px 11px, transparent 11px 19px);
+  opacity: .9;
+}
 
-.ca-scorebug--primera_c .ca-scorebug-brand,
-.ca-scorebug--primera_c .ca-scorebug-clock,
-.ca-scorebug--primera_c .ca-scorebug-scores { background: #050505; }
-.ca-scorebug--primera_c .ca-scorebug-scores { color: #18c84f; }
-.ca-scorebug--primera_c .ca-scorebug-teams::before { background: #18c84f; }
+/* Federal A — azul profundo + celeste. */
+.competition-scorebug--federal {
+  --sb-dark: #062b5a;
+  --sb-accent: #149cff;
+}
+.competition-scorebug--federal .competition-scorebug__scores { color: #9ed8ff; }
+.competition-scorebug--federal .competition-scorebug__brand::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 30px;
+  height: 100%;
+  background: linear-gradient(135deg, transparent 0 40%, #149cff 40% 49%, transparent 49% 62%, #0a68bd 62% 71%, transparent 71%);
+}
 
-.ca-scorebug--federal_a .ca-scorebug-brand,
-.ca-scorebug--federal_a .ca-scorebug-clock,
-.ca-scorebug--federal_a .ca-scorebug-scores { background: #062b5a; }
-.ca-scorebug--federal_a .ca-scorebug-scores { color: #8fd1ff; }
-.ca-scorebug--federal_a .ca-scorebug-teams::before { background: #1f8cff; }
+/* Regional Federal Amateur — púrpura + violeta. */
+.competition-scorebug--regional {
+  --sb-dark: #210040;
+  --sb-accent: #8b2cff;
+}
+.competition-scorebug--regional .competition-scorebug__scores { color: #df98ff; }
+.competition-scorebug--regional .competition-scorebug__brand::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 30px;
+  height: 100%;
+  background: linear-gradient(135deg, transparent 0 35%, #8b2cff 35% 45%, transparent 45% 56%, #5e18b7 56% 66%, transparent 66%);
+}
 
-.ca-scorebug--regional_federal_amateur .ca-scorebug-brand,
-.ca-scorebug--regional_federal_amateur .ca-scorebug-clock,
-.ca-scorebug--regional_federal_amateur .ca-scorebug-scores { background: #20003f; }
-.ca-scorebug--regional_federal_amateur .ca-scorebug-scores { color: #d88aff; }
-.ca-scorebug--regional_federal_amateur .ca-scorebug-teams::before { background: #8f35ff; }
+/* Torneo Promocional Amateur — negro + dorado, más premium. */
+.competition-scorebug--promocional {
+  --sb-dark: #0a0a0a;
+  --sb-accent: #d6a72d;
+}
+.competition-scorebug--promocional .competition-scorebug__scores { color: #f5cc5b; }
+.competition-scorebug--promocional .competition-scorebug__brand::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 30px;
+  height: 100%;
+  background: linear-gradient(135deg, transparent 0 35%, #d6a72d 35% 42%, transparent 42% 56%, #d6a72d 56% 63%, transparent 63%);
+}
 
-.ca-scorebug--promocional_amateur .ca-scorebug-brand,
-.ca-scorebug--promocional_amateur .ca-scorebug-clock,
-.ca-scorebug--promocional_amateur .ca-scorebug-scores { background: #0a0a0a; }
-.ca-scorebug--promocional_amateur .ca-scorebug-scores { color: #f5cc5b; }
-.ca-scorebug--promocional_amateur .ca-scorebug-teams::before { background: #e0ae25; }
-
-.ca-scorebug--copa_argentina .ca-scorebug-teams::before { background: #ee3138; }
+@media (max-width: 760px) {
+  .competition-scorebug {
+    grid-template-columns: 108px 66px minmax(0, 1fr) 44px;
+    min-height: 54px;
+  }
+  .competition-scorebug__brand { gap: 4px; padding: 0 6px; }
+  .competition-scorebug__brand-mark { font-size: 28px; }
+  .competition-scorebug__brand-sub { max-width: 59px; font-size: 6px; }
+  .competition-scorebug__sponsor { left: 5px; bottom: 2px; font-size: 5px; }
+  .competition-scorebug__sponsor span { font-size: 4px; }
+  .competition-scorebug__clock { font-size: 21px; }
+  .competition-scorebug__team { font-size: 11px; padding-left: 18px; padding-right: 7px; }
+  .competition-scorebug__teams::before { width: 14px; height: 14px; }
+  .competition-scorebug__scores { font-size: 22px; }
+  .competition-scorebug--copa .competition-scorebug__brand-mark { font-size: 30px; }
+}
