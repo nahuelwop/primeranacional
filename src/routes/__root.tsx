@@ -77,16 +77,16 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Primera Nacional Head Argentina" },
-      { name: "description", content: "La B Nacional Arcade is a 2D arcade soccer game simulating Argentina's second division league." },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Primera Nacional Head Argentina" },
-      { property: "og:description", content: "La B Nacional Arcade is a 2D arcade soccer game simulating Argentina's second division league." },
+      { title: "Primera Heads · Fútbol Argentino" },
+      { name: "description", content: "Primera Heads: fútbol argentino en formato arcade, con modo carrera, ascensos, descensos y Copa Argentina." },
+      { name: "author", content: "Primera Heads" },
+      { property: "og:title", content: "Primera Heads · Fútbol Argentino" },
+      { property: "og:description", content: "Primera Heads: fútbol argentino en formato arcade, con modo carrera, ascensos, descensos y Copa Argentina." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
-      { name: "twitter:site", content: "@Lovable" },
-      { name: "twitter:title", content: "Primera Nacional Head Argentina" },
-      { name: "twitter:description", content: "La B Nacional Arcade is a 2D arcade soccer game simulating Argentina's second division league." },
+      { name: "twitter:site", content: "@PrimeraHeads" },
+      { name: "twitter:title", content: "Primera Heads · Fútbol Argentino" },
+      { name: "twitter:description", content: "Primera Heads: fútbol argentino en formato arcade, con modo carrera, ascensos, descensos y Copa Argentina." },
       { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/75d872d6-d4ef-4863-bf4d-da180a4f5a70/id-preview-a8bc83bc--81e4fd9e-6195-441c-944a-7351507b0c62.lovable.app-1778544970844.png" },
       { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/75d872d6-d4ef-4863-bf4d-da180a4f5a70/id-preview-a8bc83bc--81e4fd9e-6195-441c-944a-7351507b0c62.lovable.app-1778544970844.png" },
     ],
@@ -105,7 +105,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="es">
       <head>
         <HeadContent />
       </head>
