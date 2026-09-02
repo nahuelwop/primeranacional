@@ -100,24 +100,38 @@ function PrimeraDivisionScorebug({
 }
 
 type DivisionScorebugVariant =
-  | "copa_argentina" | "primera_b" | "primera_c" | "federal_a" | "regional_federal_amateur" | "promocional_amateur";
+  | "copa_argentina"
+  | "primera_b"
+  | "primera_c"
+  | "federal_a"
+  | "regional_federal_amateur"
+  | "promocional_amateur";
 
-function DivisionScorebug({ home, away, score, time, variant = "copa_argentina" }: {
+function DivisionScorebug({
+  home, away, score, time, variant = "copa_argentina",
+}: {
   home: Team; away: Team; score: { h: number; a: number }; time: number; variant?: DivisionScorebugVariant;
 }) {
   const clock = `${String(Math.floor(time / 60)).padStart(2, "0")}:${String(time % 60).padStart(2, "0")}`;
-  const label: Record<DivisionScorebugVariant, string> = { copa_argentina: "CA", primera_b: "B", primera_c: "C", federal_a: "FA", regional_federal_amateur: "RA", promocional_amateur: "PA" };
-  const sub: Record<DivisionScorebugVariant, string> = { copa_argentina: "COPA ARGENTINA", primera_b: "PRIMERA B METROPOLITANA", primera_c: "PRIMERA C", federal_a: "FEDERAL A", regional_federal_amateur: "REGIONAL AMATEUR", promocional_amateur: "PROMOCIONAL AMATEUR" };
-  const isCopa = variant === "copa_argentina";
   return (
     <div className={`ca-scorebug ca-scorebug--${variant}`} role="status" aria-label={`${home.short} ${score.h}, ${away.short} ${score.a}, ${clock}`}>
       <div className="ca-scorebug-brand">
-        <div className="ca-mark">{label[variant]}</div>
-        <div className="ca-sponsor">{isCopa ? <>AXION<span>energy</span></> : <span className="ca-competition-label">{sub[variant]}</span>}</div>
+        <div className="ca-mark">C<span>A</span></div>
+        <div className="ca-sponsor">AXION<span>energy</span></div>
       </div>
       <div className="ca-scorebug-clock">{clock}</div>
-      <div className="ca-scorebug-teams"><div className="ca-team-row ca-team-home"><span>{home.name}</span></div><div className="ca-team-row ca-team-away"><span>{away.name}</span></div></div>
-      <div className="ca-scorebug-scores"><div>{score.h}</div><div>{score.a}</div></div>
+      <div className="ca-scorebug-teams">
+        <div className="ca-team-row ca-team-home">
+          <span>{home.name}</span>
+        </div>
+        <div className="ca-team-row ca-team-away">
+          <span>{away.name}</span>
+        </div>
+      </div>
+      <div className="ca-scorebug-scores">
+        <div>{score.h}</div>
+        <div>{score.a}</div>
+      </div>
     </div>
   );
 }
@@ -1428,9 +1442,12 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
   const isPrimeraDivisionMatch = home.division === "primera_division" && away.division === "primera_division";
   const divisionScorebugVariant: DivisionScorebugVariant | null =
     matchLabel?.toLowerCase().includes("copa argentina") ? "copa_argentina" :
-    home.division === "primera_b" ? "primera_b" : home.division === "primera_c" ? "primera_c" :
-    home.division === "federal_a" ? "federal_a" : home.division === "regional_federal_amateur" ? "regional_federal_amateur" :
-    home.division === "promocional_amateur" ? "promocional_amateur" : null;
+    home.division === "primera_b" ? "primera_b" :
+    home.division === "primera_c" ? "primera_c" :
+    home.division === "federal_a" ? "federal_a" :
+    home.division === "regional_federal_amateur" ? "regional_federal_amateur" :
+    home.division === "promocional_amateur" ? "promocional_amateur" :
+    null;
   return (
     <div className="flex flex-col items-center gap-3 w-full relative">
       {matchLabel && (
@@ -1438,7 +1455,9 @@ export function Game({ home, away, duration = 60, weather = "clear", aiDifficult
           ★ {matchLabel} ★
         </div>
       )}
-      {isPrimeraDivisionMatch ? (
+      {divisionScorebugVariant === "copa_argentina" ? (
+        <DivisionScorebug home={home} away={away} score={score} time={time} variant="copa_argentina" />
+      ) : isPrimeraDivisionMatch ? (
         <PrimeraDivisionScorebug home={home} away={away} score={score} time={time} />
       ) : divisionScorebugVariant ? (
         <DivisionScorebug home={home} away={away} score={score} time={time} variant={divisionScorebugVariant} />
