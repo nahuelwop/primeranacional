@@ -306,15 +306,85 @@ export function checkCareerAchievementKeys(state: CareerState, budget: number): 
 
 function rostersForAll(rosters: Partial<Record<DivisionId, string[]>>): string[] { return Array.from(new Set(Object.values(rosters).flatMap(x => x ?? []))); }
 
+
+/**
+ * Normaliza los planteles que vienen de saves anteriores.
+ * Un club nunca puede quedar simultáneamente en dos divisiones.
+ * La división almacenada en `leagueRosters` tiene prioridad sobre el `division`
+ * estático del catálogo porque los ascensos/descensos cambian durante la carrera.
+ */
+export function normalizeLeagueRosters(
+  input?: Partial<Record<DivisionId, string[]>>,
+  preferredTeamId?: string,
+  preferredDivision?: DivisionId,
+): Partial<Record<DivisionId, string[]>> {
+  const fallback = initialLeagueRosters();
+  const source = input ?? fallback;
+  const divisions: DivisionId[] = [
+    "primera_division", "primera_nacional", "primera_b", "primera_c",
+    "promocional_amateur", "federal_a", "regional_federal_amateur",
+  ];
+  const out = {} as Partial<Record<DivisionId, string[]>>;
+  const seen = new Set<string>();
+
+  // Primero reservamos el club del usuario en su división actual.
+  if (preferredTeamId && preferredDivision) {
+    out[preferredDivision] = [preferredTeamId];
+    seen.add(preferredTeamId);
+  }
+
+  for (const division of divisions) {
+    const ids = Array.from(new Set(source[division] ?? []));
+    const kept = ids.filter(id => {
+      if (!id || seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
+    out[division] = [...(out[division] ?? []), ...kept];
+  }
+
+  // Si un save viejo dejó una categoría vacía, recuperamos únicamente clubes
+  // que no estén ya asignados. Así una migración nunca deja una división en 0.
+  for (const division of divisions) {
+    if ((out[division]?.length ?? 0) > 0) continue;
+    const catalogIds = getTeamsByDivision(division).map(t => t.id);
+    const refill = catalogIds.filter(id => !seen.has(id));
+    out[division] = refill;
+    for (const id of refill) seen.add(id);
+  }
+  return out;
+}
+
+/** Detecta la división efectiva del club en un save. El roster de la carrera
+ * es la fuente de verdad cuando el catálogo estático todavía conserva la
+ * división histórica del club. */
+export function detectCareerDivision(
+  rosters: Partial<Record<DivisionId, string[]>> | undefined,
+  teamId: string,
+  fallback?: DivisionId,
+): DivisionId {
+  const divisions: DivisionId[] = [
+    "primera_division", "primera_nacional", "primera_b", "primera_c",
+    "promocional_amateur", "federal_a", "regional_federal_amateur",
+  ];
+  for (const division of divisions) {
+    if ((rosters?.[division] ?? []).includes(teamId)) return division;
+  }
+  return fallback ?? getTeamById(teamId)?.division ?? "primera_nacional";
+}
+
 export function buildSeason(
   teamId: string,
   division: DivisionId = getTeamById(teamId)?.division ?? "primera_nacional",
   leagueRosters?: Partial<Record<DivisionId, string[]>>,
   federalZoneMap?: Record<string, string>,
 ): CareerState {
-  const rosters = leagueRosters ?? initialLeagueRosters();
+  const rosters = normalizeLeagueRosters(leagueRosters ?? initialLeagueRosters(), teamId, division);
   const ids = rosterFor(rosters, division);
-  if (!ids.includes(teamId)) ids.push(teamId);
+  if (!ids.includes(teamId)) {
+    ids.push(teamId);
+    rosters[division] = Array.from(new Set([...(rosters[division] ?? []), teamId]));
+  }
   if (ids.length === 1) ids.push(...getTeamsByDivision(division).map(t => t.id).filter(id => id !== teamId));
 
   const fixture = buildDivisionCareerFixture(division, ids, teamId, federalZoneMap);
@@ -391,7 +461,7 @@ export function resolveLeagueMovements(currentState: CareerState, season: number
   teamRatings?: TeamRatings;
 } {
   const currentDivision = careerDivision(currentState);
-  const base = currentState.leagueRosters ?? initialLeagueRosters();
+  const base = normalizeLeagueRosters(currentState.leagueRosters ?? initialLeagueRosters(), currentState.userTeamId, currentDivision);
   const divisions: DivisionId[] = [
     "primera_division", "primera_nacional", "primera_b", "primera_c", "promocional_amateur", "federal_a", "regional_federal_amateur",
   ];
@@ -506,6 +576,7 @@ export function resolveLeagueMovements(currentState: CareerState, season: number
         : currentDivision === "primera_c" ? "primera_b"
         : currentDivision === "promocional_amateur" ? "primera_c"
         : currentDivision === "primera_nacional" ? "primera_division"
+        : currentDivision === "regional_federal_amateur" ? "federal_a"
         : null;
       if (target) {
         rosters[currentDivision] = (rosters[currentDivision] ?? []).filter(id => id !== userId);
@@ -515,6 +586,13 @@ export function resolveLeagueMovements(currentState: CareerState, season: number
     }
   }
   const userMove = userId ? moves.find(m => m.teamId === userId) : undefined;
+  // Última barrera de seguridad: deduplicar y garantizar que el club del usuario
+  // quede exactamente en la división que acabamos de resolver.
+  const normalized = normalizeLeagueRosters(rosters, userId, userMove?.to ?? currentDivision);
+  if (userId && userMove?.to) {
+    for (const d of divisions) if (d !== userMove.to) normalized[d] = (normalized[d] ?? []).filter(id => id !== userId);
+    normalized[userMove.to] = Array.from(new Set([...(normalized[userMove.to] ?? []), userId]));
+  }
   const promotedIds = moves.filter(m => m.to && ["primera_nacional", "primera_division", "primera_b", "primera_c", "federal_a"].includes(m.to)).map(m => m.teamId);
   const relegatedIds = moves.filter(m => /descenso/i.test(m.reason)).map(m => m.teamId);
   const performanceRows: Record<string, StandingRow> = {};
@@ -522,7 +600,7 @@ export function resolveLeagueMovements(currentState: CareerState, season: number
     for (const row of result.standings) performanceRows[row.teamId] = row;
   }
   const nextRatings = evolveTeamRatings(currentState, promotedIds, relegatedIds, performanceRows);
-  return { rosters, movements: moves, userNextDivision: userMove?.to ?? currentDivision, ended: false, teamRatings: nextRatings };
+  return { rosters: normalized, movements: moves, userNextDivision: userMove?.to ?? currentDivision, ended: false, teamRatings: nextRatings };
 }
 
 export function getCareerPlayoffNeed(state: CareerState, teamId: string): { division: DivisionId } | null {
@@ -547,8 +625,14 @@ export function getCareerPlayoffNeed(state: CareerState, teamId: string): { divi
     if (division === "primera_c" && pos >= 1 && pos <= 7) return { division };
   }
   if (division === "regional_federal_amateur") {
-    const rows = sortStandings(state.standings);
-    const pos = rows.findIndex(r => r.teamId === teamId) + 1;
+    const meta = getRegionalTeamMeta(teamId);
+    if (!meta) return null;
+    const allRows = [...state.standings, ...(state.otherStandings ?? [])];
+    const groupRows = allRows.filter(row => {
+      const m = getRegionalTeamMeta(row.teamId);
+      return !!m && m.region === meta.region && m.group === meta.group;
+    });
+    const pos = sortStandings(groupRows).findIndex(r => r.teamId === teamId) + 1;
     if (pos >= 1 && pos <= 2) return { division };
   }
   return null;
