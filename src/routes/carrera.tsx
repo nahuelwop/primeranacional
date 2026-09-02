@@ -15,12 +15,12 @@ import {
   STADIUM_UPGRADE_CATALOG, CORRUPTION_CATALOG,
   buyUpgrade, activateCorruption, tickCorruption, currentCorruptionEffects, incomeMultiplier,
   OBJETIVO_LABEL, type Objetivo, clubIndicators, currentRound, totalRounds,
-  careerDivision, isFirstDivision, recordSeasonSnapshot, firstDivisionRelegated, firstDivisionRelegationDetails,
+  careerDivision, detectCareerDivision, normalizeLeagueRosters, isFirstDivision, recordSeasonSnapshot, firstDivisionRelegated, firstDivisionRelegationDetails,
   careerTeam,
   getCareerPlayoffNeed,
   divisionRelegationCandidates, divisionPromotionCandidates, buildAverageTable,
 } from "@/lib/career";
-import { sortStandings, simulateMatch, emptyStandings, applyMatchToStandings, buildFederalZoneMap, type Match, type StandingRow } from "@/lib/tournament";
+import { sortStandings, simulateMatch, simulateRegionalTournament, emptyStandings, applyMatchToStandings, buildFederalZoneMap, type Match, type StandingRow } from "@/lib/tournament";
 import stadiumBg from "@/assets/stadium-night.jpg";
 import { ACHIEVEMENTS } from "@/lib/achievements";
 import {
@@ -81,6 +81,7 @@ function CarreraPage() {
   const [state, setState] = useState<CareerState | null>(null);
   const [unlocked, setUnlocked] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(true);
+  const [transitioning, setTransitioning] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [recentAch, setRecentAch] = useState<string[]>([]);
   const [tab, setTab] = useState<TopTab>("inicio");
@@ -105,7 +106,9 @@ function CarreraPage() {
           setSeason(save.season);
           setBudget(save.budget);
           const loadedState = save.state as CareerState;
-          if (!loadedState.division) loadedState.division = getTeamById(save.team_id)?.division ?? "primera_nacional";
+          const storedDivision = loadedState.division ?? getTeamById(save.team_id)?.division ?? "primera_nacional";
+          loadedState.leagueRosters = normalizeLeagueRosters(loadedState.leagueRosters, save.team_id, storedDivision);
+          loadedState.division = detectCareerDivision(loadedState.leagueRosters, save.team_id, storedDivision);
           loadedState.userTeamId = save.team_id;
           setState(loadedState);
         }
@@ -141,9 +144,15 @@ function CarreraPage() {
     setTeamId(null); setState(null); setSeason(1); setBudget(1000); setTab("inicio");
   }
 
-  async function persist(next: CareerState, nextBudget = budget, nextSeason = season) {
-    if (!user || !teamId) return;
-    await upsertCareer({ user_id: user.id, team_id: teamId, season: nextSeason, budget: nextBudget, fixture_index: 0, state: next });
+  async function persist(next: CareerState, nextBudget = budget, nextSeason = season): Promise<boolean> {
+    if (!user || !teamId) return false;
+    try {
+      await upsertCareer({ user_id: user.id, team_id: teamId, season: nextSeason, budget: nextBudget, fixture_index: 0, state: next });
+      return true;
+    } catch (error) {
+      console.error("No se pudo guardar la carrera", error);
+      return false;
+    }
   }
 
   const nextMatch = useMemo(() => state && teamId ? nextPendingMatchForUser(state, teamId) : null, [state, teamId]);
@@ -242,7 +251,17 @@ function CarreraPage() {
       .filter((m): m is NonNullable<typeof m> => !!m && m.region !== myMeta.region)
       .map(m => allRows.find(r => r.teamId === m.id))
       .filter(Boolean) as StandingRow[];
-    const nationalOpponent = sortStandings(opponentCandidates)[0]?.teamId;
+    let nationalOpponent = sortStandings(opponentCandidates)[0]?.teamId;
+    // Elegimos como rival nacional un campeón de otra región cuando la
+    // simulación puede resolverlo; si no, conservamos el mejor candidato disponible.
+    try {
+      const simulated = simulateRegionalTournament(roster);
+      const otherChampions = simulated.regionalChampions.filter(id => {
+        const meta = getRegionalTeamMeta(id);
+        return !!meta && meta.region !== myMeta.region;
+      });
+      if (otherChampions.length) nationalOpponent = sortStandings(otherChampions.map(id => allRows.find(r => r.teamId === id)).filter(Boolean) as StandingRow[])[0]?.teamId ?? otherChampions[0];
+    } catch { /* fallback arriba */ }
     seedReducidoFromCareer({
       standA: unique, standB: [], userTeamId: userId, season, difficulty: (source.difficulty ?? "normal") as any,
       division: "regional_federal_amateur", regionalNationalOpponent: nationalOpponent,
@@ -270,125 +289,170 @@ function CarreraPage() {
   }
 
   async function advanceSeason() {
-    if (!state || !teamId || !user || !isSeasonFinished(state)) return;
+    if (!state || !teamId || !user || !isSeasonFinished(state) || transitioning) return;
+    setTransitioning(true);
+    try {
+      const currentDivision = careerDivision(state, teamId);
+      const completed = recordSeasonSnapshot({ ...state, userTeamId: teamId }, season);
+      const needPlayoff = getCareerPlayoffNeed(completed, teamId);
+      const tournamentState = useTournament.getState();
+      const tournamentMatches = tournamentState.division === currentDivision && tournamentState.season === season && tournamentState.userTeamId === teamId;
 
-    const currentDivision = careerDivision(state, teamId);
-    const completed = recordSeasonSnapshot({ ...state, userTeamId: teamId }, season);
-    const needPlayoff = getCareerPlayoffNeed(completed, teamId);
-    const tournamentState = useTournament.getState();
-    const tournamentMatches = tournamentState.division === currentDivision && tournamentState.season === season && tournamentState.userTeamId === teamId;
+      // 1) Si hay una instancia de ascenso pendiente, jamás avanzamos de temporada
+      // sin resolverla. El resultado del usuario es la autoridad final.
+      if (needPlayoff) {
+        let playoffReady = false;
+        let promoted = false;
 
-    // 1) Si el club tiene que jugar una final/reducido, no permitimos saltar
-    // directamente a la nueva temporada. Primero se disputa el playoff.
-    if (needPlayoff) {
-      let playoffReady = false;
-      let promoted = false;
-      if (tournamentMatches) {
-        const final = tournamentState.finalDirecta;
-        const userInFinal = !!final && (final.a === teamId || final.b === teamId);
-        const finalWon = userInFinal && final?.winner === teamId;
-        const finalLost = userInFinal && !!final?.winner && final.winner !== teamId;
-        const reducedFinished = tournamentState.reducidoChampion !== undefined;
-        if (currentDivision === "regional_federal_amateur") {
-          const regionalChampion = tournamentState.regionalChampion;
-          const nationalFinal = tournamentState.regionalNationalFinal;
-          const regionalWon = regionalChampion === teamId;
-          const nationalFinished = !!nationalFinal?.winner;
-          if (!regionalWon) {
-            playoffReady = !!regionalChampion;
-            promoted = false;
-          } else if (!nationalFinal) {
-            playoffReady = false;
-          } else if (nationalFinished) {
-            playoffReady = true;
-            promoted = nationalFinal?.winner === teamId;
-          }
-        } else if (currentDivision === "primera_b") {
-          playoffReady = reducedFinished;
-          promoted = tournamentState.reducidoChampion === teamId;
-        } else if (userInFinal) {
-          if (!final?.winner) playoffReady = false;
-          else if (finalWon) { playoffReady = true; promoted = true; }
-          else if (finalLost) { playoffReady = reducedFinished; promoted = tournamentState.reducidoChampion === teamId; }
-        } else {
-          playoffReady = reducedFinished;
-          promoted = tournamentState.reducidoChampion === teamId;
-        }
-      }
+        if (tournamentMatches) {
+          const final = tournamentState.finalDirecta;
+          const userInFinal = !!final && (final.a === teamId || final.b === teamId);
+          const finalWon = userInFinal && final?.winner === teamId;
+          const finalLost = userInFinal && !!final?.winner && final.winner !== teamId;
+          const reducedFinished = tournamentState.reducidoChampion !== undefined;
 
-      if (!playoffReady) {
-        if (!tournamentMatches) {
           if (currentDivision === "regional_federal_amateur") {
-            seedRegionalPlayoffFromState(completed, teamId);
+            const regionalChampion = tournamentState.regionalChampion;
+            const nationalFinal = tournamentState.regionalNationalFinal;
+            const regionalWon = regionalChampion === teamId;
+            const nationalFinished = !!nationalFinal?.winner;
+            if (!regionalWon) {
+              // Si otro club ganó la etapa regional, la temporada ya puede cerrarse.
+              playoffReady = !!regionalChampion;
+              promoted = false;
+            } else if (!nationalFinal) {
+              playoffReady = false;
+            } else if (nationalFinished) {
+              playoffReady = true;
+              promoted = nationalFinal?.winner === teamId;
+            }
+          } else if (currentDivision === "primera_b") {
+            playoffReady = reducedFinished;
+            promoted = tournamentState.reducidoChampion === teamId;
+          } else if (userInFinal) {
+            if (!final?.winner) playoffReady = false;
+            else if (finalWon) { playoffReady = true; promoted = true; }
+            else if (finalLost) { playoffReady = reducedFinished; promoted = tournamentState.reducidoChampion === teamId; }
           } else {
-            const standA = currentDivision === "primera_b" ? completed.standings : (completed.zone === "A" ? completed.standings : (completed.otherStandings ?? []));
-            const standB = currentDivision === "primera_b" ? [] : (completed.zone === "B" ? completed.standings : (completed.otherStandings ?? []));
-            seedReducidoFromCareer({
-              standA, standB, userTeamId: teamId, season, difficulty: (completed.difficulty ?? "normal") as any, division: currentDivision as any,
-            });
+            playoffReady = reducedFinished;
+            promoted = tournamentState.reducidoChampion === teamId;
           }
         }
-        const pending = { ...completed, pendingPlayoff: { division: currentDivision, season } };
-        setState(pending);
-        await persist(pending, budget, season);
-        navigate({ to: "/reducido" });
+
+        if (!playoffReady) {
+          if (!tournamentMatches) {
+            if (currentDivision === "regional_federal_amateur") {
+              if (!seedRegionalPlayoffFromState(completed, teamId)) {
+                throw new Error("No se pudo preparar el playoff del Regional Federal Amateur.");
+              }
+            } else {
+              const standA = currentDivision === "primera_b" ? completed.standings : (completed.zone === "A" ? completed.standings : (completed.otherStandings ?? []));
+              const standB = currentDivision === "primera_b" ? [] : (completed.zone === "B" ? completed.standings : (completed.otherStandings ?? []));
+              seedReducidoFromCareer({
+                standA, standB, userTeamId: teamId, season,
+                difficulty: (completed.difficulty ?? "normal") as any,
+                division: currentDivision as any,
+              });
+            }
+          }
+          const pending = { ...completed, pendingPlayoff: { division: currentDivision, season } };
+          if (!(await persist(pending, budget, season))) return;
+          setState(pending);
+          navigate({ to: "/reducido" });
+          return;
+        }
+
+        const completedWithPlayoff = { ...completed, pendingPlayoff: undefined };
+        const movement = resolveLeagueMovements(completedWithPlayoff, season, { promoted });
+        if (movement.ended) {
+          const endedState: CareerState = { ...completedWithPlayoff, leagueRosters: movement.rosters, careerEnded: true, careerEndReason: movement.endReason, userTeamId: teamId };
+          if (await persist(endedState, budget, season)) setState(endedState);
+          return;
+        }
+
+        const nextDivision = movement.userNextDivision ?? currentDivision;
+        const fresh = buildSeason(teamId, nextDivision, movement.rosters, completed.federalZoneMap);
+        fresh.totalGoalsScored = completed.totalGoalsScored;
+        fresh.bestUnbeaten = completed.bestUnbeaten;
+        fresh.streakUnbeaten = 0;
+        fresh.zoneChampions = [...completed.zoneChampions];
+        fresh.seasonHistory = [...(completed.seasonHistory ?? [])];
+        fresh.difficulty = completed.difficulty;
+        fresh.objetivo = nextDivision === "primera_division" ? "salir_campeon" : "ascenso_directo";
+        fresh.sponsor = completed.sponsor ?? null;
+        fresh.stadiumUpgrades = completed.stadiumUpgrades;
+        fresh.introVista = false;
+        fresh.leagueRosters = movement.rosters;
+        fresh.userTeamId = teamId;
+        fresh.teamRatings = movement.teamRatings ?? evolveTeamRatings(completed);
+        fresh.clubDevelopment = { ...(completed.clubDevelopment ?? {}) };
+        fresh.totalMatchesPlayed = completed.totalMatchesPlayed ?? 0;
+        fresh.totalWins = completed.totalWins ?? 0;
+        fresh.totalDraws = completed.totalDraws ?? 0;
+        fresh.totalLosses = completed.totalLosses ?? 0;
+        fresh.careerTrophies = (completed.careerTrophies ?? 0) + (promoted ? 1 : 0);
+
+        for (const key of checkCareerAchievementKeys(completed, budget)) await tryUnlock(key);
+        if (promoted) {
+          await tryUnlock("ascenso");
+          if (nextDivision === "primera_division") await tryUnlock("ascenso_a_primera");
+        }
+
+        const nextSeason = season + 1;
+        if (!(await persist(fresh, budget, nextSeason))) return;
+        setSeason(nextSeason);
+        setState(fresh);
+        setTab("inicio");
         return;
       }
 
-      const completedWithPlayoff = { ...completed, pendingPlayoff: undefined };
-      const movement = resolveLeagueMovements(completedWithPlayoff, season, { promoted });
+      // Temporada normal: resolver ascensos/descensos sin bloquear al usuario.
+      const movement = resolveLeagueMovements(completed, season);
       if (movement.ended) {
-        const endedState: CareerState = { ...completedWithPlayoff, leagueRosters: movement.rosters, careerEnded: true, careerEndReason: movement.endReason, userTeamId: teamId };
-        setState(endedState); await persist(endedState, budget, season); return;
+        const endedState: CareerState = { ...completed, leagueRosters: movement.rosters, careerEnded: true, careerEndReason: movement.endReason, userTeamId: teamId };
+        if (await persist(endedState, budget, season)) setState(endedState);
+        return;
       }
+
       const nextDivision = movement.userNextDivision ?? currentDivision;
-      const fresh = buildSeason(teamId, nextDivision, movement.rosters);
-      fresh.totalGoalsScored = completed.totalGoalsScored; fresh.bestUnbeaten = completed.bestUnbeaten; fresh.streakUnbeaten = 0;
-      fresh.zoneChampions = [...completed.zoneChampions]; fresh.seasonHistory = [...(completed.seasonHistory ?? [])];
+      const fresh = buildSeason(teamId, nextDivision, movement.rosters, completed.federalZoneMap);
+      fresh.totalGoalsScored = completed.totalGoalsScored;
+      fresh.bestUnbeaten = completed.bestUnbeaten;
+      fresh.streakUnbeaten = 0;
+      fresh.zoneChampions = [...completed.zoneChampions];
+      fresh.seasonHistory = [...(completed.seasonHistory ?? [])];
       fresh.difficulty = completed.difficulty;
       fresh.objetivo = nextDivision === "primera_division" ? "salir_campeon" : "ascenso_directo";
-      fresh.sponsor = completed.sponsor ?? null; fresh.stadiumUpgrades = completed.stadiumUpgrades; fresh.introVista = false;
-      fresh.leagueRosters = movement.rosters; fresh.userTeamId = teamId;
+      fresh.sponsor = completed.sponsor ?? null;
+      fresh.stadiumUpgrades = completed.stadiumUpgrades;
+      fresh.introVista = false;
+      fresh.leagueRosters = movement.rosters;
+      fresh.userTeamId = teamId;
       fresh.teamRatings = movement.teamRatings ?? evolveTeamRatings(completed);
       fresh.clubDevelopment = { ...(completed.clubDevelopment ?? {}) };
-      fresh.totalMatchesPlayed = completed.totalMatchesPlayed ?? 0; fresh.totalWins = completed.totalWins ?? 0;
-      fresh.totalDraws = completed.totalDraws ?? 0; fresh.totalLosses = completed.totalLosses ?? 0;
-      fresh.careerTrophies = (completed.careerTrophies ?? 0) + (promoted ? 1 : 0);
+      fresh.totalMatchesPlayed = completed.totalMatchesPlayed ?? 0;
+      fresh.totalWins = completed.totalWins ?? 0;
+      fresh.totalDraws = completed.totalDraws ?? 0;
+      fresh.totalLosses = completed.totalLosses ?? 0;
+      fresh.careerTrophies = completed.careerTrophies ?? 0;
+      if (movement.userNextDivision && movement.userNextDivision !== careerDivision(completed, teamId)) {
+        fresh.careerTrophies = (completed.careerTrophies ?? 0) + 1;
+        await tryUnlock("ascenso");
+        if (movement.userNextDivision === "primera_division") await tryUnlock("ascenso_a_primera");
+      }
       for (const key of checkCareerAchievementKeys(completed, budget)) await tryUnlock(key);
-      if (promoted) { await tryUnlock("ascenso"); if (nextDivision === "primera_division") await tryUnlock("ascenso_a_primera"); }
-      const nextSeason = season + 1;
-      setSeason(nextSeason); setState(fresh); setTab("inicio");
-      await persist(fresh, budget, nextSeason);
-      return;
-    }
 
-    // Temporada normal: resolver ascensos/descensos sin bloquear al usuario.
-    const movement = resolveLeagueMovements(completed, season);
-    if (movement.ended) {
-      const endedState: CareerState = { ...completed, leagueRosters: movement.rosters, careerEnded: true, careerEndReason: movement.endReason, userTeamId: teamId };
-      setState(endedState); await persist(endedState, budget, season); return;
+      const nextSeason = season + 1;
+      if (!(await persist(fresh, budget, nextSeason))) return;
+      setSeason(nextSeason);
+      setState(fresh);
+      setTab("inicio");
+    } catch (error) {
+      console.error("Error al cerrar la temporada", error);
+      alert("No se pudo cerrar la temporada. Tu partida no fue reemplazada. Revisá la consola y volvé a intentarlo.");
+    } finally {
+      setTransitioning(false);
     }
-    const nextDivision = movement.userNextDivision ?? currentDivision;
-    const fresh = buildSeason(teamId, nextDivision, movement.rosters);
-    fresh.totalGoalsScored = completed.totalGoalsScored; fresh.bestUnbeaten = completed.bestUnbeaten; fresh.streakUnbeaten = 0;
-    fresh.zoneChampions = [...completed.zoneChampions]; fresh.seasonHistory = [...(completed.seasonHistory ?? [])];
-    fresh.difficulty = completed.difficulty; fresh.objetivo = nextDivision === "primera_division" ? "salir_campeon" : "ascenso_directo";
-    fresh.sponsor = completed.sponsor ?? null; fresh.stadiumUpgrades = completed.stadiumUpgrades; fresh.introVista = false;
-    fresh.leagueRosters = movement.rosters; fresh.userTeamId = teamId;
-    fresh.teamRatings = movement.teamRatings ?? evolveTeamRatings(completed);
-    fresh.clubDevelopment = { ...(completed.clubDevelopment ?? {}) };
-    fresh.totalMatchesPlayed = completed.totalMatchesPlayed ?? 0; fresh.totalWins = completed.totalWins ?? 0;
-    fresh.totalDraws = completed.totalDraws ?? 0; fresh.totalLosses = completed.totalLosses ?? 0;
-    fresh.careerTrophies = completed.careerTrophies ?? 0;
-    if (movement.userNextDivision && movement.userNextDivision !== careerDivision(completed, teamId)) {
-      fresh.careerTrophies = (completed.careerTrophies ?? 0) + 1;
-      await tryUnlock("ascenso");
-      if (movement.userNextDivision === "primera_division") await tryUnlock("ascenso_a_primera");
-    }
-    for (const key of checkCareerAchievementKeys(completed, budget)) await tryUnlock(key);
-    const nextSeason = season + 1;
-    setSeason(nextSeason); setState(fresh); setTab("inicio");
-    await persist(fresh, budget, nextSeason);
   }
 
   if (loading || busy) {
@@ -711,6 +775,18 @@ function InicioTab({ state, teamId, season, nextMatch, indicators, standings, bu
     .slice(-5).reverse();
   const row = standings.find(r => r.teamId === teamId);
   const pos = standings.findIndex(r => r.teamId === teamId) + 1;
+  const regionalQualified = division === "regional_federal_amateur"
+    ? (() => {
+        const meta = getRegionalTeamMeta(teamId);
+        if (!meta) return false;
+        const allRows = [...state.standings, ...(state.otherStandings ?? [])];
+        const groupRows = allRows.filter(r => {
+          const m = getRegionalTeamMeta(r.teamId);
+          return !!m && m.region === meta.region && m.group === meta.group;
+        });
+        return sortStandings(groupRows).findIndex(r => r.teamId === teamId) <= 1;
+      })()
+    : false;
   const gf = row?.gf ?? 0, gc = row?.gc ?? 0;
 
   const form = lastResults.map(m => {
@@ -830,26 +906,28 @@ function InicioTab({ state, teamId, season, nextMatch, indicators, standings, bu
                   if (relegated.includes(teamId)) {
                     return <div className="mt-2 font-display text-lg text-destructive">DESCENDÉS · {down ? COMPETITIONS[down].name.toUpperCase() : "DESCENSO"}</div>;
                   }
-                  if (promoted.includes(teamId) && next) {
+                  if (division === "regional_federal_amateur") {
+                    if (regionalQualified) return <div className="mt-2 font-display text-lg text-hud-green">CLASIFICADO · ELIMINATORIAS REGIONALES</div>;
+                  } else if (promoted.includes(teamId) && next) {
                     return <div className="mt-2 font-display text-lg text-hud-green">ASCENDÉS · {COMPETITIONS[next].name.toUpperCase()}</div>;
                   }
                   return null;
                 })()}
                 <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
-                  {((division === "primera_nacional" && pos <= 8) || (division === "primera_b" && pos >= 2 && pos <= 9) || (division === "primera_c" && pos <= 7) || (division === "promocional_amateur" && pos <= 7)) && (
+                  {((division === "primera_nacional" && pos <= 8) || (division === "primera_b" && pos >= 2 && pos <= 9) || (division === "primera_c" && pos <= 7) || (division === "promocional_amateur" && pos <= 4) || (division === "regional_federal_amateur" && regionalQualified)) && (
                     <button onClick={onGoReducido}
                       className="px-8 py-3 rounded-xl hud-btn-play font-display text-lg tracking-[0.2em]">
                       🏆 IR A FASE DE ASCENSO
                     </button>
                   )}
-                  <button onClick={onAdvance}
-                    className="px-8 py-3 rounded-xl hud-btn-ghost font-display text-lg tracking-[0.2em]">
-                    NUEVA TEMPORADA
+                  <button onClick={onAdvance} disabled={transitioning}
+                    className="px-8 py-3 rounded-xl hud-btn-ghost font-display text-lg tracking-[0.2em] disabled:opacity-50 disabled:cursor-wait">
+                    {transitioning ? "CERRANDO TEMPORADA…" : "NUEVA TEMPORADA"}
                   </button>
                 </div>
-                {((division === "primera_nacional" && pos <= 8) || (division === "primera_b" && pos >= 2 && pos <= 9) || (division === "primera_c" && pos <= 7) || (division === "promocional_amateur" && pos <= 7)) && (
+                {((division === "primera_nacional" && pos <= 8) || (division === "primera_b" && pos >= 2 && pos <= 9) || (division === "primera_c" && pos <= 7) || (division === "promocional_amateur" && pos <= 4) || (division === "regional_federal_amateur" && regionalQualified)) && (
                   <div className="text-[11px] text-muted-foreground mt-3 max-w-xs mx-auto">
-                    Tu club clasificó a una instancia de ascenso. Tenés que disputarla antes de comenzar la nueva temporada.
+                    {division === "regional_federal_amateur" ? "Tu club clasificó a las eliminatorias regionales. Tenés que disputarlas antes de comenzar la nueva temporada." : "Tu club clasificó a una instancia de ascenso. Tenés que disputarla antes de comenzar la nueva temporada."}
                   </div>
                 )}
                 {division === "primera_division" && firstDivisionRelegated(state).includes(teamId) && (
