@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { useEffect, useState } from "react";
 
 export type CoimasFlags = {
   forzar_victoria?: boolean;
