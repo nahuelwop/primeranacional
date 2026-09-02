@@ -1,5 +1,6 @@
 import { ZONE_A, ZONE_B, type Team } from "@/data/teams";
 import { getTeamsByDivision, getTeamById } from "@/data/teams-catalog";
+import { TEAMS_BY_ID } from "@/data/teams";
 import { COMPETITIONS, type DivisionId } from "@/data/competitions";
 import { buildDivisionCareerFixture, simulateMatch, simulateRegionalTournament, simulateDivisionSeason as simulateDivisionSeasonEngine, resolveDivisionSeason, emptyStandings, applyMatchToStandings, sortStandings, type Match, type StandingRow } from "@/lib/tournament";
 
@@ -132,6 +133,9 @@ export type CareerState = {
   totalDraws?: number;
   totalLosses?: number;
   careerTrophies?: number;
+  managerXp?: number;
+  transferSignings?: string[];
+  claimedChallenges?: string[];
 };
 
 export function teamZone(teamId: string): string {
@@ -336,6 +340,7 @@ export function buildSeason(
     teamRatings: initialTeamRatings(rostersForAll(rosters)),
     clubDevelopment: { ...DEFAULT_DEVELOPMENT },
     totalMatchesPlayed: 0, totalWins: 0, totalDraws: 0, totalLosses: 0, careerTrophies: 0,
+    managerXp: 0, transferSignings: [], claimedChallenges: [],
   };
 }
 
@@ -788,6 +793,9 @@ export function recordUserMatch(state: CareerState, matchId: string, hg: number,
   next.totalWins = (state.totalWins ?? 0) + (myGoals > oppGoals ? 1 : 0);
   next.totalDraws = (state.totalDraws ?? 0) + (myGoals === oppGoals ? 1 : 0);
   next.totalLosses = (state.totalLosses ?? 0) + (myGoals < oppGoals ? 1 : 0);
+  const isClassic = !!(TEAMS_BY_ID[played.home]?.rivals?.includes(played.away) || TEAMS_BY_ID[played.away]?.rivals?.includes(played.home));
+  const xpGain = myGoals > oppGoals ? 120 : myGoals === oppGoals ? 75 : 40;
+  next.managerXp = (state.managerXp ?? 0) + xpGain + myGoals * 8 + (oppGoals === 0 ? 25 : 0) + (isClassic && myGoals > oppGoals ? 80 : 0);
   if (myGoals >= oppGoals) {
     next.streakUnbeaten = state.streakUnbeaten + 1;
     next.bestUnbeaten = Math.max(state.bestUnbeaten, next.streakUnbeaten);
