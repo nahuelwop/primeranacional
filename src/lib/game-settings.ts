@@ -22,13 +22,44 @@ export type CoimasFlags = {
   bonus_presupuesto?: boolean;
 };
 
-export type DivisionIntroVideos = Record<string, string | null>;
+/*
+ * Claves de las intros.
+ *
+ * Las divisiones usan exactamente estos IDs:
+ * - primera_division
+ * - primera_nacional
+ * - primera_b
+ * - primera_c
+ * - promocional_amateur
+ * - federal_a
+ * - regional_federal_amateur
+ *
+ * Copa Argentina es independiente porque no es una división.
+ */
+export type IntroVideoKey =
+  | "primera_division"
+  | "primera_nacional"
+  | "primera_b"
+  | "primera_c"
+  | "promocional_amateur"
+  | "federal_a"
+  | "regional_federal_amateur"
+  | "copa_argentina";
+
+export type DivisionIntroVideos = Partial<Record<IntroVideoKey, string | null>>;
 
 export type GameSettings = {
   id: string;
+
+  // Campo viejo, mantenido por compatibilidad.
+  // Históricamente era la única intro.
   intro_video_url: string | null;
+
+  // Campo nuevo: una intro independiente para cada división / Copa Argentina.
   intro_videos: DivisionIntroVideos;
+
   whistle_audio_url: string | null;
+
   coimas_enabled: boolean;
   coimas_flags: CoimasFlags;
   anular_goles_ratio: number;
@@ -44,35 +75,157 @@ export const DEFAULT_SETTINGS: GameSettings = {
   anular_goles_ratio: 3,
 };
 
+function normalizeIntroVideos(
+  videos: unknown,
+  legacyUrl: string | null,
+): DivisionIntroVideos {
+  const result: DivisionIntroVideos = {};
+
+  if (videos && typeof videos === "object" && !Array.isArray(videos)) {
+    const source = videos as Record<string, unknown>;
+
+    for (const key of [
+      "primera_division",
+      "primera_nacional",
+      "primera_b",
+      "primera_c",
+      "promocional_amateur",
+      "federal_a",
+      "regional_federal_amateur",
+      "copa_argentina",
+    ] as IntroVideoKey[]) {
+      const value = source[key];
+      if (typeof value === "string" && value.trim() !== "") {
+        result[key] = value;
+      } else if (value === null) {
+        result[key] = null;
+      }
+    }
+  }
+
+  // Compatibilidad con el sistema anterior:
+  // si solamente existía intro_video_url, la tomamos como intro de Primera Nacional.
+  if (
+    !result.primera_nacional &&
+    legacyUrl &&
+    typeof legacyUrl === "string" &&
+    legacyUrl.trim() !== ""
+  ) {
+    result.primera_nacional = legacyUrl;
+  }
+
+  return result;
+}
+
 export async function fetchGameSettings(): Promise<GameSettings> {
-  const { data, error } = await supabase.from("game_settings").select("*").eq("id", "global").maybeSingle();
-  if (error || !data) return DEFAULT_SETTINGS;
+  const { data, error } = await supabase
+    .from("game_settings")
+    .select("*")
+    .eq("id", "global")
+    .maybeSingle();
+
+  if (error || !data) {
+    return DEFAULT_SETTINGS;
+  }
+
+  const legacyUrl =
+    typeof data.intro_video_url === "string"
+      ? data.intro_video_url
+      : null;
+
   return {
     id: data.id,
-    intro_video_url: data.intro_video_url,
-    intro_videos: (data.intro_videos as DivisionIntroVideos) ?? {},
-    whistle_audio_url: data.whistle_audio_url ?? null,
-    coimas_enabled: data.coimas_enabled,
-    coimas_flags: (data.coimas_flags as CoimasFlags) ?? {},
-    anular_goles_ratio: data.anular_goles_ratio ?? 3,
+    intro_video_url: legacyUrl,
+
+    intro_videos: normalizeIntroVideos(
+      data.intro_videos,
+      legacyUrl,
+    ),
+
+    whistle_audio_url:
+      typeof data.whistle_audio_url === "string"
+        ? data.whistle_audio_url
+        : null,
+
+    coimas_enabled: !!data.coimas_enabled,
+
+    coimas_flags:
+      data.coimas_flags &&
+      typeof data.coimas_flags === "object"
+        ? (data.coimas_flags as CoimasFlags)
+        : {},
+
+    anular_goles_ratio:
+      typeof data.anular_goles_ratio === "number"
+        ? data.anular_goles_ratio
+        : 3,
   };
 }
 
-export async function saveGameSettings(patch: Partial<Omit<GameSettings, "id">>): Promise<void> {
-  const { error } = await supabase.from("game_settings").upsert({
-    id: "global",
-    ...patch,
-    coimas_flags: patch.coimas_flags as never,
-  });
-  if (error) throw error;
+export async function saveGameSettings(
+  patch: Partial<Omit<GameSettings, "id">>,
+): Promise<void> {
+  const introVideos = patch.intro_videos ?? {};
+
+  /*
+   * También mantenemos intro_video_url sincronizado con la intro
+   * de Primera Nacional para no romper código antiguo.
+   */
+  const legacyIntro =
+    introVideos.primera_nacional ??
+    patch.intro_video_url ??
+    null;
+
+  const { error } = await supabase
+    .from("game_settings")
+    .upsert({
+      id: "global",
+
+      intro_video_url: legacyIntro,
+      intro_videos: introVideos,
+
+      whistle_audio_url:
+        patch.whistle_audio_url ?? null,
+
+      coimas_enabled:
+        patch.coimas_enabled ?? false,
+
+      coimas_flags:
+        patch.coimas_flags as never,
+
+      anular_goles_ratio:
+        patch.anular_goles_ratio ?? 3,
+    });
+
+  if (error) {
+    throw error;
+  }
 }
 
 import { useEffect, useState } from "react";
+
 export function useGameSettings() {
-  const [settings, setSettings] = useState<GameSettings>(DEFAULT_SETTINGS);
+  const [settings, setSettings] =
+    useState<GameSettings>(DEFAULT_SETTINGS);
+
   const [loaded, setLoaded] = useState(false);
+
   useEffect(() => {
-    fetchGameSettings().then(s => { setSettings(s); setLoaded(true); }).catch(() => setLoaded(true));
+    fetchGameSettings()
+      .then((s) => {
+        setSettings(s);
+        setLoaded(true);
+      })
+      .catch(() => {
+        setLoaded(true);
+      });
   }, []);
-  return { settings, loaded, refresh: async () => setSettings(await fetchGameSettings()) };
+
+  return {
+    settings,
+    loaded,
+    refresh: async () => {
+      setSettings(await fetchGameSettings());
+    },
+  };
 }
