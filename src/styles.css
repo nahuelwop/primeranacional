@@ -998,10 +998,36 @@
 }
 
 
-/* Variantes de marcador sobre el componente existente. */
-.ca-scorebug--primera_b .ca-scorebug-brand,.ca-scorebug--primera_b .ca-scorebug-clock,.ca-scorebug--primera_b .ca-scorebug-scores{background:#090909}.ca-scorebug--primera_b .ca-scorebug-scores{color:#ff7a00}.ca-scorebug--primera_b .ca-scorebug-teams::before{background:#ff7a00}
-.ca-scorebug--primera_c .ca-scorebug-brand,.ca-scorebug--primera_c .ca-scorebug-clock,.ca-scorebug--primera_c .ca-scorebug-scores{background:#050505}.ca-scorebug--primera_c .ca-scorebug-scores{color:#18c84f}.ca-scorebug--primera_c .ca-scorebug-teams::before{background:#18c84f}
-.ca-scorebug--federal_a .ca-scorebug-brand,.ca-scorebug--federal_a .ca-scorebug-clock,.ca-scorebug--federal_a .ca-scorebug-scores{background:#062b5a}.ca-scorebug--federal_a .ca-scorebug-scores{color:#8fd1ff}.ca-scorebug--federal_a .ca-scorebug-teams::before{background:#1f8cff}
-.ca-scorebug--regional_federal_amateur .ca-scorebug-brand,.ca-scorebug--regional_federal_amateur .ca-scorebug-clock,.ca-scorebug--regional_federal_amateur .ca-scorebug-scores{background:#20003f}.ca-scorebug--regional_federal_amateur .ca-scorebug-scores{color:#d88aff}.ca-scorebug--regional_federal_amateur .ca-scorebug-teams::before{background:#8f35ff}
-.ca-scorebug--promocional_amateur .ca-scorebug-brand,.ca-scorebug--promocional_amateur .ca-scorebug-clock,.ca-scorebug--promocional_amateur .ca-scorebug-scores{background:#0a0a0a}.ca-scorebug--promocional_amateur .ca-scorebug-scores{color:#f5cc5b}.ca-scorebug--promocional_amateur .ca-scorebug-teams::before{background:#e0ae25}
-.ca-scorebug--copa_argentina .ca-scorebug-teams::before{background:#ee3138}.ca-competition-label{display:block;max-width:60px;line-height:1.05;font-size:6px;letter-spacing:.04em}
+
+/* Variantes por competición. La Primera Nacional conserva su marcador original. */
+.ca-scorebug--primera_b .ca-scorebug-brand,
+.ca-scorebug--primera_b .ca-scorebug-clock,
+.ca-scorebug--primera_b .ca-scorebug-scores { background: #090909; }
+.ca-scorebug--primera_b .ca-scorebug-scores { color: #ff7a00; }
+.ca-scorebug--primera_b .ca-scorebug-teams::before { background: #ff7a00; }
+
+.ca-scorebug--primera_c .ca-scorebug-brand,
+.ca-scorebug--primera_c .ca-scorebug-clock,
+.ca-scorebug--primera_c .ca-scorebug-scores { background: #050505; }
+.ca-scorebug--primera_c .ca-scorebug-scores { color: #18c84f; }
+.ca-scorebug--primera_c .ca-scorebug-teams::before { background: #18c84f; }
+
+.ca-scorebug--federal_a .ca-scorebug-brand,
+.ca-scorebug--federal_a .ca-scorebug-clock,
+.ca-scorebug--federal_a .ca-scorebug-scores { background: #062b5a; }
+.ca-scorebug--federal_a .ca-scorebug-scores { color: #8fd1ff; }
+.ca-scorebug--federal_a .ca-scorebug-teams::before { background: #1f8cff; }
+
+.ca-scorebug--regional_federal_amateur .ca-scorebug-brand,
+.ca-scorebug--regional_federal_amateur .ca-scorebug-clock,
+.ca-scorebug--regional_federal_amateur .ca-scorebug-scores { background: #20003f; }
+.ca-scorebug--regional_federal_amateur .ca-scorebug-scores { color: #d88aff; }
+.ca-scorebug--regional_federal_amateur .ca-scorebug-teams::before { background: #8f35ff; }
+
+.ca-scorebug--promocional_amateur .ca-scorebug-brand,
+.ca-scorebug--promocional_amateur .ca-scorebug-clock,
+.ca-scorebug--promocional_amateur .ca-scorebug-scores { background: #0a0a0a; }
+.ca-scorebug--promocional_amateur .ca-scorebug-scores { color: #f5cc5b; }
+.ca-scorebug--promocional_amateur .ca-scorebug-teams::before { background: #e0ae25; }
+
+.ca-scorebug--copa_argentina .ca-scorebug-teams::before { background: #ee3138; }
