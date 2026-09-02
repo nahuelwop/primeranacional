@@ -165,44 +165,58 @@ export async function fetchGameSettings(): Promise<GameSettings> {
 export async function saveGameSettings(
   patch: Partial<Omit<GameSettings, "id">>,
 ): Promise<void> {
-  const introVideos = patch.intro_videos ?? {};
+  const current = await fetchGameSettings();
+  const introVideos = normalizeIntroVideos(
+    patch.intro_videos ?? current.intro_videos,
+    patch.intro_video_url ?? current.intro_video_url,
+  );
 
-  /*
-   * También mantenemos intro_video_url sincronizado con la intro
-   * de Primera Nacional para no romper código antiguo.
-   */
-  const legacyIntro =
-    introVideos.primera_nacional ??
-    patch.intro_video_url ??
-    null;
+  // Sincronizamos el campo legado y el nuevo JSON. Para evitar el problema
+  // que producía upsert cuando la fila global ya existía, primero hacemos
+  // UPDATE y sólo insertamos como fallback si la fila no existe.
+  const payload = {
+    intro_video_url: introVideos.primera_nacional ?? patch.intro_video_url ?? current.intro_video_url ?? null,
+    intro_videos: introVideos,
+    whistle_audio_url: patch.whistle_audio_url ?? current.whistle_audio_url ?? null,
+    coimas_enabled: patch.coimas_enabled ?? current.coimas_enabled,
+    coimas_flags: patch.coimas_flags ?? current.coimas_flags,
+    anular_goles_ratio: patch.anular_goles_ratio ?? current.anular_goles_ratio,
+  };
 
-  const { error } = await supabase
+  const updateResult = await supabase
     .from("game_settings")
-    .upsert({
-      id: "global",
+    .update(payload as any)
+    .eq("id", "global")
+    .select("id")
+    .maybeSingle();
 
-      intro_video_url: legacyIntro,
-      intro_videos: introVideos,
+  if (!updateResult.error && updateResult.data) return;
 
-      whistle_audio_url:
-        patch.whistle_audio_url ?? null,
-
-      coimas_enabled:
-        patch.coimas_enabled ?? false,
-
-      coimas_flags:
-        patch.coimas_flags as never,
-
-      anular_goles_ratio:
-        patch.anular_goles_ratio ?? 3,
-    });
-
-  if (error) {
-    throw error;
+  if (updateResult.error && !/column .*intro_videos.*does not exist/i.test(updateResult.error.message)) {
+    // Si es un error real (RLS, conexión, etc.), no lo tapamos.
+    throw updateResult.error;
   }
-}
 
-import { useEffect, useState } from "react";
+  // Fallback para instalaciones viejas: guarda el campo legado al menos y
+  // permite que la migración nueva lo repare cuando se ejecute.
+  const fallback = await supabase
+    .from("game_settings")
+    .update({
+      intro_video_url: payload.intro_video_url,
+      whistle_audio_url: payload.whistle_audio_url,
+      coimas_enabled: payload.coimas_enabled,
+      coimas_flags: payload.coimas_flags,
+      anular_goles_ratio: payload.anular_goles_ratio,
+    } as any)
+    .eq("id", "global")
+    .select("id")
+    .maybeSingle();
+
+  if (!fallback.error && fallback.data) {
+    throw new Error("La base de datos todavía no tiene la columna intro_videos. Ejecutá la migración 20260902000000_career_features.sql y la 20260827010000_division_intro_videos.sql.");
+  }
+  if (fallback.error) throw fallback.error;
+}
 
 export function useGameSettings() {
   const [settings, setSettings] =
