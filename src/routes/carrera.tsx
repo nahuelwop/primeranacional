@@ -40,6 +40,8 @@ import type { SponsorDeal } from "@/lib/sponsors";
 import { useCareerMusic, CareerMusicContext, useCareerMusicContext } from "@/lib/career-music";
 import { fetchGameSettings } from "@/lib/game-settings";
 import { NowPlayingToast } from "@/components/career/NowPlayingToast";
+import { CareerFeaturesPanel } from "@/components/career/CareerFeaturesPanel";
+import type { MarketPlayer } from "@/lib/career-features";
 
 export const Route = createFileRoute("/carrera")({
   head: () => ({
@@ -55,7 +57,7 @@ export const Route = createFileRoute("/carrera")({
   component: CarreraPage,
 });
 
-type TopTab = "inicio" | "calendario" | "competicion" | "club" | "oficina" | "personalizar";
+type TopTab = "inicio" | "calendario" | "competicion" | "club" | "oficina" | "personalizar" | "universo";
 
 const TOP_TABS: { k: TopTab; label: string }[] = [
   { k: "inicio", label: "Inicio" },
@@ -64,6 +66,7 @@ const TOP_TABS: { k: TopTab; label: string }[] = [
   { k: "club", label: "Club" },
   { k: "oficina", label: "Oficina" },
   { k: "personalizar", label: "Personalizar" },
+  { k: "universo", label: "Universo" },
 ];
 
 function CarreraPage() {
@@ -662,6 +665,29 @@ function CarreraPage() {
           <OficinaTab state={state} budget={budget} season={season} onActivate={onActivateCorruption} onAbandon={abandon} onSignSponsor={onSignSponsor} onCancelSponsor={onCancelSponsor} />
         )}
         {tab === "personalizar" && <PersonalizarTab teamId={teamId} />}
+        {tab === "universo" && <CareerFeaturesPanel state={state} teamId={teamId} season={season} budget={budget}
+          onSpend={async (amount) => { if (budget < amount) return; setBudget(b => b - amount); }}
+          onSignPlayer={async (player: MarketPlayer) => {
+            if (budget < player.value) return;
+            const next = { ...state, transferSignings: [...new Set([...(state.transferSignings ?? []), player.id])] };
+            const nextBudget = budget - player.value;
+            setState(next); setBudget(nextBudget); await persist(next, nextBudget, season);
+            const xpState = { ...next, managerXp: (next.managerXp ?? 0) + 80 }; setState(xpState); await persist(xpState, nextBudget, season);
+          }}
+          onRewardXp={async (amount) => {
+            const next = { ...state, managerXp: (state.managerXp ?? 0) + amount }; setState(next); await persist(next, budget, season);
+          }}
+          onClaimChallenge={async (id, amount) => {
+            if ((state.claimedChallenges ?? []).includes(id)) return;
+            const next = { ...state, managerXp: (state.managerXp ?? 0) + amount, claimedChallenges: [...(state.claimedChallenges ?? []), id] };
+            setState(next); await persist(next, budget, season);
+          }}
+          onShare={async () => {
+            const text = `PRIMERA HEADS · Temporada ${season}\n${team?.name ?? "Mi club"} · Nivel ${Math.floor(Math.sqrt(Math.max(0, (state.managerXp ?? 0)) / 100)) + 1}\n${state.totalWins ?? 0} victorias · ${state.totalGoalsScored} goles · ${state.careerTrophies ?? 0} trofeos\n¿Quién supera mi carrera?`;
+            try { if (navigator.share) await navigator.share({ title: "Primera Heads", text }); else await navigator.clipboard.writeText(text); } catch {}
+          }}
+          onGoCopa={() => navigate({ to: "/copa-argentina", search: { teamId, season, difficulty: (state.difficulty ?? "normal") as any } })}
+        />}
       </div>
     </Shell>
   );
@@ -701,6 +727,7 @@ function InicioTab({ state, teamId, season, nextMatch, indicators, standings, bu
     { k: "oficina" as TopTab, icon: "🚩", title: "Objetivos", sub: "Metas de la temporada" },
     { k: "calendario" as TopTab, icon: "📅", title: "Calendario completo", sub: "Ver todas las fechas" },
     { k: "personalizar" as TopTab, icon: "📄", title: "Informes", sub: "Noticias y análisis" },
+    { k: "universo" as TopTab, icon: "🌎", title: "Universo", sub: "Mercado, ranking y desafíos" },
   ];
 
   const objetivos = division === "primera_division" ? [
