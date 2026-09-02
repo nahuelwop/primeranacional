@@ -97,7 +97,7 @@ export function CareerFeaturesPanel({ state, teamId, season, budget, onSpend, on
               const source = TEAMS_BY_ID[p.team_id];
               const signed = (state.transferSignings ?? []).includes(p.id);
               return <div key={p.id} className="rounded-xl border border-border/60 bg-card/40 p-3">
-                <div className="flex items-center gap-2"><Shield team={source} size={36} /><div className="min-w-0"><div className="font-display truncate">{p.name}</div><div className="text-[10px] text-muted-foreground">{p.position} · {source?.short ?? "Libre"}</div></div><div className="ml-auto font-display text-celeste">{p.rating}</div></div>
+                <div className="flex items-center gap-2">{source ? <Shield team={source} size={36} /> : <div className="w-9 h-9 rounded-lg bg-white/5" />}<div className="min-w-0"><div className="font-display truncate">{p.name}</div><div className="text-[10px] text-muted-foreground">{p.position} · {source?.short ?? "Libre"}</div></div><div className="ml-auto font-display text-celeste">{p.rating}</div></div>
                 <div className="mt-2 flex justify-between text-[10px] text-muted-foreground"><span>Potencial {p.potential}</span><span>Valor ${p.value}</span></div>
                 <button disabled={signed || budget < p.value} onClick={() => signPlayer(p)} className="w-full mt-2 py-2 rounded-lg bg-celeste text-primary-foreground font-display text-xs disabled:opacity-35">{signed ? "FICHADO ✓" : `FICHAR · $${p.value}`}</button>
               </div>;
@@ -138,7 +138,7 @@ export function CareerFeaturesPanel({ state, teamId, season, budget, onSpend, on
         <div className="grid md:grid-cols-2 gap-2">
           {(TEAMS_BY_ID[teamId]?.rivals ?? []).slice(0, 6).map(rid => {
             const rival = TEAMS_BY_ID[rid]; const s = rivalStats(state, teamId, rid);
-            return <div key={rid} className="flex items-center gap-3 rounded-xl border border-border/60 bg-card/40 p-3"><Shield team={rival} size={38}/><div className="min-w-0 flex-1"><div className="font-display truncate">{rival?.name ?? rid}</div><div className="text-[10px] text-muted-foreground">PJ {s.played} · G {s.wins} · E {s.draws} · P {s.losses}</div></div><span className="text-accent">🔥</span></div>;
+            return <div key={rid} className="flex items-center gap-3 rounded-xl border border-border/60 bg-card/40 p-3">{rival ? <Shield team={rival} size={38}/> : <div className="w-[38px] h-[38px] rounded-lg bg-white/5" />}<div className="min-w-0 flex-1"><div className="font-display truncate">{rival?.name ?? rid}</div><div className="text-[10px] text-muted-foreground">PJ {s.played} · G {s.wins} · E {s.draws} · P {s.losses}</div></div><span className="text-accent">🔥</span></div>;
           })}
           {!(TEAMS_BY_ID[teamId]?.rivals ?? []).length && <div className="text-sm text-muted-foreground">Este club todavía no tiene rivalidades cargadas.</div>}
         </div>
