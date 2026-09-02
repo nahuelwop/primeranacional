@@ -6,6 +6,7 @@ import { TEAMS_BY_ID } from "@/data/teams";
 import { useTeamsSync } from "@/lib/teams-sync";
 import { Game, type Difficulty } from "@/components/Game";
 import { Penales } from "@/components/Penales";
+import { fetchGameSettings } from "@/lib/game-settings";
 import {
   buildCopaBracket, simulateCopaRoundExceptUser, recordCopaUserMatch, nextCopaMatchForUser,
   isCopaFinished, isCopaUnlocked, COPA_ROUND_ORDER, COPA_ROUND_LABEL,
@@ -49,6 +50,8 @@ function CopaArgentinaPage() {
   const [playing, setPlaying] = useState(false);
   const [showPenales, setShowPenales] = useState(false);
   const [pendingScore, setPendingScore] = useState<{ h: number; a: number } | null>(null);
+  const [introVideo, setIntroVideo] = useState<string | null>(null);
+  const [introSeen, setIntroSeen] = useState(false);
 
   useEffect(() => {
     if (!teamId) return;
@@ -59,9 +62,33 @@ function CopaArgentinaPage() {
     if (state) { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch { /* noop */ } }
   }, [state]);
 
+  useEffect(() => {
+    let active = true;
+    fetchGameSettings().then(settings => {
+      if (!active) return;
+      setIntroVideo(settings.intro_videos?.copa_argentina ?? null);
+      try { setIntroSeen(localStorage.getItem(`ph_copa_intro_seen_${season}`) === "1"); } catch { setIntroSeen(false); }
+    }).catch(() => {});
+    return () => { active = false; };
+  }, [season]);
+
+  function skipIntro() {
+    try { localStorage.setItem(`ph_copa_intro_seen_${season}`, "1"); } catch {}
+    setIntroSeen(true);
+  }
+
   const nextMatch = state ? nextCopaMatchForUser(state) : null;
   const home = nextMatch ? TEAMS_BY_ID[nextMatch.home] : undefined;
   const away = nextMatch ? TEAMS_BY_ID[nextMatch.away] : undefined;
+
+  if (state && introVideo && !introSeen) {
+    return (
+      <div className="fixed inset-0 z-[100] bg-black flex items-center justify-center p-4">
+        <video src={introVideo} autoPlay playsInline className="max-h-[86vh] max-w-[96vw] w-auto rounded-xl shadow-2xl" onEnded={skipIntro} />
+        <button onClick={skipIntro} className="absolute bottom-8 px-6 py-3 rounded-xl bg-celeste text-primary-foreground font-display tracking-widest">SALTAR INTRO</button>
+      </div>
+    );
+  }
 
   if (!teamId) {
     return (
