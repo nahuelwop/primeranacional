@@ -92,3 +92,33 @@ export async function fetchAllHistory(limit = 2000): Promise<HistoryRow[]> {
   if (error) throw error;
   return data ?? [];
 }
+
+export type LeaderboardRow = {
+  username: string;
+  score: number;
+  level: number;
+  team_id: string;
+};
+
+export async function fetchLeaderboard(limit = 10): Promise<LeaderboardRow[]> {
+  const { data, error } = await supabase
+    .from("career_leaderboard" as any)
+    .select("username,score,level,team_id")
+    .order("score", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return (data ?? []) as LeaderboardRow[];
+}
+
+export async function upsertLeaderboard(row: {
+  user_id: string;
+  username: string;
+  team_id: string;
+  score: number;
+  level: number;
+}): Promise<void> {
+  const { error } = await supabase
+    .from("career_leaderboard" as any)
+    .upsert({ ...row, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
+  if (error) throw error;
+}
