@@ -1121,107 +1121,348 @@
   .competition-scorebug--copa .competition-scorebug__brand-mark { font-size: 30px; }
 }
 
-/* ==========================================================================\n   COPA ARGENTINA — HUB Y EXPERIENCIA DE COPA\n   ========================================================================== */
-.copa-page {
-  background:
-    radial-gradient(circle at 80% 8%, rgba(56,189,248,.12), transparent 28%),
-    radial-gradient(circle at 20% 45%, rgba(238,49,56,.08), transparent 25%),
-    #03070d;
-}
-.copa-hero,
-.copa-selection-hero,
-.copa-next,
-.copa-champion {
+/* =========================================================
+   COPA ARGENTINA — CUADRO DE ELIMINACIÓN
+   ========================================================= */
+.copa-bracket-section {
   position: relative;
-  overflow: hidden;
+  margin-top: 2rem;
+  padding: 1.1rem;
+  border: 1px solid hsl(var(--border) / 0.65);
+  border-radius: 22px;
   background:
-    linear-gradient(135deg, rgba(5,19,39,.96), rgba(2,8,16,.97)),
-    linear-gradient(90deg, rgba(56,189,248,.06), transparent);
-  border: 1px solid rgba(56,189,248,.18);
-  box-shadow: 0 22px 55px -28px rgba(0,0,0,.9), inset 0 1px 0 rgba(255,255,255,.035);
+    radial-gradient(circle at 16% 8%, hsl(var(--primary) / 0.14), transparent 34%),
+    radial-gradient(circle at 88% 86%, hsl(190 90% 55% / 0.08), transparent 36%),
+    linear-gradient(145deg, hsl(var(--card) / 0.96), hsl(var(--background) / 0.94));
+  box-shadow: 0 22px 60px hsl(220 50% 4% / 0.34), inset 0 1px 0 hsl(0 0% 100% / 0.035);
+  overflow: hidden;
 }
-.copa-hero::before,
-.copa-selection-hero::before,
-.copa-next::before,
-.copa-champion::before {
+
+.copa-bracket-section::before {
   content: "";
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background-image: linear-gradient(135deg, rgba(255,255,255,.025) 25%, transparent 25%, transparent 50%, rgba(255,255,255,.018) 50%, rgba(255,255,255,.018) 75%, transparent 75%);
-  background-size: 42px 42px;
-  opacity: .45;
+  background-image:
+    linear-gradient(hsl(var(--foreground) / 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, hsl(var(--foreground) / 0.03) 1px, transparent 1px);
+  background-size: 22px 22px;
+  mask-image: linear-gradient(to bottom, black, transparent 88%);
 }
-.copa-hero-glow {
-  position: absolute;
-  width: 520px;
-  height: 260px;
-  right: -110px;
-  top: -120px;
-  background: radial-gradient(circle, rgba(56,189,248,.26), transparent 68%);
-  filter: blur(8px);
-  pointer-events: none;
+
+.copa-bracket-heading {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.4rem 0.55rem 1rem;
+  border-bottom: 1px solid hsl(var(--border) / 0.5);
 }
-.copa-eyebrow {
-  font-family: var(--font-display, "Bebas Neue", sans-serif);
-  letter-spacing: .28em;
-  font-size: .72rem;
-  color: #38bdf8;
+
+.copa-bracket-kicker {
+  color: hsl(var(--primary));
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.28em;
   text-transform: uppercase;
 }
-.copa-stat-card {
-  border: 1px solid rgba(255,255,255,.08);
-  background: rgba(0,0,0,.28);
-  border-radius: .8rem;
-  padding: .8rem .7rem;
-  text-align: center;
+
+.copa-bracket-title {
+  margin: 0.18rem 0 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.05rem, 2vw, 1.65rem);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
-.copa-progress { height: 3px; background: rgba(255,255,255,.05); }
-.copa-progress > div { height: 100%; background: linear-gradient(90deg, #38bdf8, #ee3138); box-shadow: 0 0 18px rgba(56,189,248,.5); transition: width .35s ease; }
-.copa-play-btn {
+
+.copa-bracket-subtitle {
+  margin: 0.3rem 0 0;
+  color: hsl(var(--muted-foreground));
+  font-size: 0.72rem;
+}
+
+.copa-bracket-badge {
   display: inline-flex;
   align-items: center;
-  gap: .55rem;
-  border-radius: .8rem;
-  padding: .75rem 1.15rem;
-  background: linear-gradient(135deg, #38bdf8, #0ea5e9);
-  color: #031018;
-  font-family: var(--font-display, "Bebas Neue", sans-serif);
-  letter-spacing: .14em;
-  font-size: .9rem;
-  box-shadow: 0 12px 25px -12px rgba(56,189,248,.85);
-  transition: transform .18s ease, filter .18s ease;
+  gap: 0.5rem;
+  border: 1px solid hsl(var(--primary) / 0.35);
+  background: hsl(var(--primary) / 0.09);
+  color: hsl(var(--foreground));
+  padding: 0.48rem 0.75rem;
+  border-radius: 999px;
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+  white-space: nowrap;
 }
-.copa-play-btn:hover { transform: translateY(-2px); filter: brightness(1.08); }
-.copa-vs { font-family: var(--font-display, "Bebas Neue", sans-serif); font-size: 1.45rem; color: rgba(255,255,255,.32); letter-spacing: .18em; text-align: center; }
-.copa-award-card {
+
+.copa-bracket-badge-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: hsl(var(--primary));
+  box-shadow: 0 0 12px hsl(var(--primary) / 0.72);
+}
+
+.copa-bracket-viewport {
+  position: relative;
+  z-index: 1;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 1rem 0 0.6rem;
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--primary) / 0.55) transparent;
+}
+
+.copa-bracket-track {
   display: flex;
-  gap: .75rem;
+  align-items: stretch;
+  gap: 0.75rem;
+  min-width: max-content;
+  padding: 0.15rem 0.15rem 0.4rem;
+}
+
+.copa-round {
+  width: 218px;
+  flex: 0 0 218px;
+}
+
+.copa-round-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  margin-bottom: 0.65rem;
+  padding: 0.65rem 0.72rem;
+  border: 1px solid hsl(var(--border) / 0.62);
+  border-radius: 13px;
+  background: linear-gradient(135deg, hsl(var(--card) / 0.96), hsl(var(--background) / 0.9));
+  box-shadow: 0 10px 22px hsl(220 50% 4% / 0.2);
+}
+
+.copa-round-number {
+  color: hsl(var(--primary));
+  font-size: 0.54rem;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+}
+
+.copa-round-title {
+  margin-top: 0.12rem;
+  font-family: var(--font-display);
+  font-size: 0.83rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.copa-round-matches {
+  display: flex;
+  flex-direction: column;
+  gap: 0.62rem;
+}
+
+.copa-match {
+  position: relative;
+  border: 1px solid hsl(var(--border) / 0.72);
+  border-radius: 15px;
+  padding: 0.56rem 0.62rem 0.54rem;
+  background: linear-gradient(180deg, hsl(var(--card) / 0.97), hsl(220 22% 8% / 0.96));
+  box-shadow: 0 10px 22px hsl(220 50% 4% / 0.22);
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.copa-match::after {
+  content: "";
+  position: absolute;
+  right: -0.76rem;
+  top: 50%;
+  width: 0.75rem;
+  height: 1px;
+  background: linear-gradient(90deg, hsl(var(--primary) / 0.38), transparent);
+}
+
+.copa-match:hover {
+  transform: translateY(-2px);
+  border-color: hsl(var(--primary) / 0.38);
+  box-shadow: 0 14px 28px hsl(220 50% 4% / 0.32), 0 0 22px hsl(var(--primary) / 0.05);
+}
+
+.copa-match.is-user {
+  border-color: hsl(var(--primary) / 0.7);
+  box-shadow: 0 0 0 1px hsl(var(--primary) / 0.12), 0 13px 28px hsl(220 50% 4% / 0.28);
+  background: linear-gradient(180deg, hsl(var(--primary) / 0.12), hsl(var(--card) / 0.96));
+}
+
+.copa-match-topline,
+.copa-match-footer {
+  display: flex;
   align-items: center;
-  padding: .8rem;
-  border-radius: .75rem;
-  background: rgba(255,255,255,.035);
-  border: 1px solid rgba(255,255,255,.08);
-}
-.copa-award-card > span { font-size: 1.5rem; }
-.copa-award-card strong { display: block; font-family: var(--font-display, "Bebas Neue", sans-serif); font-size: .95rem; letter-spacing: .04em; }
-.copa-award-card small { display: block; margin-top: .15rem; color: rgba(255,255,255,.48); font-size: .68rem; line-height: 1.35; }
-.copa-match-header {
-  display: flex;
   justify-content: space-between;
-  align-items: center;
-  gap: 1rem;
-  margin: 0 auto .8rem;
-  max-width: 1400px;
-  padding: .55rem .9rem;
-  border-left: 3px solid #38bdf8;
-  background: linear-gradient(90deg, rgba(56,189,248,.09), transparent);
+  gap: 0.5rem;
+  color: hsl(var(--muted-foreground));
+  font-size: 0.48rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
 }
-.copa-match-kicker,
-.copa-match-note { font-family: var(--font-display, "Bebas Neue", sans-serif); letter-spacing: .18em; font-size: .72rem; }
-.copa-match-kicker { color: #38bdf8; }
-.copa-match-note { color: rgba(255,255,255,.42); }
-@media (max-width: 700px) {
-  .copa-match-header { flex-direction: column; align-items: flex-start; }
-  .copa-play-btn { padding: .62rem .85rem; font-size: .78rem; }
+
+.copa-match-topline {
+  padding-bottom: 0.45rem;
+}
+
+.copa-match-footer {
+  padding-top: 0.4rem;
+  border-top: 1px solid hsl(var(--border) / 0.42);
+  color: hsl(var(--muted-foreground) / 0.72);
+}
+
+.copa-team-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-height: 34px;
+  border-radius: 10px;
+  padding: 0.28rem 0.26rem;
+  transition: background 0.16s ease;
+}
+
+.copa-team-row.is-winner {
+  background: hsl(var(--primary) / 0.08);
+}
+
+.copa-team-info {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 0.48rem;
+}
+
+.copa-mini-shield {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 30px;
+}
+
+.copa-mini-shield > span {
+  color: hsl(var(--muted-foreground));
+  font-weight: 800;
+}
+
+.copa-team-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  letter-spacing: 0.03em;
+}
+
+.copa-team-score {
+  min-width: 22px;
+  text-align: right;
+  font-family: var(--font-display);
+  font-size: 0.96rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.copa-match-divider {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0 0.2rem;
+  margin: 0.02rem 0;
+  color: hsl(var(--muted-foreground) / 0.55);
+  font-size: 0.43rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.copa-match-divider i {
+  display: block;
+  height: 1px;
+  flex: 1;
+  background: hsl(var(--border) / 0.36);
+}
+
+.copa-live-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: hsl(var(--primary) / 0.68);
+  box-shadow: 0 0 10px hsl(var(--primary) / 0.52);
+}
+
+.copa-round-1 .copa-match {
+  border-color: hsl(var(--primary) / 0.3);
+}
+
+.copa-round-6 .copa-match {
+  border-color: hsl(43 95% 55% / 0.38);
+  background: linear-gradient(180deg, hsl(43 95% 55% / 0.07), hsl(var(--card) / 0.98));
+}
+
+.copa-round-6 .copa-round-header {
+  border-color: hsl(43 95% 55% / 0.34);
+}
+
+.copa-bracket-legend {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9rem 1.2rem;
+  padding: 0.8rem 0.55rem 0.1rem;
+  color: hsl(var(--muted-foreground));
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.copa-bracket-legend > div {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+}
+
+.copa-legend-swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+}
+
+.copa-legend-user { background: hsl(var(--primary)); box-shadow: 0 0 10px hsl(var(--primary) / 0.55); }
+.copa-legend-played { background: hsl(142 72% 52% / 0.82); }
+.copa-legend-pending { background: hsl(var(--muted-foreground) / 0.45); }
+
+@media (max-width: 640px) {
+  .copa-bracket-section {
+    margin-top: 1.2rem;
+    padding: 0.8rem;
+    border-radius: 17px;
+  }
+
+  .copa-bracket-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .copa-bracket-badge {
+    align-self: flex-start;
+  }
+
+  .copa-bracket-viewport {
+    margin-inline: -0.25rem;
+  }
+
+  .copa-round {
+    width: 200px;
+    flex-basis: 200px;
+  }
 }
