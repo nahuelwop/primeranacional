@@ -15,6 +15,7 @@ import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as EquiposIndexRouteImport } from './routes/equipos.index'
 import { Route as EquiposIdRouteImport } from './routes/equipos.$id'
+import { Route as CopaArgentinaRouteImport } from './routes/copa-argentina'
 const ReducidoRoute = ReducidoRouteImport.update({
   id: '/reducido',
   path: '/reducido',
@@ -60,6 +61,11 @@ const EquiposIndexRoute = EquiposIndexRouteImport.update({
   path: '/equipos/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CopaArgentinaRoute = CopaArgentinaRouteImport.update({
+  id: '/copa-argentina',
+  path: '/copa-argentina',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const EquiposIdRoute = EquiposIdRouteImport.update({
   id: '/equipos/$id',
   path: '/equipos/$id',
@@ -75,6 +81,7 @@ export interface FileRoutesByFullPath {
   '/logros': typeof LogrosRoute
   '/reducido': typeof ReducidoRoute
   '/equipos/$id': typeof EquiposIdRoute
+  '/copa-argentina': typeof CopaArgentinaRoute
   '/equipos/': typeof EquiposIndexRoute
 }
 export interface FileRoutesByTo {
@@ -87,6 +94,7 @@ export interface FileRoutesByTo {
   '/logros': typeof LogrosRoute
   '/reducido': typeof ReducidoRoute
   '/equipos/$id': typeof EquiposIdRoute
+  '/copa-argentina': typeof CopaArgentinaRoute
   '/equipos': typeof EquiposIndexRoute
 }
 export interface FileRoutesById {
@@ -100,6 +108,7 @@ export interface FileRoutesById {
   '/logros': typeof LogrosRoute
   '/reducido': typeof ReducidoRoute
   '/equipos/$id': typeof EquiposIdRoute
+  '/copa-argentina': typeof CopaArgentinaRoute
   '/equipos/': typeof EquiposIndexRoute
 }
 export interface FileRouteTypes {
@@ -114,6 +123,7 @@ export interface FileRouteTypes {
     | '/logros'
     | '/reducido'
     | '/equipos/$id'
+    | '/copa-argentina'
     | '/equipos/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -126,6 +136,7 @@ export interface FileRouteTypes {
     | '/logros'
     | '/reducido'
     | '/equipos/$id'
+    | '/copa-argentina'
     | '/equipos'
   id:
     | '__root__'
@@ -138,6 +149,7 @@ export interface FileRouteTypes {
     | '/logros'
     | '/reducido'
     | '/equipos/$id'
+    | '/copa-argentina'
     | '/equipos/'
   fileRoutesById: FileRoutesById
 }
@@ -151,6 +163,7 @@ export interface RootRouteChildren {
   LogrosRoute: typeof LogrosRoute
   ReducidoRoute: typeof ReducidoRoute
   EquiposIdRoute: typeof EquiposIdRoute
+  CopaArgentinaRoute: typeof CopaArgentinaRoute
   EquiposIndexRoute: typeof EquiposIndexRoute
 }
 declare module '@tanstack/react-router' {
@@ -211,6 +224,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/copa-argentina': {
+      id: '/copa-argentina'
+      path: '/copa-argentina'
+      fullPath: '/copa-argentina'
+      preLoaderRoute: typeof CopaArgentinaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/equipos/': {
       id: '/equipos/'
       path: '/equipos'
@@ -237,6 +257,7 @@ const rootRouteChildren: RootRouteChildren = {
   LogrosRoute: LogrosRoute,
   ReducidoRoute: ReducidoRoute,
   EquiposIdRoute: EquiposIdRoute,
+  CopaArgentinaRoute: CopaArgentinaRoute,
   EquiposIndexRoute: EquiposIndexRoute,
 }
 export const routeTree = rootRouteImport
