@@ -1,7 +1,7 @@
 import { ZONE_A, ZONE_B, type Team } from "@/data/teams";
 import { getTeamsByDivision, getTeamById } from "@/data/teams-catalog";
 import { TEAMS_BY_ID } from "@/data/teams";
-import { COMPETITIONS, type DivisionId } from "@/data/competitions";
+import { COMPETITIONS, normalizeDivisionId, type DivisionId } from "@/data/competitions";
 import { buildDivisionCareerFixture, simulateMatch, simulateRegionalTournament, simulateDivisionSeason as simulateDivisionSeasonEngine, resolveDivisionSeason, emptyStandings, applyMatchToStandings, sortStandings, type Match, type StandingRow } from "@/lib/tournament";
 
 // ============ Stadium upgrades ============
@@ -145,7 +145,8 @@ export function teamZone(teamId: string): string {
 }
 
 export function careerDivision(state: CareerState | null | undefined, teamId?: string): DivisionId {
-  return state?.division ?? (teamId ? (getTeamById(teamId)?.division ?? "primera_nacional") : "primera_nacional");
+  const catalogDivision = teamId ? getTeamById(teamId)?.division : undefined;
+  return normalizeDivisionId(state?.division, normalizeDivisionId(catalogDivision, "primera_nacional"));
 }
 
 function combinedStandings(state: CareerState): StandingRow[] {
