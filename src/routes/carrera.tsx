@@ -751,7 +751,7 @@ function CarreraPage() {
             const text = `PRIMERA HEADS · Temporada ${season}\n${team?.name ?? "Mi club"} · Nivel ${Math.floor(Math.sqrt(Math.max(0, (state.managerXp ?? 0)) / 100)) + 1}\n${state.totalWins ?? 0} victorias · ${state.totalGoalsScored} goles · ${state.careerTrophies ?? 0} trofeos\n¿Quién supera mi carrera?`;
             try { if (navigator.share) await navigator.share({ title: "Primera Heads", text }); else await navigator.clipboard.writeText(text); } catch {}
           }}
-          onGoCopa={() => { if (isCopaEligibleTeam(teamId)) navigate({ to: "/copa-argentina", search: { teamId, season, difficulty: (state.difficulty ?? "normal") as any } }); }}
+          onGoCopa={() => { if (isCopaEligibleTeam(teamId)) navigate({ to: "/copa-argentina", search: { teamId, season, difficulty: (state.difficulty ?? "normal") as any, mode: "career" } }); }}
           copaAvailable={isCopaEligibleTeam(teamId)}
         />}
       </div>
@@ -884,7 +884,7 @@ function InicioTab({ state, teamId, season, nextMatch, indicators, standings, bu
                 </div>
                 {season >= 1 && isCopaEligibleTeam(teamId) && (
                   <a
-                    href={`/copa-argentina?teamId=${teamId}&season=${season}&difficulty=${state.difficulty ?? "normal"}`}
+                    href={`/copa-argentina?teamId=${teamId}&season=${season}&difficulty=${state.difficulty ?? "normal"}&mode=career`}
                     className="mt-3 flex items-center justify-center gap-2 py-2.5 rounded-xl border border-accent/40 bg-accent/10 hover:bg-accent/20 transition-colors font-display text-sm tracking-[0.15em] text-accent"
                   >
                     🏆 COPA ARGENTINA
