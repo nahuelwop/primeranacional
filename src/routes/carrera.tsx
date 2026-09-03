@@ -41,6 +41,7 @@ import { useCareerMusic, CareerMusicContext, useCareerMusicContext } from "@/lib
 import { fetchGameSettings } from "@/lib/game-settings";
 import { NowPlayingToast } from "@/components/career/NowPlayingToast";
 import { CareerFeaturesPanel } from "@/components/career/CareerFeaturesPanel";
+import { isCopaEligibleTeam } from "@/lib/copaArgentina";
 import type { MarketPlayer } from "@/lib/career-features";
 
 export const Route = createFileRoute("/carrera")({
@@ -750,7 +751,8 @@ function CarreraPage() {
             const text = `PRIMERA HEADS · Temporada ${season}\n${team?.name ?? "Mi club"} · Nivel ${Math.floor(Math.sqrt(Math.max(0, (state.managerXp ?? 0)) / 100)) + 1}\n${state.totalWins ?? 0} victorias · ${state.totalGoalsScored} goles · ${state.careerTrophies ?? 0} trofeos\n¿Quién supera mi carrera?`;
             try { if (navigator.share) await navigator.share({ title: "Primera Heads", text }); else await navigator.clipboard.writeText(text); } catch {}
           }}
-          onGoCopa={() => navigate({ to: "/copa-argentina", search: { teamId, season, difficulty: (state.difficulty ?? "normal") as any } })}
+          onGoCopa={() => { if (isCopaEligibleTeam(teamId)) navigate({ to: "/copa-argentina", search: { teamId, season, difficulty: (state.difficulty ?? "normal") as any } }); }}
+          copaAvailable={isCopaEligibleTeam(teamId)}
         />}
       </div>
     </Shell>
@@ -880,7 +882,7 @@ function InicioTab({ state, teamId, season, nextMatch, indicators, standings, bu
                     SIMULAR
                   </button>
                 </div>
-                {season >= 2 && (
+                {season >= 1 && isCopaEligibleTeam(teamId) && (
                   <a
                     href={`/copa-argentina?teamId=${teamId}&season=${season}&difficulty=${state.difficulty ?? "normal"}`}
                     className="mt-3 flex items-center justify-center gap-2 py-2.5 rounded-xl border border-accent/40 bg-accent/10 hover:bg-accent/20 transition-colors font-display text-sm tracking-[0.15em] text-accent"
