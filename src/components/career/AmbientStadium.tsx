@@ -55,7 +55,7 @@ export function AmbientStadium() {
           <span key={i} style={{
             left: `${p.l}%`, top: `${p.t}%`,
             width: p.s, height: p.s, opacity: p.o,
-            animationDuration: `${p.d}s`, animationDelay: `${-p.d * Math.random()}s`,
+            animationDuration: `${p.d}s`, animationDelay: `${-(p.d * ((i + 1) / 27))}s`,
           }} />
         ))}
       </div>
