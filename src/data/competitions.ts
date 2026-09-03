@@ -215,6 +215,41 @@ export function resolveNextDivision(params: {
   return null; // se mantiene en la misma división
 }
 
+
+/**
+ * Normaliza identificadores de división provenientes de datos viejos,
+ * URLs, Supabase o componentes que todavía usan aliases legados.
+ * Nunca devuelve undefined: ante un valor desconocido usa Primera Nacional.
+ */
+export function normalizeDivisionId(value?: string | null): DivisionId {
+  const raw = String(value ?? "").trim().toLowerCase();
+  const normalized = raw
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[\s-]+/g, "_");
+
+  const aliases: Record<string, DivisionId> = {
+    primera: "primera_division",
+    primera_division: "primera_division",
+    primera_división: "primera_division",
+    primera_nacional: "primera_nacional",
+    nacional: "primera_nacional",
+    primera_b: "primera_b",
+    b_metropolitana: "primera_b",
+    primera_b_metropolitana: "primera_b",
+    primera_c: "primera_c",
+    promocional_amateur: "promocional_amateur",
+    promocional: "promocional_amateur",
+    federal_a: "federal_a",
+    federal: "federal_a",
+    regional_federal_amateur: "regional_federal_amateur",
+    regional_amateur: "regional_federal_amateur",
+    regional: "regional_federal_amateur",
+  };
+
+  return aliases[normalized] ?? "primera_nacional";
+}
+
 export function getCompetition(division: DivisionId): CompetitionRules {
   return COMPETITIONS[division];
 }
