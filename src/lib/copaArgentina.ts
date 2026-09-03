@@ -1,19 +1,40 @@
-import { getTeamsByDivision } from "@/data/teams-catalog";
-import { simulateMatch } from "@/lib/tournament";
+import { getTeamsByDivision, getTeamById } from "@/data/teams-catalog";
 import type { DivisionId } from "@/data/competitions";
+import { simulateMatch } from "@/lib/tournament";
 
-// ===== Copa Argentina =====
-// 64 equipos, eliminación directa a partido único, cancha neutral, sin ventaja
-// de localía, definición por penales si hay empate. Se arma un cupo por
-// categoría (aproximado a la distribución real) y se completa al azar con lo
-// que haya disponible si a alguna categoría le faltan equipos.
+// ============================================================================
+// COPA ARGENTINA — 2026
+// Fase Final: 64 equipos, eliminación directa, partido único, cancha neutral.
+// El juego mantiene la duración configurada del motor (no se altera acá).
+// ============================================================================
 
 export type CopaRound = "32avos" | "16avos" | "octavos" | "cuartos" | "semis" | "final";
 export const COPA_ROUND_ORDER: CopaRound[] = ["32avos", "16avos", "octavos", "cuartos", "semis", "final"];
 export const COPA_ROUND_LABEL: Record<CopaRound, string> = {
-  "32avos": "32avos de Final", "16avos": "16avos de Final", "octavos": "Octavos de Final",
-  "cuartos": "Cuartos de Final", "semis": "Semifinales", final: "Final",
+  "32avos": "32avos de Final",
+  "16avos": "16avos de Final",
+  "octavos": "Octavos de Final",
+  "cuartos": "Cuartos de Final",
+  semis: "Semifinales",
+  final: "Final",
 };
+
+export const COPA_FINAL_QUOTAS: ReadonlyArray<{ division: DivisionId; count: number; label: string }> = [
+  { division: "primera_division", count: 30, label: "Primera División" },
+  { division: "federal_a", count: 10, label: "Federal A" },
+  { division: "primera_nacional", count: 15, label: "Primera Nacional" },
+  { division: "primera_b", count: 5, label: "Primera B Metropolitana" },
+  { division: "primera_c", count: 4, label: "Primera C" },
+];
+
+export const COPA_FINAL_TEAM_COUNT = 64;
+export const COPA_ELIGIBLE_DIVISIONS: DivisionId[] = [
+  "primera_division",
+  "federal_a",
+  "primera_nacional",
+  "primera_b",
+  "primera_c",
+];
 
 export type CopaMatch = {
   id: string;
@@ -25,6 +46,14 @@ export type CopaMatch = {
   awayGoals?: number;
   winner?: string;
   wentToPenalties?: boolean;
+  neutral?: boolean;
+};
+
+export type CopaQualification = {
+  division: DivisionId;
+  entrants: number;
+  qualified: string[];
+  note: string;
 };
 
 export type CopaState = {
@@ -33,69 +62,150 @@ export type CopaState = {
   rounds: Record<CopaRound, CopaMatch[]>;
   champion: string | null;
   userEliminated: boolean;
+  qualification: CopaQualification[];
+  createdAt: string;
 };
 
-// Cupos aproximados a la distribución real (30+15+5+5+10 ronda 1 más chica para
-// que sumen 64 exacto según lo que haya cargado en cada categoría del juego).
-const QUOTA: { division: DivisionId; count: number }[] = [
-  { division: "primera_division", count: 30 },
-  { division: "primera_nacional", count: 15 },
-  { division: "primera_b", count: 5 },
-  { division: "primera_c", count: 5 },
-  { division: "federal_a", count: 9 },
-];
-
-function shuffle<T>(arr: T[]): T[] {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
+function hash(value: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < value.length; i++) h = Math.imul(h ^ value.charCodeAt(i), 16777619);
+  return h >>> 0;
 }
 
-export function isCopaUnlocked(season: number): boolean {
-  return season >= 2; // no se juega en la primera temporada de la carrera
+function seededSort<T>(values: T[], key: (value: T) => string): T[] {
+  return [...values].sort((a, b) => hash(key(a)) - hash(key(b)));
+}
+
+function cpuPenaltyWinner(home: string, away: string, season: number, round: CopaRound): string {
+  return hash(`${season}:${round}:${home}:${away}`) % 2 === 0 ? home : away;
+}
+
+function resolveCpuMatch(home: string, away: string, season: number, round: CopaRound) {
+  const { hg, ag } = simulateMatch(home, away, true);
+  if (hg !== ag) return { hg, ag, winner: hg > ag ? home : away, wentToPenalties: false };
+  return { hg, ag, winner: cpuPenaltyWinner(home, away, season, round), wentToPenalties: true };
+}
+
+function chooseQuota(div: DivisionId, count: number, userTeamId: string, season: number): string[] {
+  const ids = seededSort(getTeamsByDivision(div).map(t => t.id), id => `${season}:copa:${div}:${id}`).slice(0, count);
+  if (!ids.length) return [];
+  if (ids.includes(userTeamId)) return ids;
+  const user = getTeamById(userTeamId);
+  if (!user || user.division !== div) return ids;
+  ids[ids.length - 1] = userTeamId;
+  return Array.from(new Set(ids));
+}
+
+function buildParticipants(userTeamId: string, season: number): { teams: string[]; qualification: CopaQualification[] } {
+  const selected: string[] = [];
+  const qualification: CopaQualification[] = [];
+
+  for (const quota of COPA_FINAL_QUOTAS) {
+    const entrants = getTeamsByDivision(quota.division).length;
+    const qualified = chooseQuota(quota.division, quota.count, userTeamId, season);
+    selected.push(...qualified);
+    qualification.push({
+      division: quota.division,
+      entrants,
+      qualified,
+      note: quota.division === "primera_division"
+        ? "Clasificación directa a 32avos de final."
+        : `Cupo de ${quota.count} clubes para la Fase Final 2026.`,
+    });
+  }
+
+  // Seguridad: el cuadro siempre debe tener 64 equipos únicos.
+  const eligiblePool = seededSort(
+    COPA_ELIGIBLE_DIVISIONS.flatMap(d => getTeamsByDivision(d).map(t => t.id)),
+    id => `${season}:copa:pool:${id}`,
+  );
+  for (const id of eligiblePool) {
+    if (selected.length >= COPA_FINAL_TEAM_COUNT) break;
+    if (!selected.includes(id)) selected.push(id);
+  }
+
+  const unique = Array.from(new Set(selected));
+  if (!unique.includes(userTeamId) && getTeamById(userTeamId)) {
+    const division = getTeamById(userTeamId)?.division;
+    if (division && COPA_ELIGIBLE_DIVISIONS.includes(division)) {
+      const quota = COPA_FINAL_QUOTAS.find(q => q.division === division);
+      const replaceIndex = quota ? unique.findIndex(id => getTeamById(id)?.division === division && id !== userTeamId) : -1;
+      if (replaceIndex >= 0) unique[replaceIndex] = userTeamId;
+      else unique.push(userTeamId);
+    }
+  }
+
+  return { teams: unique.slice(0, COPA_FINAL_TEAM_COUNT), qualification };
+}
+
+export function isCopaUnlocked(_season: number): boolean {
+  // La Copa Argentina forma parte de la temporada 2026 y de las siguientes.
+  return true;
+}
+
+export function isCopaEligibleTeam(teamId: string): boolean {
+  const division = getTeamById(teamId)?.division;
+  return !!division && COPA_ELIGIBLE_DIVISIONS.includes(division);
 }
 
 export function buildCopaBracket(userTeamId: string, season: number): CopaState {
-  const pool: string[] = [];
-  for (const { division, count } of QUOTA) {
-    const ids = shuffle(getTeamsByDivision(division).map(t => t.id)).slice(0, count);
-    pool.push(...ids);
+  if (!isCopaEligibleTeam(userTeamId)) {
+    throw new Error("Este club no participa de la Copa Argentina en el formato 2026.");
   }
-  // Asegura que el equipo del usuario esté adentro, aunque su categoría ya
-  // estuviera completa (le gana el cupo al último agregado de esa división).
-  if (!pool.includes(userTeamId)) pool[Math.floor(Math.random() * pool.length)] = userTeamId;
 
-  // Completa a 64 si alguna categoría no tenía suficientes equipos cargados.
-  const allTeams = QUOTA.flatMap(q => getTeamsByDivision(q.division).map(t => t.id));
-  const extra = shuffle(allTeams.filter(id => !pool.includes(id)));
-  while (pool.length < 64 && extra.length) pool.push(extra.pop()!);
-
-  const draw = shuffle(pool.slice(0, 64));
+  const { teams, qualification } = buildParticipants(userTeamId, season);
+  const draw = seededSort(teams.slice(0, COPA_FINAL_TEAM_COUNT), id => `${season}:copa:draw:${id}`);
   const round1: CopaMatch[] = [];
-  for (let i = 0; i < draw.length; i += 2) {
-    round1.push({ id: `copa-s${season}-32avos-${i / 2}`, round: "32avos", home: draw[i], away: draw[i + 1], played: false });
+  for (let i = 0; i + 1 < draw.length; i += 2) {
+    round1.push({
+      id: `copa-s${season}-32avos-${i / 2}`,
+      round: "32avos",
+      home: draw[i],
+      away: draw[i + 1],
+      played: false,
+      neutral: true,
+    });
   }
 
-  const rounds = { "32avos": round1, "16avos": [], octavos: [], cuartos: [], semis: [], final: [] } as Record<CopaRound, CopaMatch[]>;
-  return { season, userTeamId, rounds, champion: null, userEliminated: false };
+  const rounds = {
+    "32avos": round1,
+    "16avos": [],
+    octavos: [],
+    cuartos: [],
+    semis: [],
+    final: [],
+  } as Record<CopaRound, CopaMatch[]>;
+
+  return {
+    season,
+    userTeamId,
+    rounds,
+    champion: null,
+    userEliminated: false,
+    qualification,
+    createdAt: new Date().toISOString(),
+  };
 }
 
-// Resuelve un partido entre dos CPU (cancha neutral, sin ventaja): si empatan
-// se define por penales al azar ponderado por poder ofensivo/defensivo real.
-function resolveCpuMatch(home: string, away: string): { hg: number; ag: number; winner: string; wentToPenalties: boolean } {
-  const { hg, ag } = simulateMatch(home, away, true);
-  if (hg !== ag) return { hg, ag, winner: hg > ag ? home : away, wentToPenalties: false };
-  // Penales simulados: 50/50 con un pequeño sesgo aleatorio, sin ventaja de local.
-  const winner = Math.random() < 0.5 ? home : away;
-  return { hg, ag, winner, wentToPenalties: true };
+function openNextRound(rounds: Record<CopaRound, CopaMatch[]>, round: CopaRound, season: number) {
+  const index = COPA_ROUND_ORDER.indexOf(round);
+  const nextRound = COPA_ROUND_ORDER[index + 1];
+  if (!nextRound) return;
+  const winners = rounds[round].map(m => m.winner).filter((id): id is string => !!id);
+  const next: CopaMatch[] = [];
+  for (let i = 0; i + 1 < winners.length; i += 2) {
+    next.push({
+      id: `copa-s${season}-${nextRound}-${i / 2}`,
+      round: nextRound,
+      home: winners[i],
+      away: winners[i + 1],
+      played: false,
+      neutral: true,
+    });
+  }
+  rounds[nextRound] = next;
 }
 
-// Avanza TODOS los partidos de una ronda que no involucren al usuario (se
-// simulan en paralelo, "al mismo tiempo" que el usuario juega el suyo), y arma
-// automáticamente la ronda siguiente en cuanto la actual queda completa.
 export function simulateCopaRoundExceptUser(state: CopaState, round: CopaRound): CopaState {
   const rounds = { ...state.rounds, [round]: state.rounds[round].map(m => ({ ...m })) };
   let userEliminated = state.userEliminated;
@@ -104,24 +214,36 @@ export function simulateCopaRoundExceptUser(state: CopaState, round: CopaRound):
   for (const m of rounds[round]) {
     if (m.played) continue;
     if (m.home === state.userTeamId || m.away === state.userTeamId) continue;
-    const res = resolveCpuMatch(m.home, m.away);
-    m.played = true; m.homeGoals = res.hg; m.awayGoals = res.ag; m.winner = res.winner; m.wentToPenalties = res.wentToPenalties;
+    const res = resolveCpuMatch(m.home, m.away, state.season, round);
+    Object.assign(m, {
+      played: true,
+      homeGoals: res.hg,
+      awayGoals: res.ag,
+      winner: res.winner,
+      wentToPenalties: res.wentToPenalties,
+      neutral: true,
+    });
   }
 
   if (rounds[round].every(m => m.played)) {
-    if (rounds[round].some(m => (m.home === state.userTeamId || m.away === state.userTeamId) && m.winner !== state.userTeamId)) {
-      userEliminated = true;
-    }
-    const nextRound = COPA_ROUND_ORDER[COPA_ROUND_ORDER.indexOf(round) + 1];
-    if (nextRound) {
-      const winners = rounds[round].map(m => m.winner!);
-      const next: CopaMatch[] = [];
-      for (let i = 0; i < winners.length; i += 2) {
-        next.push({ id: `copa-s${state.season}-${nextRound}-${i / 2}`, round: nextRound, home: winners[i], away: winners[i + 1], played: false });
-      }
-      rounds[nextRound] = next;
-    } else {
+    const userMatch = rounds[round].find(m => m.home === state.userTeamId || m.away === state.userTeamId);
+    if (userMatch && userMatch.winner && userMatch.winner !== state.userTeamId) userEliminated = true;
+
+    if (!userEliminated) {
+      const nextRound = COPA_ROUND_ORDER[COPA_ROUND_ORDER.indexOf(round) + 1];
+      if (nextRound) openNextRound(rounds, round, state.season);
+      else champion = rounds[round][0]?.winner ?? null;
+    } else if (COPA_ROUND_ORDER.indexOf(round) === COPA_ROUND_ORDER.length - 1) {
       champion = rounds[round][0]?.winner ?? null;
+    } else {
+      const winners = rounds[round].map(m => m.winner).filter((id): id is string => !!id);
+      // El usuario ya está fuera: el resto del cuadro sigue simulándose hasta el campeón.
+      const nextRound = COPA_ROUND_ORDER[COPA_ROUND_ORDER.indexOf(round) + 1];
+      if (nextRound) {
+        const next: CopaMatch[] = [];
+        for (let i = 0; i + 1 < winners.length; i += 2) next.push({ id: `copa-s${state.season}-${nextRound}-${i / 2}`, round: nextRound, home: winners[i], away: winners[i + 1], played: false, neutral: true });
+        rounds[nextRound] = next;
+      }
     }
   }
 
@@ -131,18 +253,36 @@ export function simulateCopaRoundExceptUser(state: CopaState, round: CopaRound):
 export function recordCopaUserMatch(state: CopaState, matchId: string, hg: number, ag: number, winner: string): CopaState {
   const round = COPA_ROUND_ORDER.find(r => state.rounds[r].some(m => m.id === matchId));
   if (!round) return state;
-  const rounds = { ...state.rounds, [round]: state.rounds[round].map(m => m.id === matchId ? { ...m, played: true, homeGoals: hg, awayGoals: ag, winner, wentToPenalties: hg === ag } : m) };
+  const rounds = {
+    ...state.rounds,
+    [round]: state.rounds[round].map(m => m.id === matchId
+      ? { ...m, played: true, homeGoals: hg, awayGoals: ag, winner, wentToPenalties: hg === ag, neutral: true }
+      : m),
+  };
   return simulateCopaRoundExceptUser({ ...state, rounds }, round);
 }
 
 export function nextCopaMatchForUser(state: CopaState): CopaMatch | null {
-  for (const r of COPA_ROUND_ORDER) {
-    const m = state.rounds[r].find(x => !x.played && (x.home === state.userTeamId || x.away === state.userTeamId));
-    if (m) return m;
+  for (const round of COPA_ROUND_ORDER) {
+    const match = state.rounds[round].find(m => !m.played && (m.home === state.userTeamId || m.away === state.userTeamId));
+    if (match) return match;
   }
   return null;
 }
 
+export function simulateRemainingCopa(state: CopaState): CopaState {
+  let next = state;
+  for (const round of COPA_ROUND_ORDER) {
+    if (!next.rounds[round]?.length) continue;
+    while (next.rounds[round].some(m => !m.played && m.home !== next.userTeamId && m.away !== next.userTeamId)) {
+      next = simulateCopaRoundExceptUser(next, round);
+      if (!next.rounds[round].some(m => !m.played && m.home !== next.userTeamId && m.away !== next.userTeamId)) break;
+    }
+    if (next.champion || (next.userEliminated && round === "final")) break;
+  }
+  return next;
+}
+
 export function isCopaFinished(state: CopaState): boolean {
-  return state.champion !== null || state.userEliminated;
+  return !!state.champion || state.userEliminated;
 }
