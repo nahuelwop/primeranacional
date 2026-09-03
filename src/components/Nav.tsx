@@ -6,6 +6,7 @@ const items = [
   { to: "/carrera", label: "Carrera" },
   { to: "/reducido", label: "Reducido" },
   { to: "/amistoso", label: "Amistoso" },
+  { to: "/copa-argentina", label: "Copa Argentina" },
   { to: "/equipos", label: "Equipos" },
   { to: "/estadisticas", label: "Stats" },
   { to: "/logros", label: "Logros" },
