@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { getTeamsByDivision, getTeamById } from "@/data/teams-catalog";
-import type { DivisionId } from "@/data/competitions";
+import { normalizeDivisionId, type DivisionId } from "@/data/competitions";
 import { Shield } from "@/components/Shield";
 
 type Props = {
@@ -13,11 +13,12 @@ type Props = {
 };
 
 export function SeasonIntro({ season, teamId, objetivo, division = "primera_nacional", videoUrl, onDone }: Props) {
+  const safeDivision = normalizeDivisionId(division, getTeamById(teamId)?.division ?? "primera_nacional");
   const team = getTeamById(teamId);
-  const seasonTeams = getTeamsByDivision(division);
+  const seasonTeams = getTeamsByDivision(safeDivision);
 
   const intro = (() => {
-    switch (division) {
+    switch (safeDivision) {
       case "primera_division":
         return {
           title: "PRIMERA DIVISIÓN",
@@ -62,6 +63,17 @@ export function SeasonIntro({ season, teamId, objetivo, division = "primera_naci
           card: "El objetivo está claro: pelear arriba y acercarte un paso más al fútbol profesional.",
           accent: "#fb923c",
         };
+      case "promocional_amateur":
+        return {
+          title: "TORNEO PROMOCIONAL AMATEUR",
+          subtitle: "EL PRIMER GRAN SALTO",
+          descriptor: "ZONA A · ZONA B · ASCENSO",
+          trophy: "RUMBO A PRIMERA C",
+          trophySub: "Una temporada para transformar la historia de tu club.",
+          final: "El camino del Promocional Amateur comienza ahora...",
+          card: "Dos zonas, partidos decisivos y una meta: subir un escalón en el fútbol argentino.",
+          accent: "#d6a72d",
+        };
       case "regional_federal_amateur":
         return {
           title: "TORNEO REGIONAL FEDERAL AMATEUR",
@@ -87,6 +99,16 @@ export function SeasonIntro({ season, teamId, objetivo, division = "primera_naci
     }
   })();
 
+  const resolvedIntro = intro ?? {
+    title: "PRIMERA NACIONAL",
+    subtitle: "EL CAMINO AL ASCENSO",
+    descriptor: "ZONA A · ZONA B · REDUCIDO",
+    trophy: "UN ASCENSO EN JUEGO",
+    trophySub: "Cada fecha te acerca — o te aleja — de Primera División.",
+    final: "La temporada por el ascenso está a punto de comenzar...",
+    card: "Cada punto cuenta.",
+    accent: "#facc15",
+  };
   const [step, setStep] = useState(0);
   const [videoFailed, setVideoFailed] = useState(false);
 
@@ -122,18 +144,18 @@ export function SeasonIntro({ season, teamId, objetivo, division = "primera_naci
         )}
         {step === 1 && (
           <div className="text-center max-w-4xl">
-            <div className="font-display text-xl sm:text-2xl tracking-[0.4em] mb-3" style={{ color: intro.accent }}>{intro.subtitle}</div>
-            <div className="font-display text-5xl sm:text-7xl tracking-widest">{intro.title}</div>
+            <div className="font-display text-xl sm:text-2xl tracking-[0.4em] mb-3" style={{ color: resolvedIntro.accent }}>{resolvedIntro.subtitle}</div>
+            <div className="font-display text-5xl sm:text-7xl tracking-widest">{resolvedIntro.title}</div>
             <div className="text-muted-foreground mt-4">Temporada {2026 + season - 1}</div>
           </div>
         )}
         {step === 2 && (
           <div className="text-center max-w-4xl">
-            <div className="text-xs tracking-[0.4em] font-display mb-3" style={{ color: intro.accent }}>{intro.descriptor}</div>
-            <div className="text-sm text-muted-foreground max-w-2xl mx-auto mb-6">{intro.card}</div>
+            <div className="text-xs tracking-[0.4em] font-display mb-3" style={{ color: resolvedIntro.accent }}>{resolvedIntro.descriptor}</div>
+            <div className="text-sm text-muted-foreground max-w-2xl mx-auto mb-6">{resolvedIntro.card}</div>
             <div className="grid grid-cols-3 md:grid-cols-5 gap-4 max-w-4xl mx-auto">
               {seasonTeams.slice(0, 15).map(t => (
-                <div key={t.id} className="aspect-video rounded-lg border border-white/10 bg-white/[0.03] grid place-items-center" style={{ boxShadow: `inset 0 0 0 1px ${intro.accent}22` }}>
+                <div key={t.id} className="aspect-video rounded-lg border border-white/10 bg-white/[0.03] grid place-items-center" style={{ boxShadow: `inset 0 0 0 1px ${resolvedIntro.accent}22` }}>
                   <Shield team={t} size={34} />
                 </div>
               ))}
@@ -142,7 +164,7 @@ export function SeasonIntro({ season, teamId, objetivo, division = "primera_naci
         )}
         {step === 3 && (
           <div className="text-center max-w-5xl">
-            <div className="text-xs tracking-[0.4em] font-display mb-6" style={{ color: intro.accent }}>{seasonTeams.length} CLUBES · 1 OBJETIVO</div>
+            <div className="text-xs tracking-[0.4em] font-display mb-6" style={{ color: resolvedIntro.accent }}>{seasonTeams.length} CLUBES · 1 OBJETIVO</div>
             <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 gap-3 max-w-5xl mx-auto">
               {seasonTeams.map((t, i) => (
                 <div key={t.id} className="animate-scale-in" style={{ animationDelay: `${i * 30}ms` }}><Shield team={t} size={42} /></div>
@@ -153,24 +175,24 @@ export function SeasonIntro({ season, teamId, objetivo, division = "primera_naci
         {step === 4 && (
           <div className="text-center">
             <div className="text-7xl mb-4">🏆</div>
-            <div className="font-display text-4xl sm:text-5xl tracking-widest" style={{ color: intro.accent }}>{intro.trophy}</div>
-            <div className="text-muted-foreground mt-3 max-w-2xl mx-auto">{intro.trophySub}</div>
+            <div className="font-display text-4xl sm:text-5xl tracking-widest" style={{ color: resolvedIntro.accent }}>{resolvedIntro.trophy}</div>
+            <div className="text-muted-foreground mt-3 max-w-2xl mx-auto">{resolvedIntro.trophySub}</div>
           </div>
         )}
         {step === 5 && (
           <div className="text-center max-w-3xl">
-            <div className="font-display text-5xl sm:text-6xl tracking-wider mb-4">{intro.title} {2026 + season - 1}</div>
-            <div className="text-2xl text-muted-foreground italic">{intro.final}</div>
+            <div className="font-display text-5xl sm:text-6xl tracking-wider mb-4">{resolvedIntro.title} {2026 + season - 1}</div>
+            <div className="text-2xl text-muted-foreground italic">{resolvedIntro.final}</div>
           </div>
         )}
         {step === 6 && team && (
           <div className="text-center">
-            <div className="text-xs tracking-[0.4em] font-display mb-4" style={{ color: intro.accent }}>TU CLUB</div>
+            <div className="text-xs tracking-[0.4em] font-display mb-4" style={{ color: resolvedIntro.accent }}>TU CLUB</div>
             <div className="flex flex-col items-center gap-4">
               <Shield team={team} size={140} />
               <div className="font-display text-5xl">{team.name}</div>
               <div className="mt-4 text-sm text-muted-foreground uppercase tracking-widest">Objetivo</div>
-              <div className="font-display text-2xl" style={{ color: intro.accent }}>{objetivo}</div>
+              <div className="font-display text-2xl" style={{ color: resolvedIntro.accent }}>{objetivo}</div>
             </div>
           </div>
         )}
