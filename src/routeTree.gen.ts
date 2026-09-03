@@ -163,7 +163,6 @@ export interface RootRouteChildren {
   LogrosRoute: typeof LogrosRoute
   ReducidoRoute: typeof ReducidoRoute
   EquiposIdRoute: typeof EquiposIdRoute
-  CopaArgentinaRoute: typeof CopaArgentinaRoute
   EquiposIndexRoute: typeof EquiposIndexRoute
 }
 declare module '@tanstack/react-router' {
