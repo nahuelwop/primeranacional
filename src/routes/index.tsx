@@ -10,9 +10,9 @@ import stadiumHero from "@/assets/stadium-hero-night.jpg";
 
 export const Route = createFileRoute("/")({
   loader: async () => {
-    const teams = await getTeamsForBoot();
-    hydrateTeamsFromDbRows(teams as unknown as DbTeam[]);
-    return { teams };
+    const bootTeams = await getTeamsForBoot();
+    hydrateTeamsFromDbRows(bootTeams as unknown as DbTeam[]);
+    return { teams: bootTeams };
   },
   head: () => ({
     meta: [
