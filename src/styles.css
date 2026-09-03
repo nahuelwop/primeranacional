@@ -1120,3 +1120,108 @@
   .competition-scorebug__scores { font-size: 22px; }
   .competition-scorebug--copa .competition-scorebug__brand-mark { font-size: 30px; }
 }
+
+/* ==========================================================================\n   COPA ARGENTINA — HUB Y EXPERIENCIA DE COPA\n   ========================================================================== */
+.copa-page {
+  background:
+    radial-gradient(circle at 80% 8%, rgba(56,189,248,.12), transparent 28%),
+    radial-gradient(circle at 20% 45%, rgba(238,49,56,.08), transparent 25%),
+    #03070d;
+}
+.copa-hero,
+.copa-selection-hero,
+.copa-next,
+.copa-champion {
+  position: relative;
+  overflow: hidden;
+  background:
+    linear-gradient(135deg, rgba(5,19,39,.96), rgba(2,8,16,.97)),
+    linear-gradient(90deg, rgba(56,189,248,.06), transparent);
+  border: 1px solid rgba(56,189,248,.18);
+  box-shadow: 0 22px 55px -28px rgba(0,0,0,.9), inset 0 1px 0 rgba(255,255,255,.035);
+}
+.copa-hero::before,
+.copa-selection-hero::before,
+.copa-next::before,
+.copa-champion::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: linear-gradient(135deg, rgba(255,255,255,.025) 25%, transparent 25%, transparent 50%, rgba(255,255,255,.018) 50%, rgba(255,255,255,.018) 75%, transparent 75%);
+  background-size: 42px 42px;
+  opacity: .45;
+}
+.copa-hero-glow {
+  position: absolute;
+  width: 520px;
+  height: 260px;
+  right: -110px;
+  top: -120px;
+  background: radial-gradient(circle, rgba(56,189,248,.26), transparent 68%);
+  filter: blur(8px);
+  pointer-events: none;
+}
+.copa-eyebrow {
+  font-family: var(--font-display, "Bebas Neue", sans-serif);
+  letter-spacing: .28em;
+  font-size: .72rem;
+  color: #38bdf8;
+  text-transform: uppercase;
+}
+.copa-stat-card {
+  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(0,0,0,.28);
+  border-radius: .8rem;
+  padding: .8rem .7rem;
+  text-align: center;
+}
+.copa-progress { height: 3px; background: rgba(255,255,255,.05); }
+.copa-progress > div { height: 100%; background: linear-gradient(90deg, #38bdf8, #ee3138); box-shadow: 0 0 18px rgba(56,189,248,.5); transition: width .35s ease; }
+.copa-play-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: .55rem;
+  border-radius: .8rem;
+  padding: .75rem 1.15rem;
+  background: linear-gradient(135deg, #38bdf8, #0ea5e9);
+  color: #031018;
+  font-family: var(--font-display, "Bebas Neue", sans-serif);
+  letter-spacing: .14em;
+  font-size: .9rem;
+  box-shadow: 0 12px 25px -12px rgba(56,189,248,.85);
+  transition: transform .18s ease, filter .18s ease;
+}
+.copa-play-btn:hover { transform: translateY(-2px); filter: brightness(1.08); }
+.copa-vs { font-family: var(--font-display, "Bebas Neue", sans-serif); font-size: 1.45rem; color: rgba(255,255,255,.32); letter-spacing: .18em; text-align: center; }
+.copa-award-card {
+  display: flex;
+  gap: .75rem;
+  align-items: center;
+  padding: .8rem;
+  border-radius: .75rem;
+  background: rgba(255,255,255,.035);
+  border: 1px solid rgba(255,255,255,.08);
+}
+.copa-award-card > span { font-size: 1.5rem; }
+.copa-award-card strong { display: block; font-family: var(--font-display, "Bebas Neue", sans-serif); font-size: .95rem; letter-spacing: .04em; }
+.copa-award-card small { display: block; margin-top: .15rem; color: rgba(255,255,255,.48); font-size: .68rem; line-height: 1.35; }
+.copa-match-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin: 0 auto .8rem;
+  max-width: 1400px;
+  padding: .55rem .9rem;
+  border-left: 3px solid #38bdf8;
+  background: linear-gradient(90deg, rgba(56,189,248,.09), transparent);
+}
+.copa-match-kicker,
+.copa-match-note { font-family: var(--font-display, "Bebas Neue", sans-serif); letter-spacing: .18em; font-size: .72rem; }
+.copa-match-kicker { color: #38bdf8; }
+.copa-match-note { color: rgba(255,255,255,.42); }
+@media (max-width: 700px) {
+  .copa-match-header { flex-direction: column; align-items: flex-start; }
+  .copa-play-btn { padding: .62rem .85rem; font-size: .78rem; }
+}
