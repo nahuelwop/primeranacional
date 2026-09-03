@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Shield } from "@/components/Shield";
 import { TEAMS_BY_ID } from "@/data/teams";
 import type { CareerState } from "@/lib/career";
@@ -14,14 +14,16 @@ export function CareerFeaturesPanel({ state, teamId, season, budget, onSpend, on
   onClaimChallenge: (id: string, amount: number) => Promise<void>;
   onShare: () => Promise<void>;
   onGoCopa: () => void;
+  copaAvailable?: boolean;
 }) {
   const { user, username } = useAuth();
   const [market, setMarket] = useState<MarketPlayer[]>([]);
   const [marketLoaded, setMarketLoaded] = useState(false);
   const [marketMsg, setMarketMsg] = useState("");
   const [ranking, setRanking] = useState<Array<{ username: string; score: number; level: number; team_id: string }>>([]);
-  const challenge = useMemo(() => buildDailyChallenge(), []);
-  const complete = isDailyChallengeComplete(challenge, state, teamId);
+  const [challenge, setChallenge] = useState<ReturnType<typeof buildDailyChallenge> | null>(null);
+  useEffect(() => { setChallenge(buildDailyChallenge()); }, []);
+  const complete = challenge ? isDailyChallengeComplete(challenge, state, teamId) : false;
   const records = getCareerRecords(state, teamId);
   const moments = extractMoments(state, teamId);
   const xp = state.managerXp ?? 0;
@@ -71,10 +73,10 @@ export function CareerFeaturesPanel({ state, teamId, season, budget, onSpend, on
 
       <div className="grid lg:grid-cols-2 gap-3">
         <section className="hud-panel p-4">
-          <div className="flex items-center justify-between mb-3"><div><div className="font-display text-lg">🔥 DESAFÍO DEL DÍA</div><div className="text-xs text-muted-foreground">+{challenge.rewardXp} XP</div></div><span className={complete ? "text-hud-green font-display text-xs" : "text-accent font-display text-xs"}>{complete ? "COMPLETADO ✓" : "PENDIENTE"}</span></div>
-          <div className="font-display text-2xl text-celeste">{challenge.title}</div>
-          <div className="text-sm mt-1 text-muted-foreground">{challenge.description}</div>
-          {complete && !(state.claimedChallenges ?? []).includes(challenge.id) && (
+          <div className="flex items-center justify-between mb-3"><div><div className="font-display text-lg">🔥 DESAFÍO DEL DÍA</div><div className="text-xs text-muted-foreground">+{challenge?.rewardXp ?? 0} XP</div></div><span className={complete ? "text-hud-green font-display text-xs" : "text-accent font-display text-xs"}>{complete ? "COMPLETADO ✓" : "PENDIENTE"}</span></div>
+          <div className="font-display text-2xl text-celeste">{challenge?.title ?? "Cargando desafío…"}</div>
+          <div className="text-sm mt-1 text-muted-foreground">{challenge?.description ?? "Preparando el desafío diario."}</div>
+          {complete && challenge && !(state.claimedChallenges ?? []).includes(challenge.id) && (
             <button onClick={() => onClaimChallenge(challenge.id, challenge.rewardXp)} className="mt-3 px-4 py-2 rounded-lg bg-hud-green text-black font-display text-xs">COBRAR RECOMPENSA</button>
           )}
         </section>
@@ -142,7 +144,7 @@ export function CareerFeaturesPanel({ state, teamId, season, budget, onSpend, on
           })}
           {!(TEAMS_BY_ID[teamId]?.rivals ?? []).length && <div className="text-sm text-muted-foreground">Este club todavía no tiene rivalidades cargadas.</div>}
         </div>
-        <div className="mt-3 flex flex-wrap gap-2"><button onClick={onGoCopa} className="px-4 py-2 rounded-lg bg-celeste text-primary-foreground font-display text-xs">🏆 IR A COPA ARGENTINA</button><span className="px-4 py-2 rounded-lg border border-border/60 text-xs text-muted-foreground">Temporada {season}</span></div>
+        <div className="mt-3 flex flex-wrap gap-2">{copaAvailable ? <button onClick={onGoCopa} className="px-4 py-2 rounded-lg bg-celeste text-primary-foreground font-display text-xs">🏆 IR A COPA ARGENTINA</button> : <span className="px-4 py-2 rounded-lg border border-border/60 text-xs text-muted-foreground">Copa Argentina: no participa esta categoría</span>}<span className="px-4 py-2 rounded-lg border border-border/60 text-xs text-muted-foreground">Temporada {season}</span></div>
       </section>
     </div>
   );
