@@ -54,6 +54,7 @@ type HubItem = {
 const HUB_ITEMS: HubItem[] = [
   { id: "carrera", label: "CARRERA", desc: "Dirigí a tu club, temporada tras temporada, y llevalo a Primera.", to: "/carrera", icon: Trophy },
   { id: "amistoso", label: "AMISTOSO", desc: "Elegí dos equipos y jugá un 1 vs 1 ahora mismo.", to: "/amistoso", icon: Swords },
+  { id: "copa-argentina", label: "COPA ARGENTINA", desc: "Elegí tu club y jugá la Copa Argentina AXION Energy, partido a partido.", to: "/copa-argentina", icon: Trophy },
   { id: "reducido", label: "REDUCIDO", desc: "Eliminación directa por el segundo ascenso. Un partido puede cambiar todo.", to: "/reducido", icon: Layers },
   { id: "equipos", label: "EQUIPOS", desc: "Los 36 clubes reales de la Primera Nacional, con sus colores y escudos.", to: "/equipos", icon: Users },
   { id: "stats", label: "STATS", desc: "Números, rachas y rendimiento de cada club.", to: "/estadisticas", icon: BarChart3 },
