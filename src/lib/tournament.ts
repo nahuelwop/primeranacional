@@ -1,14 +1,15 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { ZONE_A, ZONE_B } from "@/data/teams";
+
 import {
   applyMatchToStandings,
   emptyStandings,
-  Match,
+  type Match,
   simulateMatch,
   sortStandings,
-  StandingRow,
-  Pair,
+  type StandingRow,
+  type Pair,
   buildOfficialFixture,
 } from "@/lib/tournament";
 
@@ -25,7 +26,7 @@ type PlayoffDivision =
   | "promocional_amateur"
   | "regional_federal_amateur";
 
-type CareerPair = Pair & {
+export type CareerPair = Pair & {
   leg1a?: number;
   leg1b?: number;
   leg2a?: number;
@@ -38,6 +39,7 @@ type State = {
   standA: StandingRow[];
   standB: StandingRow[];
   currentRound: number;
+
   userTeamId?: string;
   division?: PlayoffDivision;
   season: number;
@@ -60,10 +62,12 @@ type State = {
 
   introVista: boolean;
   difficulty: TDifficulty;
+
   objetivo:
     | "ascenso_directo"
     | "reducido"
     | "mantener";
+
   lastRoundSummarized: number;
 };
 
@@ -80,30 +84,42 @@ type SeedArgs = {
 type Actions = {
   init: () => void;
   reset: () => void;
+
   setUserTeam: (id: string) => void;
+
   playRound: (round: number) => void;
   playAll: () => void;
+
   recordUserMatch: (
     matchId: string,
     hg: number,
     ag: number
   ) => void;
+
   simulateUserMatch: (
     matchId: string
   ) => { hg: number; ag: number } | null;
+
   startPlayoffs: () => void;
   advanceBracket: () => void;
+
   setIntroVista: (v: boolean) => void;
   setDifficulty: (d: TDifficulty) => void;
+
   setObjetivo: (
     o:
       | "ascenso_directo"
       | "reducido"
       | "mantener"
   ) => void;
+
   setLastRoundSummarized: (r: number) => void;
+
   newSeason: () => void;
-  seedFromCareer: (args: SeedArgs) => void;
+
+  seedFromCareer: (
+    args: SeedArgs
+  ) => void;
 };
 
 const aIds = () =>
@@ -130,13 +146,20 @@ function baseState(): State {
     standA: [],
     standB: [],
     currentRound: 1,
+
     season: 1,
+
     introVista: false,
     difficulty: "normal",
+
     objetivo: "reducido",
     lastRoundSummarized: 0,
   };
 }
+
+/* =========================================================
+   BRACKETS
+   ========================================================= */
 
 function buildPnBracket(
   standA: StandingRow[],
@@ -148,12 +171,20 @@ function buildPnBracket(
 
   const octavos: CareerPair[] = [];
 
-  for (let i = 0; i < 7; i++) {
-    const aa =
-      a[i + 1]?.teamId;
+  /*
+   Primera Nacional:
+   2A vs 8B
+   3A vs 7B
+   4A vs 6B
+   5A vs 5B
+   6A vs 4B
+   7A vs 3B
+   8A vs 2B
+   */
 
-    const bb =
-      b[6 - i]?.teamId;
+  for (let i = 0; i < 7; i++) {
+    const aa = a[i + 1]?.teamId;
+    const bb = b[6 - i]?.teamId;
 
     if (aa && bb) {
       octavos.push({
@@ -164,6 +195,10 @@ function buildPnBracket(
     }
   }
 
+  /*
+   El perdedor de la final directa
+   entra como octavo clasificado con BYE.
+  */
   if (extraSeed) {
     octavos.push({
       a: extraSeed,
@@ -207,7 +242,7 @@ function buildPbBracket(
       legs: 2,
     },
   ].filter(
-    p => p.a && p.b
+    p => !!p.a && !!p.b
   ) as CareerPair[];
 
   return {
@@ -236,12 +271,18 @@ function buildPcBracket(
     .slice(1, 7)
     .map(r => r.teamId);
 
-  for (let i = 0; i < 6; i++) {
-    const aa =
-      aSeeds[i];
+  /*
+   2A vs 7B
+   3A vs 6B
+   4A vs 5B
+   5A vs 4B
+   6A vs 3B
+   7A vs 2B
+  */
 
-    const bb =
-      bSeeds[5 - i];
+  for (let i = 0; i < 6; i++) {
+    const aa = aSeeds[i];
+    const bb = bSeeds[5 - i];
 
     if (aa && bb) {
       octavos.push({
@@ -278,13 +319,32 @@ function buildPromoBracket(
 
   const octavos: CareerPair[] = [];
 
+  /*
+   Promocional Amateur:
+
+   2A vs 4B
+   2B vs 4A
+   3A vs 3B
+
+   + perdedor de la final directa
+  */
+
   const triples: [
     string | undefined,
     string | undefined
   ][] = [
-    [a[1]?.teamId, b[3]?.teamId],
-    [b[1]?.teamId, a[3]?.teamId],
-    [a[2]?.teamId, b[2]?.teamId],
+    [
+      a[1]?.teamId,
+      b[3]?.teamId,
+    ],
+    [
+      b[1]?.teamId,
+      a[3]?.teamId,
+    ],
+    [
+      a[2]?.teamId,
+      b[2]?.teamId,
+    ],
   ];
 
   for (const [x, y] of triples) {
@@ -297,6 +357,9 @@ function buildPromoBracket(
     }
   }
 
+  /*
+   El perdedor de la final entra con BYE.
+  */
   if (extraSeed) {
     octavos.push({
       a: extraSeed,
@@ -316,12 +379,11 @@ function buildPromoBracket(
 function buildRegionalBracket(
   seeds: string[]
 ) {
-  const clean =
-    Array.from(
-      new Set(
-        seeds.filter(Boolean)
-      )
-    );
+  const clean = Array.from(
+    new Set(
+      seeds.filter(Boolean)
+    )
+  );
 
   const selected =
     clean.slice(0, 16);
@@ -367,7 +429,9 @@ function bracketForDivision(
     "regional_federal_amateur"
   ) {
     return buildRegionalBracket(
-      standA.map(r => r.teamId)
+      standA.map(
+        r => r.teamId
+      )
     );
   }
 
@@ -409,10 +473,17 @@ function bracketForDivision(
   );
 }
 
+/* =========================================================
+   SIMULACIÓN
+   ========================================================= */
+
 function playOne(
   p: CareerPair,
   userId?: string
 ): CareerPair {
+  /*
+   Partido ya resuelto.
+  */
   if (
     !p.a ||
     !p.b ||
@@ -421,120 +492,160 @@ function playOne(
     return p;
   }
 
+  /*
+   Nunca simulamos automáticamente
+   el cruce del usuario.
+  */
   if (
     userId &&
-    (p.a === userId ||
-      p.b === userId)
+    (
+      p.a === userId ||
+      p.b === userId
+    )
   ) {
     return p;
   }
 
-  if (
-    p.legs === 2
-  ) {
-    const first =
+  /*
+   SERIE A DOS PARTIDOS
+  */
+  if (p.legs === 2) {
+    const ida =
       simulateMatch(
         p.a,
         p.b
       );
 
-    const second =
+    const vuelta =
       simulateMatch(
         p.b,
         p.a
       );
 
-    const aTotal =
-      first.hg +
-      second.ag;
+    /*
+     Ida:
+     A local
+     B visitante
 
-    const bTotal =
-      first.ag +
-      second.hg;
+     Vuelta:
+     B local
+     A visitante
+    */
+
+    const totalA =
+      ida.hg +
+      vuelta.ag;
+
+    const totalB =
+      ida.ag +
+      vuelta.hg;
 
     const winner =
-      aTotal > bTotal
+      totalA > totalB
         ? p.a
-        : bTotal > aTotal
+        : totalB > totalA
           ? p.b
           : p.a;
 
     return {
       ...p,
-      leg1a: first.hg,
-      leg1b: first.ag,
-      leg2a: second.hg,
-      leg2b: second.ag,
+
+      leg1a: ida.hg,
+      leg1b: ida.ag,
+
+      leg2a: vuelta.hg,
+      leg2b: vuelta.ag,
+
       winner,
     };
   }
 
+  /*
+   PARTIDO ÚNICO
+  */
   const score =
     simulateMatch(
       p.a,
       p.b
     );
 
+  const winner =
+    score.hg >= score.ag
+      ? p.a
+      : p.b;
+
   return {
     ...p,
+
     ag: score.hg,
     bg: score.ag,
-    winner:
-      score.hg >= score.ag
-        ? p.a
-        : p.b,
+
+    winner,
   };
 }
 
+/*
+ Construye la siguiente ronda usando
+ exclusivamente los ganadores.
+*/
 function advancePairs(
   pairs: CareerPair[],
   legs: 1 | 2
-) {
+): CareerPair[] {
   const winners =
     pairs
       .map(
         p => p.winner
       )
-      .filter(
-        Boolean
-      ) as string[];
+      .filter(Boolean) as string[];
 
-  const out: CareerPair[] = [];
+  const result: CareerPair[] = [];
 
   for (
     let i = 0;
     i < winners.length;
     i += 2
   ) {
-    const a =
+    const first =
       winners[i];
 
-    const b =
+    const second =
       winners[i + 1];
 
-    if (a && b) {
-      out.push({
-        a,
-        b,
+    if (first && second) {
+      result.push({
+        a: first,
+        b: second,
         legs,
       });
-    } else if (a) {
-      out.push({
-        a,
-        winner: a,
+    } else if (first) {
+      /*
+       BYE
+      */
+      result.push({
+        a: first,
+        winner: first,
         legs,
       });
     }
   }
 
-  return out;
+  return result;
 }
+
+/* =========================================================
+   STORE
+   ========================================================= */
 
 export const useTournament =
   create<State & Actions>()(
     persist(
       (set, get) => ({
         ...baseState(),
+
+        /* ---------------------------------------------
+           INIT
+        --------------------------------------------- */
 
         init: () => {
           if (
@@ -546,37 +657,55 @@ export const useTournament =
           set({
             fixture:
               buildFix(),
+
             standA:
               emptyStandings(
                 aIds()
               ),
+
             standB:
               emptyStandings(
                 bIds()
               ),
+
             currentRound: 1,
           });
         },
 
+        /* ---------------------------------------------
+           RESET
+        --------------------------------------------- */
+
         reset: () =>
           set({
             ...baseState(),
+
             fixture:
               buildFix(),
+
             standA:
               emptyStandings(
                 aIds()
               ),
+
             standB:
               emptyStandings(
                 bIds()
               ),
           }),
+
+        /* ---------------------------------------------
+           USER TEAM
+        --------------------------------------------- */
 
         setUserTeam: id =>
           set({
             userTeamId: id,
           }),
+
+        /* ---------------------------------------------
+           IMPORTAR CARRERA
+        --------------------------------------------- */
 
         seedFromCareer: ({
           standA,
@@ -592,39 +721,68 @@ export const useTournament =
             fixture: [
               {
                 id: `career-import-${division}-${season}`,
+
                 round: 1,
+
                 home: userTeamId,
+
                 away: userTeamId,
+
                 played: true,
+
                 homeGoals: 0,
+
                 awayGoals: 0,
               },
             ],
+
             standA,
             standB,
+
             userTeamId,
+
             season,
+
             difficulty,
+
             division,
+
             regionalNationalOpponent,
+
             currentRound: 1,
+
+            /*
+             LIMPIAMOS TODO EL PLAYOFF ANTERIOR
+            */
+
             finalDirecta:
               undefined,
+
             bracket:
               undefined,
+
             champion:
               undefined,
+
             reducidoChampion:
               undefined,
+
             regionalNationalFinal:
               undefined,
+
             regionalChampion:
               undefined,
+
             introVista:
               false,
+
             lastRoundSummarized:
               0,
           }),
+
+        /* ---------------------------------------------
+           CONFIG
+        --------------------------------------------- */
 
         setIntroVista: v =>
           set({
@@ -646,22 +804,34 @@ export const useTournament =
             lastRoundSummarized: r,
           }),
 
+        /* ---------------------------------------------
+           NUEVA TEMPORADA
+        --------------------------------------------- */
+
         newSeason: () =>
           set(state => ({
             ...baseState(),
+
             fixture:
               buildFix(),
+
             standA:
               emptyStandings(
                 aIds()
               ),
+
             standB:
               emptyStandings(
                 bIds()
               ),
+
             season:
               state.season + 1,
           })),
+
+        /* ---------------------------------------------
+           PARTIDO NORMAL
+        --------------------------------------------- */
 
         simulateUserMatch:
           matchId => {
@@ -672,7 +842,7 @@ export const useTournament =
               currentRound,
             } = get();
 
-            const m =
+            const match =
               fixture.find(
                 x =>
                   x.id ===
@@ -680,8 +850,8 @@ export const useTournament =
               );
 
             if (
-              !m ||
-              m.played
+              !match ||
+              match.played
             ) {
               return null;
             }
@@ -691,26 +861,30 @@ export const useTournament =
               ag,
             } =
               simulateMatch(
-                m.home,
-                m.away
+                match.home,
+                match.away
               );
 
-            const played =
-              {
-                ...m,
-                homeGoals: hg,
-                awayGoals: ag,
-                played: true,
-              };
+            const played = {
+              ...match,
 
-            const r =
+              homeGoals:
+                hg,
+
+              awayGoals:
+                ag,
+
+              played: true,
+            };
+
+            const rows =
               applyBoth(
                 standA,
                 standB,
                 played
               );
 
-            const newFix =
+            const newFixture =
               fixture.map(
                 x =>
                   x.id ===
@@ -720,7 +894,7 @@ export const useTournament =
               );
 
             const roundDone =
-              newFix
+              newFixture
                 .filter(
                   x =>
                     x.round ===
@@ -733,9 +907,14 @@ export const useTournament =
 
             set({
               fixture:
-                newFix,
-              standA: r.a,
-              standB: r.b,
+                newFixture,
+
+              standA:
+                rows.a,
+
+              standB:
+                rows.b,
+
               currentRound:
                 roundDone &&
                 played.round >=
@@ -751,6 +930,10 @@ export const useTournament =
             };
           },
 
+        /* ---------------------------------------------
+           SIMULAR RONDA
+        --------------------------------------------- */
+
         playRound: round => {
           const {
             fixture,
@@ -765,59 +948,67 @@ export const useTournament =
           let b =
             standB;
 
-          const newFix =
+          const newFixture =
             fixture.map(
-              m => {
+              match => {
                 if (
-                  m.round !==
+                  match.round !==
                     round ||
-                  m.played
+                  match.played
                 ) {
-                  return m;
+                  return match;
                 }
 
+                /*
+                 No simular partido del usuario.
+                */
                 if (
                   userTeamId &&
-                  (m.home ===
-                    userTeamId ||
-                    m.away ===
-                      userTeamId)
+                  (
+                    match.home ===
+                      userTeamId ||
+                    match.away ===
+                      userTeamId
+                  )
                 ) {
-                  return m;
+                  return match;
                 }
 
                 const score =
                   simulateMatch(
-                    m.home,
-                    m.away
+                    match.home,
+                    match.away
                   );
 
-                const next =
+                const played =
                   {
-                    ...m,
+                    ...match,
+
                     homeGoals:
                       score.hg,
+
                     awayGoals:
                       score.ag,
+
                     played: true,
                   };
 
-                const r =
+                const rows =
                   applyBoth(
                     a,
                     b,
-                    next
+                    played
                   );
 
-                a = r.a;
-                b = r.b;
+                a = rows.a;
+                b = rows.b;
 
-                return next;
+                return played;
               }
             );
 
           const roundDone =
-            newFix
+            newFixture
               .filter(
                 m =>
                   m.round ===
@@ -830,9 +1021,12 @@ export const useTournament =
 
           set({
             fixture:
-              newFix,
+              newFixture,
+
             standA: a,
+
             standB: b,
+
             currentRound:
               roundDone
                 ? round + 1
@@ -840,28 +1034,37 @@ export const useTournament =
           });
         },
 
+        /* ---------------------------------------------
+           SIMULAR TODO
+        --------------------------------------------- */
+
         playAll: () => {
           const totalRounds =
             Math.max(
-              ...get().fixture.map(
-                m => m.round
-              ),
+              ...get()
+                .fixture
+                .map(
+                  m =>
+                    m.round
+                ),
               0
             );
 
           for (
-            let r =
+            let round =
               get()
                 .currentRound;
-            r <=
+            round <=
             totalRounds;
-            r++
+            round++
           ) {
             const before =
               get()
                 .currentRound;
 
-            get().playRound(r);
+            get().playRound(
+              round
+            );
 
             if (
               get()
@@ -872,6 +1075,10 @@ export const useTournament =
             }
           }
         },
+
+        /* ---------------------------------------------
+           REGISTRAR PARTIDO NORMAL
+        --------------------------------------------- */
 
         recordUserMatch: (
           matchId,
@@ -894,45 +1101,49 @@ export const useTournament =
           let playedRound =
             currentRound;
 
-          const newFix =
+          const newFixture =
             fixture.map(
-              m => {
+              match => {
                 if (
-                  m.id !==
+                  match.id !==
                     matchId ||
-                  m.played
+                  match.played
                 ) {
-                  return m;
+                  return match;
                 }
 
-                const next =
+                const played =
                   {
-                    ...m,
+                    ...match,
+
                     homeGoals:
                       hg,
+
                     awayGoals:
                       ag,
+
                     played: true,
                   };
 
-                const r =
+                const rows =
                   applyBoth(
                     a,
                     b,
-                    next
+                    played
                   );
 
-                a = r.a;
-                b = r.b;
-                playedRound =
-                  next.round;
+                a = rows.a;
+                b = rows.b;
 
-                return next;
+                playedRound =
+                  played.round;
+
+                return played;
               }
             );
 
           const roundDone =
-            newFix
+            newFixture
               .filter(
                 m =>
                   m.round ===
@@ -945,9 +1156,14 @@ export const useTournament =
 
           set({
             fixture:
-              newFix,
-            standA: a,
-            standB: b,
+              newFixture,
+
+            standA:
+              a,
+
+            standB:
+              b,
+
             currentRound:
               roundDone &&
               playedRound >=
@@ -957,6 +1173,10 @@ export const useTournament =
                 : currentRound,
           });
         },
+
+        /* ---------------------------------------------
+           INICIAR PLAYOFFS
+        --------------------------------------------- */
 
         startPlayoffs: () => {
           const {
@@ -978,6 +1198,10 @@ export const useTournament =
               standB
             );
 
+          /* ===========================================
+             REGIONAL FEDERAL AMATEUR
+          =========================================== */
+
           if (
             division ===
             "regional_federal_amateur"
@@ -996,23 +1220,38 @@ export const useTournament =
             set({
               finalDirecta:
                 undefined,
+
               bracket,
+
               champion:
                 undefined,
+
               reducidoChampion:
                 undefined,
+
               regionalChampion:
                 undefined,
+
               regionalNationalFinal:
                 undefined,
+
               regionalNationalOpponent,
             });
 
+            /*
+             Simular inmediatamente
+             todos los partidos que
+             no sean del usuario.
+            */
             get()
               .advanceBracket();
 
             return;
           }
+
+          /* ===========================================
+             FINAL DIRECTA
+          =========================================== */
 
           const hasDirectFinal =
             division ===
@@ -1056,38 +1295,56 @@ export const useTournament =
             if (
               userInFinal
             ) {
-              finalDirecta = {
-                a: a1,
-                b: b1,
-                legs:
-                  division ===
-                  "primera_c"
-                    ? 2
-                    : 1,
-              };
-            } else {
-              const p:
-                CareerPair = {
-                a: a1,
-                b: b1,
-                legs:
-                  division ===
-                  "primera_c"
-                    ? 2
-                    : 1,
-              };
+              finalDirecta =
+                {
+                  a: a1,
 
-              const done =
-                playOne(p);
+                  b: b1,
+
+                  legs:
+                    division ===
+                    "primera_c"
+                      ? 2
+                      : 1,
+                };
+            } else {
+              /*
+               Si el usuario NO está
+               en la final directa,
+               se simula automáticamente.
+              */
+              const direct =
+                {
+                  a: a1,
+
+                  b: b1,
+
+                  legs:
+                    division ===
+                    "primera_c"
+                      ? 2
+                      : 1,
+                } satisfies CareerPair;
+
+              const resolved =
+                playOne(
+                  direct
+                );
 
               finalDirecta =
-                done;
+                resolved;
 
               champion =
-                done.winner;
+                resolved.winner;
             }
 
-            if (champion) {
+            /*
+             El perdedor de la final
+             entra al Reducido.
+            */
+            if (
+              champion
+            ) {
               loser =
                 champion ===
                 a1
@@ -1110,86 +1367,98 @@ export const useTournament =
             champion,
           });
 
+          /*
+           Simular todos los cruces
+           rivales posibles.
+          */
           get()
             .advanceBracket();
         },
 
+        /* ---------------------------------------------
+           AVANZAR EL CUADRO
+        --------------------------------------------- */
+
         advanceBracket: () => {
-          const initial =
+          const state =
             get();
 
           if (
-            !initial.bracket
+            !state.bracket
           ) {
             return;
           }
 
           let octavos =
             [
-              ...initial
+              ...state
                 .bracket
                 .octavos,
             ];
 
           let cuartos =
             [
-              ...initial
+              ...state
                 .bracket
                 .cuartos,
             ];
 
           let semis =
             [
-              ...initial
+              ...state
                 .bracket
                 .semis,
             ];
 
           let final =
             [
-              ...initial
+              ...state
                 .bracket
                 .final,
             ];
 
           const userTeamId =
-            initial.userTeamId;
+            state.userTeamId;
 
           const division =
-            initial.division ??
+            state.division ??
             "primera_nacional";
 
-          const legs: 1 | 2 =
+          /*
+           Primera Nacional usa
+           partidos únicos en el Reducido.
+
+           B / C / Promo / Regional
+           usan dos partidos.
+          */
+          const playoffLegs:
+            1 | 2 =
             division ===
-            "primera_nacional"
+              "primera_nacional"
               ? 1
               : 2;
 
-          /**
-           * Procesa una ronda completa:
-           *
-           * - Simula automáticamente
-           *   todos los partidos rivales.
-           * - Nunca simula el partido
-           *   del usuario.
-           * - Si el usuario todavía
-           *   tiene un partido pendiente,
-           *   deja esa ronda tal cual.
-           */
-          const resolveStage = (
-            items: CareerPair[]
+          /*
+           Procesa una fase completa.
+
+           Los rivales se simulan.
+
+           El usuario NO se simula.
+          */
+          const processStage = (
+            pairs: CareerPair[]
           ) => {
             let changed = false;
 
-            const next =
-              items.map(
+            const processed =
+              pairs.map(
                 pair => {
                   const before =
                     JSON.stringify(
                       pair
                     );
 
-                  const result =
+                  const after =
                     playOne(
                       pair,
                       userTeamId
@@ -1198,51 +1467,58 @@ export const useTournament =
                   if (
                     before !==
                     JSON.stringify(
-                      result
+                      after
                     )
                   ) {
                     changed = true;
                   }
 
-                  return result;
+                  return after;
                 }
               );
 
             return {
-              next,
+              pairs: processed,
               changed,
             };
           };
 
-          /**
-           * Recorremos las rondas.
-           * La lógica se repite hasta
-           * encontrar el próximo partido
-           * del usuario.
-           */
+          /*
+           Evitamos loops infinitos
+           en estados guardados viejos.
+          */
           for (
             let guard = 0;
             guard < 20;
             guard++
           ) {
-            let somethingChanged =
+            let changedAnything =
               false;
+
+            /* =======================================
+               OCTAVOS
+            ======================================= */
 
             if (
               octavos.length
             ) {
-              const r =
-                resolveStage(
+              const processed =
+                processStage(
                   octavos
                 );
 
               octavos =
-                r.next;
+                processed.pairs;
 
-              somethingChanged =
-                somethingChanged ||
-                r.changed;
+              changedAnything =
+                changedAnything ||
+                processed.changed;
 
+              /*
+               Hay algún partido
+               pendiente del usuario.
+               Frenamos acá.
+              */
               if (
                 octavos.some(
                   p =>
@@ -1253,6 +1529,10 @@ export const useTournament =
               }
             }
 
+            /*
+             Todos los octavos
+             terminaron.
+            */
             if (
               octavos.length &&
               octavos.every(
@@ -1264,27 +1544,31 @@ export const useTournament =
               cuartos =
                 advancePairs(
                   octavos,
-                  legs
+                  playoffLegs
                 );
 
-              somethingChanged =
+              changedAnything =
                 true;
             }
+
+            /* =======================================
+               CUARTOS
+            ======================================= */
 
             if (
               cuartos.length
             ) {
-              const r =
-                resolveStage(
+              const processed =
+                processStage(
                   cuartos
                 );
 
               cuartos =
-                r.next;
+                processed.pairs;
 
-              somethingChanged =
-                somethingChanged ||
-                r.changed;
+              changedAnything =
+                changedAnything ||
+                processed.changed;
 
               if (
                 cuartos.some(
@@ -1307,27 +1591,31 @@ export const useTournament =
               semis =
                 advancePairs(
                   cuartos,
-                  legs
+                  playoffLegs
                 );
 
-              somethingChanged =
+              changedAnything =
                 true;
             }
+
+            /* =======================================
+               SEMIS
+            ======================================= */
 
             if (
               semis.length
             ) {
-              const r =
-                resolveStage(
+              const processed =
+                processStage(
                   semis
                 );
 
               semis =
-                r.next;
+                processed.pairs;
 
-              somethingChanged =
-                somethingChanged ||
-                r.changed;
+              changedAnything =
+                changedAnything ||
+                processed.changed;
 
               if (
                 semis.some(
@@ -1350,39 +1638,92 @@ export const useTournament =
               final =
                 advancePairs(
                   semis,
-                  legs
+                  playoffLegs
                 );
 
-              somethingChanged =
+              changedAnything =
                 true;
             }
+
+            /* =======================================
+               FINAL REDUCIDO
+            ======================================= */
 
             if (
               final.length
             ) {
-              const r =
-                resolveStage(
+              const processed =
+                processStage(
                   final
                 );
 
               final =
-                r.next;
+                processed.pairs;
 
-              somethingChanged =
-                somethingChanged ||
-                r.changed;
+              changedAnything =
+                changedAnything ||
+                processed.changed;
+
+              if (
+                final.some(
+                  p =>
+                    !p.winner
+                )
+              ) {
+                /*
+                 El usuario tiene que
+                 jugar la final.
+                */
+                break;
+              }
             }
 
-            /**
-             * Si llegamos a una final
-             * con ganador, terminó el
-             * Reducido.
-             */
+            /*
+             Campeón del Reducido.
+            */
             if (
-              final.length ===
-                1 &&
-              final[0]?.winner
+              final.length === 1 &&
+              !!final[0]?.winner
             ) {
+              const winner =
+                final[0]
+                  .winner;
+
+              let regionalChampion =
+                state.regionalChampion;
+
+              let regionalNationalFinal =
+                state.regionalNationalFinal;
+
+              /*
+               Regional:
+               campeón regional ->
+               final nacional.
+              */
+              if (
+                division ===
+                  "regional_federal_amateur" &&
+                winner
+              ) {
+                regionalChampion =
+                  winner;
+
+                if (
+                  winner ===
+                    userTeamId &&
+                  state.regionalNationalOpponent &&
+                  state.regionalNationalOpponent !==
+                    userTeamId
+                ) {
+                  regionalNationalFinal =
+                    {
+                      a: userTeamId,
+                      b: state.regionalNationalOpponent,
+                      legs: 1,
+                    };
+                }
+              }
+
               set({
                 bracket: {
                   octavos,
@@ -1390,37 +1731,32 @@ export const useTournament =
                   semis,
                   final,
                 },
+
                 reducidoChampion:
-                  final[0]
-                    .winner,
+                  winner,
+
+                regionalChampion,
+
+                regionalNationalFinal,
               });
 
               return;
             }
 
-            /**
-             * Si algo cambió, guardamos
-             * el bracket inmediatamente.
-             */
+            /*
+             Si no hubo cambios,
+             no seguimos iterando.
+            */
             if (
-              somethingChanged
+              !changedAnything
             ) {
-              set({
-                bracket: {
-                  octavos,
-                  cuartos,
-                  semis,
-                  final,
-                },
-              });
-            } else {
-              return;
+              break;
             }
           }
 
-          /**
-           * Guardado final por seguridad.
-           */
+          /*
+           Guardado final.
+          */
           set({
             bracket: {
               octavos,
@@ -1438,65 +1774,80 @@ export const useTournament =
     )
   );
 
-/**
- * Convierte los goles de Game
- * al par A/B del cuadro.
- *
- * Game siempre nos da:
- *
- * hg = goles del local real
- * ag = goles del visitante real
- */
-function resolvePairGoals(
+/* =========================================================
+   UTILIDADES DE SERIES
+   ========================================================= */
+
+/*
+ Game siempre entrega:
+
+ hg = goles del equipo LOCAL
+ ag = goles del equipo VISITANTE
+
+ En una serie:
+
+ IDA:
+ A local / B visitante
+
+ VUELTA:
+ B local / A visitante
+*/
+
+function resolveTwoLegUserPair(
   p: CareerPair,
   hg: number,
   ag: number
 ) {
-  /**
-   * IDA:
-   * A local / B visitante
-   */
-  if (
-    p.leg1a === undefined
-  ) {
+  const firstLeg =
+    p.leg1a === undefined;
+
+  if (firstLeg) {
+    /*
+     IDA:
+     A = local
+     B = visitante
+    */
     return {
       aGoals: hg,
       bGoals: ag,
     };
   }
 
-  /**
-   * VUELTA:
-   * B local / A visitante
-   */
+  /*
+   VUELTA:
+   B = local
+   A = visitante
+  */
   return {
     aGoals: ag,
     bGoals: hg,
   };
 }
 
-function resolveWinner(
+function resolveSingleWinner(
   p: CareerPair,
   hg: number,
   ag: number
 ) {
   if (
-    hg > ag
+    hg >
+    ag
   ) {
-    return p.a;
+    return p.a!;
   }
 
   if (
-    ag > hg
+    ag >
+    hg
   ) {
-    return p.b;
+    return p.b!;
   }
 
-  /**
-   * En empate de partido único,
-   * ventaja al primero del cuadro.
-   */
-  return p.a;
+  /*
+   Empate:
+   ventaja al primer equipo.
+  */
+  return p.a!;
 }
 
 function resolveTwoLegWinner(
@@ -1508,11 +1859,16 @@ function resolveTwoLegWinner(
     aGoals,
     bGoals,
   } =
-    resolvePairGoals(
+    resolveTwoLegUserPair(
       p,
       hg,
       ag
     );
+
+  /*
+   leg1a = goles de A en la ida
+   leg1b = goles de B en la ida
+  */
 
   const totalA =
     (p.leg1a ?? 0) +
@@ -1536,11 +1892,16 @@ function resolveTwoLegWinner(
     return p.b!;
   }
 
-  /**
-   * Desempate determinista.
-   */
+  /*
+   Empate global:
+   ventaja al equipo A.
+  */
   return p.a!;
 }
+
+/* =========================================================
+   REGISTRAR PARTIDO DEL USUARIO
+   ========================================================= */
 
 function recordBracketUserMatch(
   kind:
@@ -1574,66 +1935,89 @@ function recordBracketUserMatch(
       ? "final"
       : kind;
 
-  const arr = [
-    ...(bracket[
-      roundKey
-    ] as CareerPair[]),
-  ];
+  const pairs =
+    [
+      ...(bracket[
+        roundKey
+      ] as CareerPair[]),
+    ];
 
-  const p =
-    arr[idx];
+  const pair =
+    pairs[idx];
 
   if (
-    !p?.a ||
-    !p.b
+    !pair?.a ||
+    !pair.b
   ) {
     return {
       finished: false,
       winner:
-        p?.winner,
+        pair?.winner,
     };
   }
 
+  /*
+   Ya está resuelto.
+  */
   if (
-    p.winner
+    pair.winner
   ) {
     return {
       finished: true,
       winner:
-        p.winner,
+        pair.winner,
     };
   }
 
-  /**
-   * SERIE A DOS PARTIDOS
-   */
+  /* ==========================================
+     SERIE A DOS PARTIDOS
+  ========================================== */
+
   if (
-    p.legs === 2
+    pair.legs === 2
   ) {
-    /**
-     * IDA
-     */
+    /*
+     IDA
+    */
     if (
-      p.leg1a === undefined
+      pair.leg1a ===
+      undefined
     ) {
-      arr[idx] = {
-        ...p,
-        leg1a: hg,
-        leg1b: ag,
-      };
+      const {
+        aGoals,
+        bGoals,
+      } =
+        resolveTwoLegUserPair(
+          pair,
+          hg,
+          ag
+        );
 
-      useTournament.setState({
-        bracket: {
-          ...bracket,
-          [roundKey]:
-            arr,
-        } as any,
-      });
+      pairs[idx] =
+        {
+          ...pair,
 
-      /**
-       * Todavía NO avanza de fase.
-       * Hay que jugar la vuelta.
-       */
+          leg1a:
+            aGoals,
+
+          leg1b:
+            bGoals,
+        };
+
+      useTournament.setState(
+        {
+          bracket: {
+            ...bracket,
+
+            [roundKey]:
+              pairs,
+          } as any,
+        }
+      );
+
+      /*
+       La serie todavía NO terminó.
+      */
       return {
         finished: false,
         winner:
@@ -1641,39 +2025,39 @@ function recordBracketUserMatch(
       };
     }
 
-    /**
-     * VUELTA
-     *
-     * Game habrá mostrado:
-     *
-     * B local
-     * A visitante
-     */
+    /*
+     VUELTA
+    */
     const winner =
       resolveTwoLegWinner(
-        p,
+        pair,
         hg,
         ag
       );
 
-    /**
-     * Guardamos los goles exactamente
-     * como se jugaron:
-     *
-     * leg2a = goles de B (local)
-     * leg2b = goles de A (visitante)
-     */
-    arr[idx] = {
-      ...p,
-      leg2a: hg,
-      leg2b: ag,
-      winner,
-    };
+    pairs[idx] =
+      {
+        ...pair,
+
+        /*
+         Se guardan tal como
+         aparecieron en Game:
+         local / visitante.
+        */
+        leg2a:
+          hg,
+
+        leg2b:
+          ag,
+
+        winner,
+      };
 
     const nextBracket = {
       ...bracket,
+
       [roundKey]:
-        arr,
+        pairs,
     } as {
       octavos: CareerPair[];
       cuartos: CareerPair[];
@@ -1684,6 +2068,7 @@ function recordBracketUserMatch(
     useTournament.setState({
       bracket:
         nextBracket,
+
       reducidoChampion:
         kind ===
         "final_reducido"
@@ -1691,11 +2076,11 @@ function recordBracketUserMatch(
           : state.reducidoChampion,
     });
 
-    /**
-     * AHORA SÍ:
-     * simula rivales y arma
-     * la siguiente fase.
-     */
+    /*
+     MUY IMPORTANTE:
+     el resultado ya fue guardado,
+     recién ahora avanzamos el cuadro.
+    */
     useTournament
       .getState()
       .advanceBracket();
@@ -1706,27 +2091,32 @@ function recordBracketUserMatch(
     };
   }
 
-  /**
-   * PARTIDO ÚNICO
-   */
+  /* ==========================================
+     PARTIDO ÚNICO
+  ========================================== */
+
   const winner =
-    resolveWinner(
-      p,
+    resolveSingleWinner(
+      pair,
       hg,
       ag
     );
 
-  arr[idx] = {
-    ...p,
-    ag: hg,
-    bg: ag,
-    winner,
-  };
+  pairs[idx] =
+    {
+      ...pair,
+
+      ag: hg,
+      bg: ag,
+
+      winner,
+    };
 
   const nextBracket = {
     ...bracket,
+
     [roundKey]:
-      arr,
+      pairs,
   } as {
     octavos: CareerPair[];
     cuartos: CareerPair[];
@@ -1737,6 +2127,7 @@ function recordBracketUserMatch(
   useTournament.setState({
     bracket:
       nextBracket,
+
     reducidoChampion:
       kind ===
       "final_reducido"
@@ -1744,11 +2135,9 @@ function recordBracketUserMatch(
         : state.reducidoChampion,
   });
 
-  /**
-   * Importantísimo:
-   * una vez terminado el partido
-   * del usuario, avanzar el cuadro.
-   */
+  /*
+   Avanzar inmediatamente.
+  */
   useTournament
     .getState()
     .advanceBracket();
@@ -1759,6 +2148,10 @@ function recordBracketUserMatch(
   };
 }
 
+/* =========================================================
+   API PÚBLICA PARA REDUCIDO
+   ========================================================= */
+
 export function recordUserPlayoff(
   kind:
     | "final"
@@ -1766,63 +2159,75 @@ export function recordUserPlayoff(
     | "cuartos"
     | "semis"
     | "final_reducido",
+
   idx: number,
+
   hg: number,
+
   ag: number
 ) {
-  const s =
+  const state =
     useTournament.getState();
 
   const division =
-    s.division ??
+    state.division ??
     "primera_nacional";
 
-  /**
-   * FINAL NACIONAL DEL REGIONAL
-   */
+  /* ==========================================
+     FINAL NACIONAL REGIONAL
+  ========================================== */
+
   if (
     kind === "final" &&
     division ===
       "regional_federal_amateur"
   ) {
-    const p =
-      s.regionalNationalFinal;
+    const pair =
+      state.regionalNationalFinal;
 
     if (
-      !p?.a ||
-      !p.b ||
-      p.winner
+      !pair?.a ||
+      !pair.b ||
+      pair.winner
     ) {
       return {
         finished:
-          !!p?.winner,
+          !!pair?.winner,
+
         winner:
-          p?.winner,
+          pair?.winner,
       };
     }
 
     const winner =
-      resolveWinner(
-        p,
+      resolveSingleWinner(
+        pair,
         hg,
         ag
       );
 
-    useTournament.setState({
-      regionalNationalFinal: {
-        ...p,
-        ag: hg,
-        bg: ag,
-        winner,
-      },
-      champion:
-        winner,
-      reducidoChampion:
-        winner ===
-        s.userTeamId
-          ? winner
-          : s.reducidoChampion,
-    });
+    useTournament.setState(
+      {
+        regionalNationalFinal:
+          {
+            ...pair,
+
+            ag: hg,
+            bg: ag,
+
+            winner,
+          },
+
+        champion:
+          winner,
+
+        reducidoChampion:
+          winner ===
+          state.userTeamId
+            ? winner
+            : state.reducidoChampion,
+      }
+    );
 
     return {
       finished: true,
@@ -1830,18 +2235,19 @@ export function recordUserPlayoff(
     };
   }
 
-  /**
-   * FINAL DIRECTA
-   */
+  /* ==========================================
+     FINAL DIRECTA
+  ========================================== */
+
   if (
     kind === "final"
   ) {
-    const p =
-      s.finalDirecta;
+    const pair =
+      state.finalDirecta;
 
     if (
-      !p?.a ||
-      !p.b
+      !pair?.a ||
+      !pair.b
     ) {
       return {
         finished: false,
@@ -1852,25 +2258,44 @@ export function recordUserPlayoff(
       };
     }
 
-    /**
-     * FINAL A DOS PARTIDOS
-     */
+    /* ------------------------------------------
+       FINAL A DOS PARTIDOS
+    ------------------------------------------ */
+
     if (
-      p.legs === 2
+      pair.legs === 2
     ) {
-      /**
-       * IDA
-       */
+      /*
+       IDA
+      */
       if (
-        p.leg1a === undefined
+        pair.leg1a ===
+        undefined
       ) {
-        useTournament.setState({
-          finalDirecta: {
-            ...p,
-            leg1a: hg,
-            leg1b: ag,
-          },
-        });
+        const {
+          aGoals,
+          bGoals,
+        } =
+          resolveTwoLegUserPair(
+            pair,
+            hg,
+            ag
+          );
+
+        useTournament.setState(
+          {
+            finalDirecta:
+              {
+                ...pair,
+
+                leg1a:
+                  aGoals,
+
+                leg1b:
+                  bGoals,
+              },
+          }
+        );
 
         return {
           finished: false,
@@ -1879,32 +2304,48 @@ export function recordUserPlayoff(
         };
       }
 
-      /**
-       * VUELTA
-       */
+      /*
+       VUELTA
+      */
       const winner =
         resolveTwoLegWinner(
-          p,
+          pair,
           hg,
           ag
         );
 
       const loser =
-        winner === p.a
-          ? p.b
-          : p.a;
+        winner === pair.a
+          ? pair.b
+          : pair.a;
 
-      useTournament.setState({
-        finalDirecta: {
-          ...p,
-          leg2a: hg,
-          leg2b: ag,
-          winner,
-        },
-        champion:
-          winner,
-      });
+      useTournament.setState(
+        {
+          finalDirecta:
+            {
+              ...pair,
 
+              leg2a:
+                hg,
+
+              leg2b:
+                ag,
+
+              winner,
+            },
+
+          champion:
+            winner,
+        }
+      );
+
+      /*
+       Primera C:
+       el perdedor entra al Reducido.
+
+       Promocional:
+       el perdedor también entra.
+      */
       if (
         division ===
           "primera_c" ||
@@ -1914,14 +2355,16 @@ export function recordUserPlayoff(
         const bracket =
           bracketForDivision(
             division,
-            s.standA,
-            s.standB,
+            state.standA,
+            state.standB,
             loser
           );
 
-        useTournament.setState({
-          bracket,
-        });
+        useTournament.setState(
+          {
+            bracket,
+          }
+        );
 
         useTournament
           .getState()
@@ -1934,35 +2377,42 @@ export function recordUserPlayoff(
       };
     }
 
-    /**
-     * FINAL A UN PARTIDO
-     */
+    /* ------------------------------------------
+       FINAL A UN PARTIDO
+    ------------------------------------------ */
+
     const winner =
-      resolveWinner(
-        p,
+      resolveSingleWinner(
+        pair,
         hg,
         ag
       );
 
     const loser =
-      winner === p.a
-        ? p.b
-        : p.a;
+      winner === pair.a
+        ? pair.b
+        : pair.a;
 
-    useTournament.setState({
-      finalDirecta: {
-        ...p,
-        ag: hg,
-        bg: ag,
-        winner,
-      },
-      champion:
-        winner,
-    });
+    useTournament.setState(
+      {
+        finalDirecta:
+          {
+            ...pair,
 
-    /**
-     * El perdedor entra al Reducido.
-     */
+            ag: hg,
+            bg: ag,
+
+            winner,
+          },
+
+        champion:
+          winner,
+      }
+    );
+
+    /*
+     Perdedor al Reducido.
+    */
     if (
       division ===
         "primera_nacional" ||
@@ -1974,15 +2424,21 @@ export function recordUserPlayoff(
       const bracket =
         bracketForDivision(
           division,
-          s.standA,
-          s.standB,
+          state.standA,
+          state.standB,
           loser
         );
 
-      useTournament.setState({
-        bracket,
-      });
+      useTournament.setState(
+        {
+          bracket,
+        }
+      );
 
+      /*
+       Ahora simulamos rivales
+       y armamos la siguiente fase.
+      */
       useTournament
         .getState()
         .advanceBracket();
@@ -1994,9 +2450,10 @@ export function recordUserPlayoff(
     };
   }
 
-  /**
-   * PARTIDO NORMAL DEL REDUCIDO
-   */
+  /* ==========================================
+     PARTIDO DEL REDUCIDO
+  ========================================== */
+
   return recordBracketUserMatch(
     kind,
     idx,
