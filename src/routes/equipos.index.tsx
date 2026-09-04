@@ -1,8 +1,9 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Nav } from "@/components/Nav";
 import { Shield, Jersey } from "@/components/Shield";
 import { useTeamsSync } from "@/lib/teams-sync";
+import { playUiBlip, playUiConfirm } from "@/lib/ui-blip";
 import {
   getTeamsByDivision,
   getTeamsByZone,
@@ -635,7 +636,9 @@ function RegionalView({
 }
 
 // ============================================================================
-// GRID DE EQUIPOS
+// GRID DE EQUIPOS — estilo selector de equipo tipo videojuego de consola
+// (panel con textura cálida + resplandor de fuego, escudos en grilla, el
+// resaltado se agranda con borde dorado, navegable con flechas + sonido).
 // ============================================================================
 
 function TeamGrid({
@@ -649,6 +652,62 @@ function TeamGrid({
     typeof getTeamsByDivision
   >;
 }) {
+  const navigate = useNavigate();
+  const [focusIdx, setFocusIdx] = useState(0);
+  const gridRef = useRef<HTMLDivElement>(null);
+  const cellRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const [cols, setCols] = useState(5);
+
+  // Recalcula cuántas columnas tiene la grilla en este ancho de pantalla,
+  // para que las flechas arriba/abajo salten la cantidad correcta de celdas.
+  useEffect(() => {
+    const el = gridRef.current;
+    if (!el) return;
+    const measure = () => {
+      const style = getComputedStyle(el);
+      const n = style.gridTemplateColumns.split(" ").filter(Boolean).length;
+      if (n > 0) setCols(n);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [teams.length]);
+
+  useEffect(() => {
+    if (focusIdx >= teams.length) setFocusIdx(0);
+  }, [teams.length, focusIdx]);
+
+  useEffect(() => {
+    cellRefs.current[focusIdx]?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
+  }, [focusIdx]);
+
+  useEffect(() => {
+    if (teams.length === 0) return;
+    const onKey = (e: KeyboardEvent) => {
+      let next = focusIdx;
+      if (e.key === "ArrowRight") next = Math.min(teams.length - 1, focusIdx + 1);
+      else if (e.key === "ArrowLeft") next = Math.max(0, focusIdx - 1);
+      else if (e.key === "ArrowDown") next = Math.min(teams.length - 1, focusIdx + cols);
+      else if (e.key === "ArrowUp") next = Math.max(0, focusIdx - cols);
+      else if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        playUiConfirm();
+        navigate({ to: "/equipos/$id", params: { id: teams[focusIdx].id } });
+        return;
+      } else return;
+      e.preventDefault();
+      if (next !== focusIdx) {
+        playUiBlip();
+        setFocusIdx(next);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [focusIdx, cols, teams, navigate]);
+
+  const active = teams[focusIdx];
+
   return (
     <section className="mt-8">
 
@@ -673,112 +732,73 @@ function TeamGrid({
           No hay equipos para mostrar.
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-          {teams.map(
-            (team) => (
-              <Link
-                key={team.id}
-                to="/equipos/$id"
-                params={{
-                  id: team.id,
-                }}
-                className="group rounded-xl bg-card border border-border p-4 transition hover:border-celeste hover:bg-celeste/[0.04]"
-              >
-                <div className="flex flex-col items-center text-center">
+        <div className="relative rounded-2xl overflow-hidden border-2 border-[#7a5a2a] shadow-[0_10px_40px_rgba(0,0,0,0.5)]">
+          {/* Panel con textura cálida (madera/cuero envejecido), como los menús de selección clásicos */}
+          <div
+            className="absolute inset-0"
+            style={{
+              background:
+                "radial-gradient(ellipse at 15% 15%, #6b4a22 0%, #2c1d0d 55%, #150d05 100%)",
+            }}
+          />
+          <div
+            className="absolute inset-0 opacity-25 mix-blend-overlay"
+            style={{
+              backgroundImage:
+                "repeating-linear-gradient(115deg, rgba(255,220,150,0.10) 0px, rgba(255,220,150,0.10) 2px, transparent 2px, transparent 10px)",
+            }}
+          />
+          {/* Resplandor de "fuego" en una esquina, animado */}
+          <div className="absolute -bottom-16 -right-16 w-72 h-72 rounded-full bg-[radial-gradient(circle,rgba(255,140,20,0.55)_0%,rgba(255,90,0,0.18)_45%,transparent_70%)] blur-2xl animate-pulse" />
+          <div className="absolute inset-0 shadow-[inset_0_0_120px_50px_rgba(0,0,0,0.55)]" />
 
-                  <div className="h-20 w-20 flex items-center justify-center">
-                    <Shield
-                      team={team}
-                      size={64}
-                    />
-                  </div>
-
-                  <div className="mt-3 font-display text-sm truncate w-full">
-                    {team.short ||
-                      team.name}
-                  </div>
-
-                  <div className="text-[11px] text-muted-foreground truncate w-full mt-1">
-                    {team.name}
-                  </div>
-
-                  <div className="text-[10px] text-muted-foreground truncate w-full mt-1">
-                    {team.city}
-                  </div>
-
-                  {team.division ===
-                    "regional_federal_amateur" &&
-                    team.regionalRegion && (
-                      <div className="text-[9px] text-celeste/80 mt-2">
-                        {
-                          team.regionalRegion
-                        }{" "}
-                        · Grupo{" "}
-                        {
-                          team.regionalGroup
-                        }
-                      </div>
-                    )}
-
-                  <div className="mt-3 grid grid-cols-4 gap-1 w-full text-[9px]">
-                    <div className="rounded bg-secondary/60 px-1 py-1">
-                      <div className="text-muted-foreground">
-                        VEL
-                      </div>
-                      <div className="font-display">
-                        {
-                          team.stats
-                            .speed
-                        }
-                      </div>
-                    </div>
-
-                    <div className="rounded bg-secondary/60 px-1 py-1">
-                      <div className="text-muted-foreground">
-                        SAL
-                      </div>
-                      <div className="font-display">
-                        {
-                          team.stats
-                            .jump
-                        }
-                      </div>
-                    </div>
-
-                    <div className="rounded bg-secondary/60 px-1 py-1">
-                      <div className="text-muted-foreground">
-                        POT
-                      </div>
-                      <div className="font-display">
-                        {
-                          team.stats
-                            .power
-                        }
-                      </div>
-                    </div>
-
-                    <div className="rounded bg-secondary/60 px-1 py-1">
-                      <div className="text-muted-foreground">
-                        DEF
-                      </div>
-                      <div className="font-display">
-                        {
-                          team.stats
-                            .defense
-                        }
-                      </div>
-                    </div>
-                  </div>
-
-                  {team.logoUrl ? (
-                    <div className="mt-2 text-[9px] text-hud-green">
-                      ESCUDO CARGADO
-                    </div>
-                  ) : null}
+          {/* Barra superior con el nombre del equipo resaltado */}
+          {active && (
+            <div className="relative z-10 flex items-center gap-3 px-4 sm:px-6 py-3 bg-black/50 border-b border-[#c9a24b]/40">
+              <Shield team={active} size={32} />
+              <div className="min-w-0">
+                <div className="font-display text-lg sm:text-xl text-[#f4d989] truncate drop-shadow-[0_0_10px_rgba(244,217,137,0.4)]">
+                  {active.name}
                 </div>
-              </Link>
-            ),
+                <div className="text-[10px] sm:text-xs text-white/50 truncate">{active.city}</div>
+              </div>
+              <div className="ml-auto hidden sm:grid grid-cols-4 gap-1.5 text-[10px]">
+                {([["VEL", active.stats.speed], ["SAL", active.stats.jump], ["POT", active.stats.power], ["DEF", active.stats.defense]] as const).map(([label, val]) => (
+                  <div key={label} className="rounded bg-white/10 px-2 py-1 text-center min-w-[42px]">
+                    <div className="text-white/50">{label}</div>
+                    <div className="font-display text-[#f4d989]">{val}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
+
+          {/* Grilla de escudos */}
+          <div
+            ref={gridRef}
+            className="relative z-10 grid grid-cols-4 sm:grid-cols-6 md:grid-cols-7 lg:grid-cols-8 gap-2 sm:gap-3 p-4 sm:p-6 max-h-[70vh] overflow-y-auto"
+          >
+            {teams.map((team, i) => {
+              const isFocused = i === focusIdx;
+              return (
+                <button
+                  key={team.id}
+                  ref={el => { cellRefs.current[i] = el; }}
+                  type="button"
+                  onMouseEnter={() => { if (focusIdx !== i) { playUiBlip(); setFocusIdx(i); } }}
+                  onClick={() => { playUiConfirm(); navigate({ to: "/equipos/$id", params: { id: team.id } }); }}
+                  title={team.name}
+                  className={`relative aspect-square rounded-lg flex items-center justify-center transition-all duration-150 ${
+                    isFocused
+                      ? "scale-110 bg-[#3a2a12] ring-2 ring-[#f4d989] shadow-[0_0_18px_rgba(244,217,137,0.6)] z-10"
+                      : "bg-black/25 hover:bg-black/40 ring-1 ring-white/10"
+                  }`}
+                >
+                  <Shield team={team} size={isFocused ? 44 : 36} />
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
     </section>
