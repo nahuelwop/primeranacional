@@ -49,6 +49,16 @@ export type IntroVideoKey =
 
 export type DivisionIntroVideos = Partial<Record<IntroVideoKey, string | null>>;
 
+// Logos de categoría (para el selector de ligas estilo PES en Equipos).
+// Usa las mismas claves que IntroVideoKey — una imagen por división + Copa Argentina.
+export type DivisionLogos = Partial<Record<IntroVideoKey, string | null>>;
+
+// Sonidos del menú de Equipos (estilo PES): al pasar de equipo, al elegirlo,
+// y al cambiar de liga/división. Si no hay audio cargado, se usa el "blip"
+// sintetizado de siempre (ver src/lib/ui-blip.ts) — nunca queda mudo.
+export type UiSfxKey = "team_move" | "team_select" | "league_select";
+export type UiSfx = Partial<Record<UiSfxKey, string | null>>;
+
 export type GameSettings = {
   id: string;
 
@@ -58,6 +68,12 @@ export type GameSettings = {
 
   // Campo nuevo: una intro independiente para cada división / Copa Argentina.
   intro_videos: DivisionIntroVideos;
+
+  // Logo de cada división + Copa Argentina, para el selector de ligas de Equipos.
+  division_logos: DivisionLogos;
+
+  // Sonidos del menú de Equipos (pasar equipo / elegir equipo / cambiar liga).
+  ui_sfx: UiSfx;
 
   whistle_audio_url: string | null;
 
@@ -70,6 +86,8 @@ export const DEFAULT_SETTINGS: GameSettings = {
   id: "global",
   intro_video_url: null,
   intro_videos: {},
+  division_logos: {},
+  ui_sfx: {},
   whistle_audio_url: null,
   coimas_enabled: false,
   coimas_flags: {},
@@ -118,6 +136,28 @@ function normalizeIntroVideos(
   return result;
 }
 
+function normalizeKeyedUrls<K extends string>(
+  source: unknown,
+  keys: readonly K[],
+): Partial<Record<K, string | null>> {
+  const result: Partial<Record<K, string | null>> = {};
+  if (source && typeof source === "object" && !Array.isArray(source)) {
+    const obj = source as Record<string, unknown>;
+    for (const key of keys) {
+      const value = obj[key];
+      if (typeof value === "string" && value.trim() !== "") result[key] = value;
+      else if (value === null) result[key] = null;
+    }
+  }
+  return result;
+}
+
+const INTRO_VIDEO_KEYS = [
+  "primera_division", "primera_nacional", "primera_b", "primera_c",
+  "promocional_amateur", "federal_a", "regional_federal_amateur", "copa_argentina",
+] as const;
+const UI_SFX_KEYS = ["team_move", "team_select", "league_select"] as const;
+
 export async function fetchGameSettings(): Promise<GameSettings> {
   const { data, error } = await supabase
     .from("game_settings")
@@ -142,6 +182,9 @@ export async function fetchGameSettings(): Promise<GameSettings> {
       data.intro_videos,
       legacyUrl,
     ),
+
+    division_logos: normalizeKeyedUrls((data as any).division_logos, INTRO_VIDEO_KEYS),
+    ui_sfx: normalizeKeyedUrls((data as any).ui_sfx, UI_SFX_KEYS),
 
     whistle_audio_url:
       typeof data.whistle_audio_url === "string"
@@ -178,6 +221,8 @@ export async function saveGameSettings(
   const payload = {
     intro_video_url: introVideos.primera_nacional ?? patch.intro_video_url ?? current.intro_video_url ?? null,
     intro_videos: introVideos,
+    division_logos: patch.division_logos ?? current.division_logos ?? {},
+    ui_sfx: patch.ui_sfx ?? current.ui_sfx ?? {},
     whistle_audio_url: patch.whistle_audio_url ?? current.whistle_audio_url ?? null,
     coimas_enabled: patch.coimas_enabled ?? current.coimas_enabled,
     coimas_flags: patch.coimas_flags ?? current.coimas_flags,
@@ -193,7 +238,7 @@ export async function saveGameSettings(
 
   if (!updateResult.error && updateResult.data) return;
 
-  if (updateResult.error && !/column .*intro_videos.*does not exist/i.test(updateResult.error.message)) {
+  if (updateResult.error && !/column .*(intro_videos|division_logos|ui_sfx).*does not exist/i.test(updateResult.error.message)) {
     // Si es un error real (RLS, conexión, etc.), no lo tapamos.
     throw updateResult.error;
   }
@@ -214,7 +259,7 @@ export async function saveGameSettings(
     .maybeSingle();
 
   if (!fallback.error && fallback.data) {
-    throw new Error("La base de datos todavía no tiene la columna intro_videos. Ejecutá la migración 20260902000000_career_features.sql y la 20260827010000_division_intro_videos.sql.");
+    throw new Error("La base de datos todavía no tiene las columnas intro_videos/division_logos/ui_sfx. Ejecutá la migración 20260902000000_career_features.sql, la 20260827010000_division_intro_videos.sql y la 20260906000000_ui_sfx_division_logos.sql.");
   }
   if (fallback.error) throw fallback.error;
 }
