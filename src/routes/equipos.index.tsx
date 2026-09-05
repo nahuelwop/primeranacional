@@ -3,7 +3,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Nav } from "@/components/Nav";
 import { Shield, Jersey } from "@/components/Shield";
 import { useTeamsSync } from "@/lib/teams-sync";
-import { playUiBlip, playUiConfirm } from "@/lib/ui-blip";
+import { playUiBlip, playUiConfirm, playLeagueChange } from "@/lib/ui-blip";
+import { useGameSettings } from "@/lib/game-settings";
 import {
   getTeamsByDivision,
   getTeamsByZone,
@@ -60,6 +61,9 @@ function EquiposPage() {
   // Supabase/Realtime, esta pantalla vuelve a renderizarse.
   const teamsVersion =
     useTeamsSync();
+
+  const { settings } = useGameSettings();
+  const divisionLogos = settings.division_logos ?? {};
 
   const [selectedDivision, setSelectedDivision] =
     useState<DivisionId>(
@@ -145,6 +149,7 @@ function EquiposPage() {
   function handleDivisionChange(
     division: DivisionId,
   ) {
+    playLeagueChange();
     setSelectedDivision(
       division,
     );
@@ -260,30 +265,46 @@ function EquiposPage() {
                       }`}
                     />
 
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div
-                          className={`font-display text-xl leading-none ${
-                            active
-                              ? "text-celeste"
-                              : ""
-                          }`}
-                        >
-                          {item.name}
+                    <div className="flex items-center gap-3">
+                      {divisionLogos[divisionId] ? (
+                        <img
+                          src={divisionLogos[divisionId] as string}
+                          alt=""
+                          className={`w-12 h-12 object-contain shrink-0 transition-transform ${active ? "scale-110" : "opacity-70"}`}
+                        />
+                      ) : (
+                        <div className={`w-12 h-12 shrink-0 rounded-full border-2 grid place-items-center font-display text-lg ${
+                          active ? "border-celeste text-celeste" : "border-border text-muted-foreground"
+                        }`}>
+                          {item.shortName.slice(0, 2).toUpperCase()}
+                        </div>
+                      )}
+
+                      <div className="flex-1 min-w-0 flex items-start justify-between gap-2">
+                        <div>
+                          <div
+                            className={`font-display text-xl leading-none ${
+                              active
+                                ? "text-celeste"
+                                : ""
+                            }`}
+                          >
+                            {item.name}
+                          </div>
+
+                          <div className="text-[11px] text-muted-foreground mt-2 uppercase tracking-wide">
+                            {divisionId ===
+                            "regional_federal_amateur"
+                              ? "8 regiones"
+                              : item.hasZones
+                                ? `${item.zones.length} zonas`
+                                : "Tabla general"}
+                          </div>
                         </div>
 
-                        <div className="text-[11px] text-muted-foreground mt-2 uppercase tracking-wide">
-                          {divisionId ===
-                          "regional_federal_amateur"
-                            ? "8 regiones"
-                            : item.hasZones
-                              ? `${item.zones.length} zonas`
-                              : "Tabla general"}
+                        <div className="font-display text-2xl text-muted-foreground/60">
+                          {count}
                         </div>
-                      </div>
-
-                      <div className="font-display text-2xl text-muted-foreground/60">
-                        {count}
                       </div>
                     </div>
                   </button>
