@@ -1261,6 +1261,58 @@ function AjustesTab() {
     }
   }
 
+  function setDivisionLogo(key: string, value: string | null) {
+    setSettings((s) => ({
+      ...s,
+      division_logos: { ...((s as any).division_logos ?? {}), [key]: value },
+    }) as GameSettings);
+  }
+  function getDivisionLogo(key: string) {
+    return (((settings as any).division_logos ?? {}) as Record<string, string | null>)[key] ?? null;
+  }
+
+  function setUiSfx(key: string, value: string | null) {
+    setSettings((s) => ({
+      ...s,
+      ui_sfx: { ...((s as any).ui_sfx ?? {}), [key]: value },
+    }) as GameSettings);
+  }
+  function getUiSfx(key: string) {
+    return (((settings as any).ui_sfx ?? {}) as Record<string, string | null>)[key] ?? null;
+  }
+
+  async function uploadDivisionLogo(key: string, file: File) {
+    setBusy(true); setErr(null); setMsg(null);
+    try {
+      if (!file.type.startsWith("image/")) throw new Error("El archivo tiene que ser una imagen.");
+      if (file.size > 8 * 1024 * 1024) throw new Error("La imagen no puede superar 8 MB.");
+      const ext = file.name.split(".").pop() || "png";
+      const safeKey = key.replace(/[^a-zA-Z0-9_-]/g, "-");
+      const path = `division-logos/${safeKey}-${Date.now()}.${ext}`;
+      const { error } = await supabase.storage.from("team-logos").upload(path, file, { upsert: true, contentType: file.type, cacheControl: "3600" });
+      if (error) throw error;
+      const { data } = supabase.storage.from("team-logos").getPublicUrl(path);
+      setDivisionLogo(key, data.publicUrl);
+      setMsg(`Logo de ${INTRO_OPTIONS.find(x => x.key === key)?.label ?? key} subido correctamente.`);
+    } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
+  }
+
+  async function uploadUiSfx(key: string, file: File) {
+    setBusy(true); setErr(null); setMsg(null);
+    try {
+      if (!file.type.startsWith("audio/")) throw new Error("El archivo tiene que ser un audio.");
+      if (file.size > 8 * 1024 * 1024) throw new Error("El audio no puede superar 8 MB.");
+      const ext = file.name.split(".").pop() || "mp3";
+      const safeKey = key.replace(/[^a-zA-Z0-9_-]/g, "-");
+      const path = `ui-sfx/${safeKey}-${Date.now()}.${ext}`;
+      const { error } = await supabase.storage.from("team-audios").upload(path, file, { upsert: true, contentType: file.type });
+      if (error) throw error;
+      const { data } = supabase.storage.from("team-audios").getPublicUrl(path);
+      setUiSfx(key, data.publicUrl);
+      setMsg("Sonido subido correctamente.");
+    } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
+  }
+
   async function save() {
     setBusy(true);
     setErr(null);
@@ -1283,6 +1335,8 @@ function AjustesTab() {
       await saveGameSettings({
         intro_video_url: legacyIntro,
         intro_videos: introVideos as any,
+        division_logos: (settings as any).division_logos ?? {},
+        ui_sfx: (settings as any).ui_sfx ?? {},
         whistle_audio_url:
           settings.whistle_audio_url,
         coimas_enabled:
@@ -1482,6 +1536,85 @@ function AjustesTab() {
                     predeterminada.
                   </div>
                 )}
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* =====================================================================
+          LOGOS DE CATEGORÍA (selector de ligas estilo PES en Equipos)
+      ====================================================================== */}
+
+      <section className="rounded-2xl bg-card border border-border p-5">
+        <div className="mb-5">
+          <h2 className="font-display text-xl mb-1">🏅 Logos de categorías</h2>
+          <p className="text-xs text-muted-foreground">
+            Se muestran en el selector de ligas de la pantalla Equipos. Sin logo cargado, se usa una sigla genérica.
+          </p>
+        </div>
+
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {INTRO_OPTIONS.map((intro) => {
+            const url = getDivisionLogo(intro.key);
+            return (
+              <div key={intro.key} className="rounded-xl border border-border/70 bg-background/30 p-4 space-y-3 flex flex-col items-center text-center">
+                <div className="font-display text-sm">{intro.label}</div>
+                <div className="w-16 h-16 rounded-full border border-border bg-card grid place-items-center overflow-hidden">
+                  {url ? <img src={url} alt="" className="w-full h-full object-contain" /> : <span className="text-muted-foreground text-xs">Sin logo</span>}
+                </div>
+                <label className="text-xs text-celeste underline cursor-pointer">
+                  {busy ? "Subiendo..." : "Subir logo"}
+                  <input type="file" accept="image/*" hidden disabled={busy}
+                    onChange={(e) => { const file = e.target.files?.[0]; if (file) uploadDivisionLogo(intro.key, file); e.target.value = ""; }} />
+                </label>
+                {url && (
+                  <button onClick={() => setDivisionLogo(intro.key, null)} className="text-[11px] text-destructive hover:underline">
+                    Quitar logo
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* =====================================================================
+          SONIDOS DE EQUIPOS (menú estilo PES: pasar equipo / elegir / liga)
+      ====================================================================== */}
+
+      <section className="rounded-2xl bg-card border border-border p-5">
+        <div className="mb-5">
+          <h2 className="font-display text-xl mb-1">🔊 Sonidos de Equipos</h2>
+          <p className="text-xs text-muted-foreground">
+            Si no cargás audio propio, se usa un "blip" sintetizado automático — nunca queda mudo.
+          </p>
+        </div>
+
+        <div className="grid sm:grid-cols-3 gap-4">
+          {([
+            { key: "team_move", label: "Al pasar de equipo", desc: "Suena al mover el cursor por la grilla de escudos." },
+            { key: "team_select", label: "Al elegir un equipo", desc: "Suena al confirmar (click o Enter) sobre un equipo." },
+            { key: "league_select", label: "Al cambiar de liga", desc: "Suena al pasar de una división a otra." },
+          ] as const).map(sfx => {
+            const url = getUiSfx(sfx.key);
+            return (
+              <div key={sfx.key} className="rounded-xl border border-border/70 bg-background/30 p-4 space-y-2">
+                <div className="font-display text-sm">{sfx.label}</div>
+                <div className="text-[11px] text-muted-foreground">{sfx.desc}</div>
+                {url && <audio key={url} src={url} controls className="w-full h-9" />}
+                <div className="flex items-center gap-3 flex-wrap">
+                  <label className="text-xs text-celeste underline cursor-pointer">
+                    {busy ? "Subiendo..." : "Subir audio"}
+                    <input type="file" accept="audio/*" hidden disabled={busy}
+                      onChange={(e) => { const file = e.target.files?.[0]; if (file) uploadUiSfx(sfx.key, file); e.target.value = ""; }} />
+                  </label>
+                  {url && (
+                    <button onClick={() => setUiSfx(sfx.key, null)} className="text-xs text-destructive hover:underline">
+                      Quitar
+                    </button>
+                  )}
+                </div>
               </div>
             );
           })}
